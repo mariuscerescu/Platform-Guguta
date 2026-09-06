@@ -147,22 +147,22 @@ Revizia 1.1 aliniază ordinea cu livrările L0–L10. Testele, identitatea și C
 
 ## L7 — Snapshot, import și revocare
 
-- [ ] Implementăm ShareSnapshot/ShareMaterial și versiunea contractului.
-- [ ] Implementăm allowlist explicit; nu serializăm generic notebook-ul.
-- [ ] Excludem chat, notițe, insight-uri personale, memorie și secrete.
-- [ ] Creăm token/link și cod pentru același pachet, cu protecție în loguri.
-- [ ] Implementăm preview autorizat și formular de import.
-- [ ] Implementăm cota logică și verificarea concurentă.
-- [ ] Creăm copia și ShareImport în tranzacție.
-- [ ] Legăm idempotency de actor/operație/payload; importul intenționat nou rămâne permis.
-- [ ] Serializăm verificarea finală a importului cu revocarea.
-- [ ] Recuperăm importul finalizat după timeout, inclusiv după revocare ulterioară.
-- [ ] Revocăm împreună codul și linkul fără efect asupra copiilor existente.
-- [ ] Definim expirarea/limitele opționale fără efect retroactiv.
-- [ ] Implementăm ștergerea carnetului/contului autorului cu revocarea pachetelor active.
-- [ ] Implementăm GC coordonat cu snapshoturi/importuri/joburi și retenție.
-- [ ] Testăm efectele externe și curățarea compensatorie la eșec.
-- [ ] Executăm A07–A10/A15/A16/A19–A21/A28 cu teste concurente.
+- [x] Implementăm ShareSnapshot/ShareMaterial și versiunea contractului. — schema_version 1, manifest fix, materiale fixate pe MaterialVersion.
+- [x] Implementăm allowlist explicit; nu serializăm generic notebook-ul. — allowlist = sursele „ready" selectate de autor; manifestul conține lista explicită de câmpuri.
+- [x] Excludem chat, notițe, insight-uri personale, memorie și secrete. — preview/import expun doar materialele aprobate (testat A07).
+- [x] Creăm token/link și cod pentru același pachet, cu protecție în loguri. — link token + cod 8 caractere, doar hash stocat; `/import#token=…` fără logarea tokenului.
+- [x] Implementăm preview autorizat și formular de import. — POST /imports/preview (metadate minime) + POST /imports; lookup-ul tokenului prin funcție SECURITY DEFINER (fără divulgare).
+- [x] Implementăm cota logică și verificarea concurentă. — cotă per destinatar (byte_size logic); lock pe rândul utilizatorului înainte de verificare (A20).
+- [x] Creăm copia și ShareImport în tranzacție. — carnet + NotebookSource-uri + ShareImport + idempotency într-o singură tranzacție; artefacte reutilizate.
+- [x] Legăm idempotency de actor/operație/payload; importul intenționat nou rămâne permis. — UNIQUE(actor, operation, key) + payload_hash (testat: replay vs. cheie nouă → copie nouă).
+- [x] Serializăm verificarea finală a importului cu revocarea. — re-verificarea stării la finalul tranzacției (A19; stil A19 din L6).
+- [x] Recuperăm importul finalizat după timeout, inclusiv după revocare ulterioară. — replay după revocare întoarce copia proprie (R36, testat).
+- [x] Revocăm împreună codul și linkul fără efect asupra copiilor existente. — snapshot revoked + ambele credențiale; copiile rămân căutabile (testat A10).
+- [x] Definim expirarea/limitele opționale fără efect retroactiv. — fără expirare implicită (politică documentată în raport); cota verificată doar la import.
+- [x] Implementăm ștergerea carnetului/contului autorului cu revocarea pachetelor active. — delete carnet → revocă pachetele active + audit (testat A28); `revoke_all_for_author` pentru ștergerea contului.
+- [x] Implementăm GC coordonat cu snapshoturi/importuri/joburi și retenție. — `gc_sweep` două faze: marcare după retenție + reverificare referințe la ștergere (testat: partajat supraviețuiește, orfanul e șters).
+- [x] Testăm efectele externe și curățarea compensatorie la eșec. — importul nu are efecte externe (artefacte reutilizate); compensarea la upload eșuat acoperită în L3; atomicitatea importului e tranzacțională.
+- [x] Executăm A07–A10/A15/A16/A19–A21/A28 cu teste concurente. — A07/A08 (link+cod), A09/A21 (versiuni fixate), A10 (revocare), A15 (replay+cheie nouă), A16 (tranzacție atomică), A19 (re-verificare), A20 (lock+cotă), A28 (ștergere autor) — 51/51 trecute.
 
 **Poartă G5:** importul transferă exclusiv materialele aprobate și respectă independența.
 

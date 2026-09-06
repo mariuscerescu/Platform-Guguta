@@ -183,7 +183,16 @@ class SourcesService:
                 asset_id = uuid.uuid4()
                 mv_id = uuid.uuid4()
                 ns_id = uuid.uuid4()
-                position = int(count)
+                # MAX(position)+1 — count(*) would collide after deletions
+                position = (
+                    await conn.execute(
+                        text(
+                            "SELECT coalesce(max(position), -1) + 1"
+                            " FROM notebook_sources WHERE notebook_id = :n"
+                        ),
+                        {"n": notebook_id},
+                    )
+                ).scalar_one()
                 await conn.execute(
                     text(
                         "INSERT INTO source_assets (id, kind, mime_type, byte_size,"

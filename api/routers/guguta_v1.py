@@ -682,3 +682,82 @@ async def instantiate_template(
     return await request.app.state.guguta_catalog.instantiate(
         actor, template_id, idempotency_key=body.idempotency_key
     )
+
+
+# ---------------------------------------------------------------------------
+# Sharing / import (L7)
+# ---------------------------------------------------------------------------
+
+
+class ShareCreate(BaseModel):
+    source_ids: list[str] = Field(min_length=1)
+    title: Optional[str] = Field(default=None, max_length=500)
+    description: Optional[str] = Field(default=None, max_length=5000)
+
+
+class TokenRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=255)
+
+
+class ImportRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=255)
+    idempotency_key: str = Field(min_length=1, max_length=255)
+
+
+shares_router = APIRouter(
+    prefix="/api/v1/notebooks/{notebook_id}/shares", tags=["shares"]
+)
+
+
+@shares_router.post("", status_code=201)
+async def create_share(
+    notebook_id: uuid.UUID, body: ShareCreate, request: Request
+) -> dict[str, Any]:
+    actor = get_actor(request)
+    try:
+        source_uuids = [uuid.UUID(s) for s in body.source_ids]
+    except ValueError as exc:
+        from open_notebook.exceptions import InvalidInputError
+
+        raise InvalidInputError("source_ids trebuie să fie UUID-uri.") from exc
+    return await request.app.state.guguta_sharing.create_share(
+        actor, notebook_id,
+        source_ids=source_uuids, title=body.title, description=body.description,
+    )
+
+
+@shares_router.get("")
+async def list_shares(notebook_id: uuid.UUID, request: Request) -> list[dict[str, Any]]:
+    actor = get_actor(request)
+    return await request.app.state.guguta_sharing.list_shares_for_notebook(
+        actor, notebook_id
+    )
+
+
+@shares_router.post("/{share_id}/revoke")
+async def revoke_share(
+    notebook_id: uuid.UUID, share_id: uuid.UUID, request: Request
+) -> dict[str, Any]:
+    actor = get_actor(request)
+    return await request.app.state.guguta_sharing.revoke_share(
+        actor, notebook_id, share_id
+    )
+
+
+imports_router = APIRouter(prefix="/api/v1/imports", tags=["imports"])
+
+
+@imports_router.post("/preview")
+async def preview_import(body: TokenRequest, request: Request) -> dict[str, Any]:
+    actor = get_actor(request)
+    return await request.app.state.guguta_sharing.preview_import(
+        actor, body.token
+    )
+
+
+@imports_router.post("", status_code=201)
+async def import_snapshot(body: ImportRequest, request: Request) -> dict[str, Any]:
+    actor = get_actor(request)
+    return await request.app.state.guguta_sharing.import_snapshot(
+        actor, body.token, idempotency_key=body.idempotency_key
+    )

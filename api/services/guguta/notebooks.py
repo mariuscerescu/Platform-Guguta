@@ -192,9 +192,35 @@ class NotebookService:
         return dict(row)
 
     async def delete(self, actor: ActorContext, notebook_id: uuid.UUID) -> int:
-        """Logical delete (retention keeps data); revocation of active share
-        packages is implemented in L7 — tracked in the checklist."""
+        """Delete the notebook; its active share packages are revoked first
+        (specificații §4.3) — recipient copies remain independent (A28)."""
         async with actor_connection(self._engine, actor.actor_id) as conn:
+            shares = (
+                await conn.execute(
+                    text(
+                        "UPDATE share_snapshots SET status = 'revoked',"
+                        " revoked_at = now()"
+                        " WHERE notebook_id = :nb AND status = 'active' RETURNING id"
+                    ),
+                    {"nb": notebook_id},
+                )
+            ).all()
+            for (sid,) in shares:
+                await conn.execute(
+                    text(
+                        "UPDATE share_credentials SET revoked_at = now()"
+                        " WHERE snapshot_id = :sid AND revoked_at IS NULL"
+                    ),
+                    {"sid": sid},
+                )
+                await conn.execute(
+                    text(
+                        "INSERT INTO audit_events (id, actor_id, action, target_type,"
+                        " target_id, result) VALUES (:id, :a, 'share_revoke',"
+                        " 'share_snapshot', :sid, 'allowed')"
+                    ),
+                    {"id": uuid.uuid4(), "a": actor.actor_id, "sid": sid},
+                )
             result = await conn.execute(
                 text("DELETE FROM digital_notebooks WHERE id = :id"),
                 {"id": notebook_id},

@@ -410,41 +410,49 @@ class CatalogService:
                     {"vid": version["id"]},
                 )
             ).all()
+            # associations first (RLS artifact-visibility path), then status flip
             for mv_id, display_name, position in materials:
-                artifact = (
-                    await conn.execute(
-                        text(
-                            "SELECT 1 FROM processing_artifacts pa"
-                            " WHERE pa.material_version_id = :mv AND pa.status = 'complete'"
-                        ),
-                        {"mv": mv_id},
-                    )
-                ).first()
-                ready = artifact is not None
-                ns_id = uuid.uuid4()
                 await conn.execute(
                     text(
                         "INSERT INTO notebook_sources (id, notebook_id,"
                         " material_version_id, local_name, position, selected_for_chat,"
                         " status, added_by)"
-                        " VALUES (:id, :nb, :mv, :name, :pos, true,"
-                        " CASE WHEN :ready THEN 'ready' ELSE 'processing' END, :by)"
+                        " VALUES (:id, :nb, :mv, :name, :pos, true, 'processing', :by)"
                     ),
-                    {"id": ns_id, "nb": nb_id, "mv": mv_id,
-                     "name": display_name, "pos": position, "ready": ready,
-                     "by": actor.actor_id},
+                    {"id": uuid.uuid4(), "nb": nb_id, "mv": mv_id,
+                     "name": display_name, "pos": position, "by": actor.actor_id},
                 )
-                if not ready:
-                    from open_notebook.jobs.guguta.queue import enqueue
+            await conn.execute(
+                text(
+                    "UPDATE notebook_sources ns SET status = 'ready'"
+                    " WHERE ns.notebook_id = :nb"
+                    "   AND EXISTS (SELECT 1 FROM processing_artifacts pa"
+                    "               WHERE pa.material_version_id = ns.material_version_id"
+                    "               AND pa.status = 'complete')"
+                ),
+                {"nb": nb_id},
+            )
+            unready = (
+                await conn.execute(
+                    text(
+                        "SELECT ns.material_version_id, ns.local_name"
+                        " FROM notebook_sources ns WHERE ns.notebook_id = :nb"
+                        "   AND ns.status = 'processing'"
+                    ),
+                    {"nb": nb_id},
+                )
+            ).all()
+            for mv_id, display_name in unready:
+                from open_notebook.jobs.guguta.queue import enqueue
 
-                    await enqueue(
-                        self._engine, conn,
-                        job_type="process_material_version",
-                        target_type="material_version",
-                        target_id=mv_id,
-                        actor_id=actor.actor_id,
-                        payload={"local_name": display_name},
-                    )
+                await enqueue(
+                    self._engine, conn,
+                    job_type="process_material_version",
+                    target_type="material_version",
+                    target_id=mv_id,
+                    actor_id=actor.actor_id,
+                    payload={"local_name": display_name},
+                )
             await conn.execute(
                 text(
                     "INSERT INTO idempotency_records (id, actor_id, operation_type,"

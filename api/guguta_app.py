@@ -29,11 +29,13 @@ from api.routers.guguta_v1 import (
     auth_router,
     catalog_router,
     chat_router,
+    imports_router,
     jobs_router,
     notebooks_router,
     notes_router,
     reports_router,
     search_router,
+    shares_router,
     sources_router,
 )
 from api.services.guguta.admin import AdminService
@@ -61,6 +63,15 @@ from api.services.guguta.notes import (
     NoteValidation,
 )
 from api.services.guguta.search import SearchService
+from api.services.guguta.sharing import (
+    QuotaExceeded as ShareQuotaExceeded,
+)
+from api.services.guguta.sharing import (
+    ShareNotFound,
+    ShareRevoked,
+    ShareValidation,
+    SharingService,
+)
 from api.services.guguta.sources import (
     QuotaExceeded,
     SourceNotFound,
@@ -140,6 +151,9 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
     )
     app.state.guguta_notes = NotesService(engine)
     app.state.guguta_catalog = CatalogService(engine)
+    app.state.guguta_sharing = SharingService(
+        engine, quota_mib_per_user=config.quota_mib_per_user
+    )
     from open_notebook.auth.guguta.crypto import CredentialCrypto
 
     app.state.guguta_admin = AdminService(
@@ -174,7 +188,9 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
                     return _error("origin_rejected", "Origine neacceptată.", 403,
                                   request.headers.get("x-request-id", "-"))
                 is_login_route = request.url.path.startswith(_CSRF_EXEMPT_PREFIXES)
-                is_readonly_post = request.url.path.endswith("/search")
+                is_readonly_post = request.url.path.endswith(
+                    ("/search", "/preview")
+                )
                 if (
                     not is_login_route
                     and not is_readonly_post
@@ -215,6 +231,8 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
     app.include_router(notes_router)
     app.include_router(admin_catalog_router)
     app.include_router(catalog_router)
+    app.include_router(shares_router)
+    app.include_router(imports_router)
     app.include_router(admin_router)
     app.include_router(reports_router)
 
@@ -282,6 +300,27 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
     @app.exception_handler(RetiredTemplate)
     async def retired_template(request: Request, exc: RetiredTemplate) -> JSONResponse:
         return _error("retired", str(exc), 409, request.headers.get("x-request-id", "-"))
+
+    @app.exception_handler(ShareNotFound)
+    async def share_not_found(request: Request, exc: ShareNotFound) -> JSONResponse:
+        message = str(exc) or "Resursa nu există."
+        return _error("not_found", message, 404,
+                      request.headers.get("x-request-id", "-"))
+
+    @app.exception_handler(ShareRevoked)
+    async def share_revoked(request: Request, exc: ShareRevoked) -> JSONResponse:
+        return _error("share_revoked", str(exc), 409,
+                      request.headers.get("x-request-id", "-"))
+
+    @app.exception_handler(ShareValidation)
+    async def share_validation(request: Request, exc: ShareValidation) -> JSONResponse:
+        return _error("invalid", str(exc), 422,
+                      request.headers.get("x-request-id", "-"))
+
+    @app.exception_handler(ShareQuotaExceeded)
+    async def share_quota(request: Request, exc: ShareQuotaExceeded) -> JSONResponse:
+        return _error("quota_exceeded", str(exc), 429,
+                      request.headers.get("x-request-id", "-"))
 
     @app.exception_handler(NoteNotFound)
     async def note_not_found(request: Request, exc: NoteNotFound) -> JSONResponse:
