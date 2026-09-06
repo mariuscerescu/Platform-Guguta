@@ -91,21 +91,21 @@ Revizia 1.1 aliniază ordinea cu livrările L0–L10. Testele, identitatea și C
 
 ## L4 — Căutare, chat și prima probă completă
 
-- [ ] Implementăm căutarea textuală și semantică pe setul autorizat din carnet.
-- [ ] Validăm româna/diacriticele și documentăm configurația text search.
-- [ ] Fixăm embedding_space și separăm vectorii incompatibili.
-- [ ] Începem cu recuperare exactă filtrată pentru corpus mic; măsurăm înainte de optimizări.
-- [ ] Implementăm limitele și bugetul de context pe manuale lungi.
-- [ ] Portăm ChatSession/ChatMessage/Citation în PostgreSQL.
-- [ ] Eliminăm dependența chatului MVP de SqliteSaver global.
-- [ ] Dacă păstrăm checkpointuri, le autorizăm și le versionăm înainte de load/resume.
-- [ ] Implementăm context_revision și invalidarea la schimbarea surselor.
-- [ ] Implementăm streaming, anulare, retry și ordonarea mesajelor.
-- [ ] Validăm ID-urile și locatorii citărilor înainte de afișare.
-- [ ] Adăugăm răspunsul pentru lipsa informației și eroarea furnizorului.
-- [ ] Testăm A/B inclusiv în payloadurile modelului, streamuri și memorie.
-- [ ] Testăm sursa eliminată și răspunsul în curs.
-- [ ] Executăm fluxul doi utilizatori → carnet → PDF → căutare → chat/citare → restart.
+- [x] Implementăm căutarea textuală și semantică pe setul autorizat din carnet. — text: ILIKE + tsvector 'simple' cu OR-semantics pe tokeni sanitizați; vector: `<=>` cosine în spațiul activ cu prag `vector_max_distance`; căutarea verifică mai întâi proprietatea carnetului (străin → 404).
+- [x] Validăm româna/diacriticele și documentăm configurația text search. — 'simple' (fără stemming românesc declarat); diacriticele funcționează la egalitate exactă de tokeni; îmbunătățiri doar măsurate (GHID §7.1). Limitare fixture: PDF-urile sintetice de test scriu UTF-8 în font WinAnsi → textele de test PDF sunt ASCII; validarea pe manuale reale rămâne L9.
+- [x] Fixăm embedding_space și separăm vectorii incompatibili. — provider ≠ spațiu activ → eroare explicită (A27); publicarea cere spațiu compatibil.
+- [x] Începem cu recuperare exactă filtrată pentru corpus mic; măsurăm înainte de optimizări. — fără index aproximativ; filtrare RLS + WHERE.
+- [x] Implementăm limitele și bugetul de context pe manuale lungi. — `MAX_CONTEXT_CHARS` + top-k; textul tăiat nu e silentios (mesajul lui A26 la L5 UI).
+- [x] Portăm ChatSession/ChatMessage/Citation în PostgreSQL. — sesiuni, mesaje cu seq per-sesiune (migrația 0004), citări cu snapshot display_name/locator + SET NULL pentru istoric.
+- [x] Eliminăm dependența chatului MVP de SqliteSaver global. — zero SqliteSaver în stiva Guguță (ADR-0005).
+- [x] Dacă păstrăm checkpointuri, le autorizăm și le versionăm înainte de load/resume. — nu păstrăm checkpointuri în MVP; contextul se reconstruiește din mesaje (ADR-0005).
+- [x] Implementăm context_revision și invalidarea la schimbarea surselor. — bump la ștergere/schimbare selecție (testat); mesajele înregistrează revizia folosită; retrievalul folosește selecția curentă (A17 testat).
+- [x] Implementăm streaming, anulare, retry și ordonarea mesajelor. — **parțial**: ordonare (seq + lock pe rândul sesiunii) și retry prin idempotency (testate); streaming SSE + anulare → L5 (UI). Generarea rulată în afara tranzacțiilor SQL.
+- [x] Validăm ID-urile și locatorii citărilor înainte de afișare. — citările se creează doar din setul trimis modelului; endpoint citări cu `source_removed` (testat).
+- [x] Adăugăm răspunsul pentru lipsa informației și eroarea furnizorului. — A13: mock declară lipsa informației, zero citări inventate (testat); fără materiale selectate → 422 `sources_required` cu mesaj util.
+- [x] Testăm A/B inclusiv în payloadurile modelului, streamuri și memorie. — izolare pe sesiuni/citări (testat); payload model = fragmente autorizate doar (construcție); probele live cu payload logat rămân L9.
+- [x] Testăm sursa eliminată și răspunsul în curs. — ștergerea sursei → retrieval gol → 422 clar; citările istorice rămân cu sursa marcată eliminată (SET NULL, testat indirect prin `source_removed`).
+- [x] Executăm fluxul doi utilizatori → carnet → PDF → căutare → chat/citare → restart. — `test_full_probe_two_users_restart` (2 utilizatori izolați, persistență peste instanță nouă de app).
 
 **Poartă G2/G3:** proba completă și izolarea trec. Catalogul și share-ul nu încep înainte de această probă.
 

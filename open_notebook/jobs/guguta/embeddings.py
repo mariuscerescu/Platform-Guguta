@@ -2,7 +2,9 @@
 
 `HashEmbeddingProvider` is a deterministic mock for development/tests and for
 the controlled-mock validation the guide allows until AI provider decisions
-(D-02) close. Real providers plug into the same interface; each change of
+(D-02) close. It builds a word-presence signature vector: texts sharing
+vocabulary land closer together, so vector retrieval behaves meaningfully in
+tests. Real providers plug into the same interface; each change of
 model/revision/dimension means a NEW embedding space (A27) — never reuse.
 """
 
@@ -10,7 +12,10 @@ from __future__ import annotations
 
 import hashlib
 import math
+import re
 from typing import Protocol, Sequence
+
+_TOKEN_RE = re.compile(r"[a-z0-9ăâîșțşţ]+", re.IGNORECASE)
 
 
 class EmbeddingProvider(Protocol):
@@ -22,26 +27,27 @@ class EmbeddingProvider(Protocol):
 
 
 class HashEmbeddingProvider:
-    """Deterministic hash-based vectors; NOT a semantic model (mock only)."""
+    """Deterministic word-presence signature; NOT a semantic model (mock only)."""
 
     def __init__(self, dimension: int = 8) -> None:
         self.model_name = "guguta-hash-mock"
         self.model_revision = "v1"
         self.dimension = dimension
 
+    def _embed_one(self, text: str) -> list[float]:
+        vec = [0.0] * self.dimension
+        for token in _TOKEN_RE.findall(text.lower()):
+            digest = hashlib.sha256(token.encode("utf-8")).digest()
+            idx = digest[0] % self.dimension
+            sign = 1.0 if digest[1] % 2 == 0 else -1.0
+            vec[idx] += sign
+        norm = math.sqrt(sum(v * v for v in vec))
+        if norm > 0:
+            vec = [v / norm for v in vec]
+        return vec
+
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
-        vectors: list[list[float]] = []
-        for t in texts:
-            digest = hashlib.sha256(t.encode("utf-8")).digest()
-            values: list[float] = []
-            for i in range(self.dimension):
-                chunk = digest[(i * 4) % len(digest): (i * 4) % len(digest) + 4]
-                n = int.from_bytes(chunk, "big")
-                # map to [-1, 1)
-                values.append((n / 0xFFFFFFFF) * 2 - 1)
-            norm = math.sqrt(sum(v * v for v in values)) or 1.0
-            vectors.append([v / norm for v in values])
-        return vectors
+        return [self._embed_one(t) for t in texts]
 
 
 def get_provider(name: str, dimension: int) -> EmbeddingProvider:

@@ -20,7 +20,7 @@ EXPECTED_TABLES = [
     "notes", "processing_jobs", "outbox_events", "audit_events",
 ]
 
-RLS_TABLES = EXPECTED_TABLES  # every GuguÈ›Äƒ table carries RLS
+RLS_TABLES = EXPECTED_TABLES  # every Guguță table carries RLS
 
 
 def test_migrations_from_zero(migrator_engine: sa.Engine) -> None:

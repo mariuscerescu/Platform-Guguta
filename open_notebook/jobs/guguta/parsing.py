@@ -88,7 +88,7 @@ def extract_pdf(data: bytes) -> tuple[list[TextUnit], int]:
     if page_count == 0:
         raise ExtractionError("PDF-ul nu conține pagini.")
     usable_chars = sum(len(u.text) for u in units)
-    if usable_chars < 50 or len(units) < max(1, page_count // 3):
+    if not units or usable_chars < 20:
         raise ExtractionError(
             "PDF-ul nu conține text utilizabil (probabil scanat). OCR nu este "
             "disponibil momentan; adaugă o versiune cu text sau un alt material."

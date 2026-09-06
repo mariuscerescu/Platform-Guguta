@@ -1,4 +1,4 @@
-"""GuguÈ›Äƒ durable job queue on PostgreSQL (ADR-0002).
+"""Guguță durable job queue on PostgreSQL (ADR-0002).
 
 Delivery: at-least-once. Claims use FOR UPDATE SKIP LOCKED in a short
 transaction. Completions verify lease_token AND target_revision â€” a stale
@@ -167,7 +167,7 @@ async def complete(
             )
         ).first()
     if row is None:
-        raise LeaseStale("jobul nu a putut fi finalizat: lease expirat sau È›intÄƒ modificatÄƒ")
+        raise LeaseStale("jobul nu a putut fi finalizat: lease expirat sau țintă modificată")
 
 
 async def fail(
@@ -213,7 +213,7 @@ async def fail(
             )
         ).first()
     if row is None:
-        raise LeaseStale("jobul nu a putut fi marcat eÈ™uat: lease expirat")
+        raise LeaseStale("jobul nu a putut fi marcat eșuat: lease expirat")
     return str(row[0])
 
 

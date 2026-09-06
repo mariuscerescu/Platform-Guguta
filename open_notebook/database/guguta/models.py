@@ -1,4 +1,4 @@
-"""SQLAlchemy 2 models for the GuguÈ›Äƒ schema (specificaÈ›ii Â§9, ADR-0001/0006).
+"""SQLAlchemy 2 models for the Guguță schema (specificații Â§9, ADR-0001/0006).
 
 Naming and relations follow SPECIFICATII_GUGUTA.md Â§9. UUIDs are generated
 server-side (Python ``uuid4`` at flush). All timestamps are UTC timestamptz.
@@ -44,7 +44,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
 class GugutaBase(DeclarativeBase):
-    """Declarative base for the GuguÈ›Äƒ PostgreSQL schema."""
+    """Declarative base for the Guguță PostgreSQL schema."""
 
 
 def text_literal(sql: str) -> Any:
@@ -708,7 +708,8 @@ class ChatMessage(GugutaBase):
         ForeignKey("chat_sessions.id", ondelete="CASCADE"),
         nullable=False,
     )
-    seq: Mapped[int] = mapped_column(BigInteger, nullable=False, unique=True)
+    # per-session ordering (UNIQUE(session_id, seq) — migration 0004)
+    seq: Mapped[int] = mapped_column(BigInteger, nullable=False)
     role: Mapped[str] = mapped_column(String(20), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     context_revision: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -743,7 +744,7 @@ class Citation(GugutaBase):
 
     ``notebook_source_id``/``chunk_id``/``material_version_id`` become NULL if
     the referenced row disappears (SET NULL) â€” the citation then renders as
-    â€žSursÄƒ eliminatÄƒâ€ without exposing any other user's resources.
+    â€žSursă eliminatăâ€ without exposing any other user's resources.
     """
 
     __tablename__ = "citations"

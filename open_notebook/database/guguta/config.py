@@ -81,6 +81,8 @@ class GugutaConfig(BaseSettings):
     chunk_overlap_chars: int = 200
     embedding_provider: str = "hash"  # mock until D-02 closes
     embedding_dimension: int = 8
+    vector_max_distance: float = 0.9  # cosine-distance cutoff for retrieval
+    chat_provider: str = "mock"  # mock until D-02 closes
     job_lease_seconds: int = 300
     job_poll_seconds: float = 2.0
     job_worker_name: str = "worker-1"

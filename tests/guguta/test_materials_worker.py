@@ -176,8 +176,8 @@ async def test_upload_pdf_full_pipeline(client: AsyncClient, worker: Any) -> Non
             cookies=_cookies(auth), headers=_headers(auth),
         )
     ).json()
-    pdf = _make_pdf(["Text pagina unu despre fotosintezÄƒ.",
-                     "Pagina doi continuÄƒ despre fotosintezÄƒ."])
+    pdf = _make_pdf(["Text pagina unu despre fotosinteză.",
+                     "Pagina doi continuă despre fotosinteză."])
     resp = await client.post(
         f"/api/v1/notebooks/{nb['id']}/sources/file",
         files={"file": ("manual.pdf", pdf, "application/pdf")},
@@ -223,13 +223,13 @@ async def test_text_source_pipeline_and_selection_revision(
     ).json()
     resp = await client.post(
         f"/api/v1/notebooks/{nb['id']}/sources/text",
-        json={"title": " notiÈ›e lecÈ›ie ", "text": "Primul paragraf.\n\nAl doilea paragraf."},
+        json={"title": " notițe lecție ", "text": "Primul paragraf.\n\nAl doilea paragraf."},
         cookies=_cookies(auth), headers=_headers(auth),
     )
     assert resp.status_code == 201
     body = resp.json()
     source_id = body["source"]["id"]
-    assert body["source"]["local_name"] == "notiÈ›e lecÈ›ie"  # trimmed
+    assert body["source"]["local_name"] == "notițe lecție"  # trimmed
 
     await _drain(worker)
     detail = (await client.get(
@@ -331,7 +331,7 @@ async def test_sources_isolated_between_users(client: AsyncClient, worker: Any) 
     ).json()
     resp = await client.post(
         f"/api/v1/notebooks/{nb['id']}/sources/text",
-        json={"text": "ConÈ›inut privat al lui A.", "title": "privat"},
+        json={"text": "Conținut privat al lui A.", "title": "privat"},
         cookies=_cookies(auth_a), headers=_headers(auth_a),
     )
     source_id = resp.json()["source"]["id"]

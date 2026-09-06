@@ -314,3 +314,107 @@ async def get_job(job_id: uuid.UUID, request: Request) -> dict[str, Any]:
 
         raise NotFoundError()
     return job
+
+
+# ---------------------------------------------------------------------------
+# Search + chat (L4)
+# ---------------------------------------------------------------------------
+
+
+class SearchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=1000)
+    mode: str = Field(default="both")  # text | vector | both
+    limit: int = Field(default=8, ge=1, le=50)
+
+
+search_router = APIRouter(
+    prefix="/api/v1/notebooks/{notebook_id}/search", tags=["search"]
+)
+
+
+@search_router.post("")
+async def search(
+    notebook_id: uuid.UUID, body: SearchRequest, request: Request
+) -> list[dict[str, Any]]:
+    actor = get_actor(request)
+    if body.mode not in ("text", "vector", "both"):
+        from open_notebook.exceptions import InvalidInputError
+
+        raise InvalidInputError("Mod de căutare neacceptat.")
+    service = request.app.state.guguta_search
+    chunks = await service.search_notebook(
+        actor.actor_id, notebook_id, body.query, mode=body.mode, limit=body.limit,
+    )
+    return [
+        {
+            "chunk_id": str(c.chunk_id),
+            "text": c.text,
+            "locator": c.locator,
+            "local_name": c.local_name,
+            "score": c.score,
+            "mode": c.mode,
+        }
+        for c in chunks
+    ]
+
+
+class SessionCreate(BaseModel):
+    title: Optional[str] = Field(default=None, max_length=500)
+
+
+class MessageCreate(BaseModel):
+    content: str = Field(min_length=1, max_length=20000)
+    idempotency_key: Optional[str] = Field(default=None, max_length=255)
+
+
+chat_router = APIRouter(
+    prefix="/api/v1/notebooks/{notebook_id}/sessions", tags=["chat"]
+)
+
+
+@chat_router.post("", status_code=201)
+async def create_session(
+    notebook_id: uuid.UUID, body: SessionCreate, request: Request
+) -> dict[str, Any]:
+    actor = get_actor(request)
+    service = request.app.state.guguta_chat
+    return await service.create_session(actor, notebook_id, title=body.title)
+
+
+@chat_router.get("")
+async def list_sessions(notebook_id: uuid.UUID, request: Request) -> list[dict[str, Any]]:
+    actor = get_actor(request)
+    service = request.app.state.guguta_chat
+    return await service.list_sessions(actor, notebook_id)
+
+
+@chat_router.get("/{session_id}/messages")
+async def list_messages(
+    notebook_id: uuid.UUID, session_id: uuid.UUID, request: Request
+) -> list[dict[str, Any]]:
+    actor = get_actor(request)
+    service = request.app.state.guguta_chat
+    return await service.list_messages(actor, notebook_id, session_id)
+
+
+@chat_router.post("/{session_id}/messages")
+async def send_message(
+    notebook_id: uuid.UUID, session_id: uuid.UUID, body: MessageCreate,
+    request: Request,
+) -> dict[str, Any]:
+    actor = get_actor(request)
+    service = request.app.state.guguta_chat
+    return await service.send_message(
+        actor, notebook_id, session_id,
+        content=body.content, idempotency_key=body.idempotency_key,
+    )
+
+
+@chat_router.get("/{session_id}/messages/{message_id}/citations")
+async def get_citations(
+    notebook_id: uuid.UUID, session_id: uuid.UUID, message_id: uuid.UUID,
+    request: Request,
+) -> list[dict[str, Any]]:
+    actor = get_actor(request)
+    service = request.app.state.guguta_chat
+    return await service.get_citations(actor, notebook_id, session_id, message_id)

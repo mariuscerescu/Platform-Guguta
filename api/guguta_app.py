@@ -25,15 +25,25 @@ from sqlalchemy import text
 
 from api.routers.guguta_v1 import (
     auth_router,
+    chat_router,
     jobs_router,
     notebooks_router,
+    search_router,
     sources_router,
+)
+from api.services.guguta.chat import (
+    ChatService,
+    ChatSessionNotFound,
+    ChatValidation,
+    IdempotencyConflict,
+    SourcesRequired,
 )
 from api.services.guguta.notebooks import (
     NotebookNotFound,
     NotebookService,
     NotebookValidation,
 )
+from api.services.guguta.search import SearchService
 from api.services.guguta.sources import (
     QuotaExceeded,
     SourceNotFound,
@@ -86,8 +96,15 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
         inactivity_ttl=timedelta(minutes=config.session_inactivity_ttl_minutes),
     )
     app.state.guguta_notebooks = NotebookService(engine)
+    from open_notebook.ai.guguta.chat import get_chat_provider
+    from open_notebook.jobs.guguta.embeddings import (
+        get_provider as get_embedding_provider,
+    )
     from open_notebook.storage.guguta.filesystem import FilesystemStorage
 
+    embedding_provider = get_embedding_provider(
+        config.embedding_provider, config.embedding_dimension
+    )
     app.state.guguta_sources = SourcesService(
         engine,
         FilesystemStorage(config.storage_root),
@@ -95,6 +112,14 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
         max_pdf_pages=config.max_pdf_pages,
         max_sources_per_notebook=config.max_sources_per_notebook,
         quota_mib_per_user=config.quota_mib_per_user,
+    )
+    app.state.guguta_search = SearchService(
+        engine, embedding_provider, max_vector_distance=config.vector_max_distance,
+    )
+    app.state.guguta_chat = ChatService(
+        engine,
+        app.state.guguta_search,
+        get_chat_provider(config.chat_provider),
     )
 
     @app.on_event("shutdown")
@@ -122,8 +147,13 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
                     return _error("origin_rejected", "Origine neacceptată.", 403,
                                   request.headers.get("x-request-id", "-"))
                 is_login_route = request.url.path.startswith(_CSRF_EXEMPT_PREFIXES)
-                if not is_login_route and not app.state.guguta_sessions.verify_csrf(
-                    token, request.headers.get(CSRF_HEADER)
+                is_readonly_post = request.url.path.endswith("/search")
+                if (
+                    not is_login_route
+                    and not is_readonly_post
+                    and not app.state.guguta_sessions.verify_csrf(
+                        token, request.headers.get(CSRF_HEADER)
+                    )
                 ):
                     return _error("csrf_required", "Token CSRF lipsă sau invalid.", 403,
                                   request.headers.get("x-request-id", "-"))
@@ -153,6 +183,8 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
     app.include_router(notebooks_router)
     app.include_router(sources_router)
     app.include_router(jobs_router)
+    app.include_router(search_router)
+    app.include_router(chat_router)
 
     @app.exception_handler(AuthenticationError)
     async def auth_error(request: Request, exc: AuthenticationError) -> JSONResponse:
@@ -211,6 +243,25 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
     @app.exception_handler(ExtractionError)
     async def extraction_error(request: Request, exc: ExtractionError) -> JSONResponse:
         return _error("unsupported", str(exc), 422,
+                      request.headers.get("x-request-id", "-"))
+
+    @app.exception_handler(ChatValidation)
+    async def chat_validation(request: Request, exc: ChatValidation) -> JSONResponse:
+        return _error("invalid", str(exc), 422, request.headers.get("x-request-id", "-"))
+
+    @app.exception_handler(SourcesRequired)
+    async def sources_required(request: Request, exc: SourcesRequired) -> JSONResponse:
+        return _error("sources_required", str(exc), 422,
+                      request.headers.get("x-request-id", "-"))
+
+    @app.exception_handler(IdempotencyConflict)
+    async def idempotency_conflict(request: Request, exc: IdempotencyConflict) -> JSONResponse:
+        return _error("idempotency_conflict", str(exc), 409,
+                      request.headers.get("x-request-id", "-"))
+
+    @app.exception_handler(ChatSessionNotFound)
+    async def chat_session_missing(request: Request, exc: ChatSessionNotFound) -> JSONResponse:
+        return _error("not_found", "Resursa nu există.", 404,
                       request.headers.get("x-request-id", "-"))
 
     return app
