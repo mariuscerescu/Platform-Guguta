@@ -130,18 +130,18 @@ Revizia 1.1 aliniază ordinea cu livrările L0–L10. Testele, identitatea și C
 
 ## L6 — Catalog și șabloane
 
-- [ ] Implementăm Template/TemplateVersion/TemplateMaterial.
-- [ ] Introducem metadate clasă, disciplină, ediție, limbă și proveniență.
-- [ ] Implementăm draft, verificare, publicare și retragere.
-- [ ] Restrângem publicarea la materiale gata cu drepturi înregistrate.
-- [ ] Fixăm manifestul versiunii publicate.
-- [ ] Implementăm catalogul public și filtrele, fără expunerea drafturilor.
-- [ ] Implementăm instanțierea tranzacțională și idempotentă.
-- [ ] Creăm ID-uri locale noi pentru materialele copiei.
-- [ ] Verificăm zero mesaje, notițe și memorie personală în copia nouă.
-- [ ] „Începe din nou” folosește versiunea publicată curentă afișată.
-- [ ] Retragerea oprește instanțieri noi, fără modificarea copiilor.
-- [ ] Testăm A02/A03/A05/A14/A18.
+- [x] Implementăm Template/TemplateVersion/TemplateMaterial. — schema din 0001 (draft→published→retired), serviciu + rute admin/public.
+- [x] Introducem metadate clasă, disciplină, ediție, limbă și proveniență. — coloane + ordonare pe clasă/disciplină în listarea publică.
+- [x] Implementăm draft, verificare, publicare și retragere. — publish verifică extracția completă a fiecărui material; retire blochează instanțierile noi (409) fără a afecta copiile (testate).
+- [x] Restrângem publicarea la materiale gata cu drepturi înregistrate. — artefact `complete` obligatoriu + material creat de editor (testat: blocare cu materiale neverificate).
+- [x] Fixăm manifestul versiunii publicate. — triggere imuabilitate (L1) + republicare blocată (testat).
+- [x] Implementăm catalogul public și filtrele, fără expunerea drafturilor. — GET /api/v1/catalog/templates: doar published; drafturi invizibile (testat).
+- [x] Implementăm instanțierea tranzacțională și idempotentă. — o tranzacție: versiunea fixată + carnet + asocieri locale + idempotency; re-verificare finală a stării publicate (cursa cu retragerea).
+- [x] Creăm ID-uri locale noi pentru materialele copiei. — NotebookSource nou per copie; artefacte reutilizate fără reextragere.
+- [x] Verificăm zero mesaje, notițe și memorie personală în copia nouă. — testat (A02/A06).
+- [x] „Începe din nou” folosește versiunea publicată curentă afișată. — instanțiere nouă din ediția curentă; copia veche rămâne pe ediția 1 (A05/A14 testate).
+- [x] Retragerea oprește instanțieri noi, fără modificarea copiilor. — 409 la instanțiere; copia existentă căută în continuare (testat).
+- [x] Testăm A02/A03/A05/A14/A18. — A02 (copii independente), A03 (ștergere material din copie), A05 (ediția curentă), A14 (copii neatinse de ediții noi), A15 (idempotency), A18 (ștergere carnet cu materiale partajate) — toate trecute.
 
 **Poartă G4:** două copii se modifică independent și păstrează proveniența.
 

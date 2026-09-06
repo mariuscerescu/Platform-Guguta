@@ -24,8 +24,10 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from api.routers.guguta_v1 import (
+    admin_catalog_router,
     admin_router,
     auth_router,
+    catalog_router,
     chat_router,
     jobs_router,
     notebooks_router,
@@ -35,6 +37,12 @@ from api.routers.guguta_v1 import (
     sources_router,
 )
 from api.services.guguta.admin import AdminService
+from api.services.guguta.catalog import (
+    CatalogService,
+    CatalogValidation,
+    RetiredTemplate,
+    TemplateNotFound,
+)
 from api.services.guguta.chat import (
     ChatService,
     ChatSessionNotFound,
@@ -131,6 +139,7 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
         get_chat_provider(config.chat_provider),
     )
     app.state.guguta_notes = NotesService(engine)
+    app.state.guguta_catalog = CatalogService(engine)
     from open_notebook.auth.guguta.crypto import CredentialCrypto
 
     app.state.guguta_admin = AdminService(
@@ -204,6 +213,8 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
     app.include_router(search_router)
     app.include_router(chat_router)
     app.include_router(notes_router)
+    app.include_router(admin_catalog_router)
+    app.include_router(catalog_router)
     app.include_router(admin_router)
     app.include_router(reports_router)
 
@@ -258,6 +269,19 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
     async def quota_exceeded(request: Request, exc: QuotaExceeded) -> JSONResponse:
         return _error("quota_exceeded", str(exc), 429,
                       request.headers.get("x-request-id", "-"))
+
+    @app.exception_handler(TemplateNotFound)
+    async def template_not_found(request: Request, exc: TemplateNotFound) -> JSONResponse:
+        return _error("not_found", "Resursa nu există.", 404,
+                      request.headers.get("x-request-id", "-"))
+
+    @app.exception_handler(CatalogValidation)
+    async def catalog_validation(request: Request, exc: CatalogValidation) -> JSONResponse:
+        return _error("invalid", str(exc), 422, request.headers.get("x-request-id", "-"))
+
+    @app.exception_handler(RetiredTemplate)
+    async def retired_template(request: Request, exc: RetiredTemplate) -> JSONResponse:
+        return _error("retired", str(exc), 409, request.headers.get("x-request-id", "-"))
 
     @app.exception_handler(NoteNotFound)
     async def note_not_found(request: Request, exc: NoteNotFound) -> JSONResponse:

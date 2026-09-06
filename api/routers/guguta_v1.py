@@ -588,3 +588,97 @@ async def create_report(body: ReportCreate, request: Request) -> dict[str, Any]:
     return await request.app.state.guguta_admin.create_report(
         actor, target_type=body.target_type, target_id=target_uuid, reason=body.reason
     )
+
+
+# ---------------------------------------------------------------------------
+# Catalog (L6) — public browse + editor flows + instantiation
+# ---------------------------------------------------------------------------
+
+
+class TemplateCreate(BaseModel):
+    slug: str = Field(min_length=1, max_length=200)
+    title: str = Field(min_length=1, max_length=500)
+    description: Optional[str] = Field(default=None, max_length=5000)
+    class_level: Optional[str] = Field(default=None, max_length=100)
+    discipline: Optional[str] = Field(default=None, max_length=100)
+    language: str = Field(default="ro", max_length=20)
+    edition: Optional[str] = Field(default=None, max_length=100)
+    rights_note: Optional[str] = Field(default=None, max_length=5000)
+
+
+class VersionCreate(BaseModel):
+    items: list[dict[str, Any]] = Field(min_length=1)
+
+
+admin_catalog_router = APIRouter(
+    prefix="/api/v1/admin/catalog/templates", tags=["admin-catalog"]
+)
+
+
+@admin_catalog_router.post("", status_code=201)
+async def admin_create_template(body: TemplateCreate, request: Request) -> dict[str, Any]:
+    actor = get_actor(request)
+    return await request.app.state.guguta_catalog.create_template(
+        actor, **body.model_dump()
+    )
+
+
+@admin_catalog_router.post("/{template_id}/versions", status_code=201)
+async def admin_create_version(
+    template_id: uuid.UUID, body: VersionCreate, request: Request
+) -> dict[str, Any]:
+    actor = get_actor(request)
+    return await request.app.state.guguta_catalog.create_version(
+        actor, template_id, items=body.items
+    )
+
+
+@admin_catalog_router.post("/{template_id}/versions/{version_id}/publish")
+async def admin_publish_version(
+    template_id: uuid.UUID, version_id: uuid.UUID, request: Request
+) -> dict[str, Any]:
+    actor = get_actor(request)
+    return await request.app.state.guguta_catalog.publish_version(
+        actor, template_id, version_id
+    )
+
+
+@admin_catalog_router.post("/{template_id}/versions/{version_id}/retire")
+async def admin_retire_version(
+    template_id: uuid.UUID, version_id: uuid.UUID, request: Request
+) -> dict[str, Any]:
+    actor = get_actor(request)
+    return await request.app.state.guguta_catalog.retire_version(
+        actor, template_id, version_id
+    )
+
+
+catalog_router = APIRouter(prefix="/api/v1/catalog/templates", tags=["catalog"])
+
+
+@catalog_router.get("")
+async def list_public_templates(request: Request) -> list[dict[str, Any]]:
+    actor = get_actor(request)
+    return await request.app.state.guguta_catalog.list_public_templates(actor)
+
+
+@catalog_router.get("/{template_id}")
+async def get_public_template(
+    template_id: uuid.UUID, request: Request
+) -> dict[str, Any]:
+    actor = get_actor(request)
+    return await request.app.state.guguta_catalog.get_template(actor, template_id)
+
+
+class InstantiateRequest(BaseModel):
+    idempotency_key: str = Field(min_length=1, max_length=255)
+
+
+@catalog_router.post("/{template_id}/instances", status_code=201)
+async def instantiate_template(
+    template_id: uuid.UUID, body: InstantiateRequest, request: Request
+) -> dict[str, Any]:
+    actor = get_actor(request)
+    return await request.app.state.guguta_catalog.instantiate(
+        actor, template_id, idempotency_key=body.idempotency_key
+    )
