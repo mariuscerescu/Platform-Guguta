@@ -1,0 +1,54 @@
+# Platforma Guguță — development compose (separate from upstream demo).
+#
+# - Never touches the upstream demo volumes (surreal_data/, notebook_data/).
+# - PostgreSQL 17 + pgvector, pinned tag (digest pinned at build/release, R02/R03).
+# - Only 127.0.0.1 ports; no DB exposure beyond localhost (R69).
+# - The migrator is the single schema-migration entry point per release (R09/R10);
+#   API and worker never run migrations at startup (ADR-0007).
+#
+# Usage (from open-notebook/):
+#   docker compose -f docker-compose.guguta.yml --project-name guguta up -d db
+#   docker compose -f docker-compose.guguta.yml --project-name guguta run --rm migrator
+
+name: guguta
+
+services:
+  db:
+    image: pgvector/pgvector:0.8.0-pg17@sha256:40b404964359299eefdd5f8518facf1886c562848cf4de13b6eaf91cb70c2b87
+    environment:
+      POSTGRES_DB: guguta
+      # The migrator owns the schema (ADR-0007). Role passwords are local dev
+      # defaults — staging/production supply real secrets via .env (R73).
+      POSTGRES_USER: guguta_migrator
+      POSTGRES_PASSWORD: ${GUGUTA_PG_MIGRATOR_PASSWORD:-guguta_dev_migrator}
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - guguta_pg_data:/var/lib/postgresql/data
+      - ./docker/guguta/bootstrap-roles.sh:/docker-entrypoint-initdb.d/01-bootstrap-roles.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U guguta_migrator -d guguta"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  migrator:
+    build:
+      context: .
+      dockerfile: docker/guguta/migrator.Dockerfile
+    environment:
+      GUGUTA_DATABASE_URL_MIGRATOR: postgresql+psycopg://guguta_migrator:${GUGUTA_PG_MIGRATOR_PASSWORD:-guguta_dev_migrator}@db:5432/guguta
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+
+  # Wired in later deliveries:
+  # api:      build from the Guguță image, command uvicorn api... (L2)
+  # worker:   same image, worker command, GUGUTA_DATABASE_URL_WORKER (L3)
+  # frontend: Next.js production build (L5)
+
+volumes:
+  guguta_pg_data:

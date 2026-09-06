@@ -19,37 +19,37 @@ Revizia 1.1 aliniază ordinea cu livrările L0–L10. Testele, identitatea și C
 
 ## L0 — Inventar, fork, documentație și CI minim
 
-- [ ] Verificăm HEAD, branch, remotes și modificările locale.
-- [ ] Citim AGENTS.md și documentăm diferențele dintre direcția upstream și Guguță.
-- [ ] Inventariem volumele, fișierele, persistența SQLite și necesarul de recuperare a secretelor fără a afișa valori.
-- [ ] Salvăm datele existente prin backup coerent și verificăm restaurarea.
-- [ ] Configurăm origin către fork și upstream către Open Notebook, fără reclonare peste checkout.
-- [ ] Fixăm commitul de bază și strategia de actualizări upstream.
-- [ ] Creăm ramura de lucru și convențiile de PR/release.
-- [ ] Păstrăm LICENSE MIT și adăugăm registrul de proveniență.
-- [ ] Versionăm un singur set canonic de documente în fork, cu linkuri actualizate.
-- [ ] Scriem ADR-urile PostgreSQL/vectori, joburi, identitate, stocare, memorie și copii independente.
-- [ ] Fixăm politica de licențe și inventariem dependențele obligatorii.
-- [ ] Pornim CI cu lint, tipuri, teste și scanare de secrete; protecția ramurii se configurează unde există acces.
-- [ ] Înregistrăm deciziile externe încă necesare cu responsabil și termen.
+- [x] Verificăm HEAD, branch, remotes și modificările locale. — `main @ 8297bb2`, fără modificări pe fișiere urmărite; remotes reconfigurate (origin→fork, upstream→lfnovo).
+- [x] Citim AGENTS.md și documentăm diferențele dintre direcția upstream și Guguță. — [DIVERGENTE_UPSTREAM.md](DIVERGENTE_UPSTREAM.md).
+- [x] Inventariem volumele, fișierele, persistența SQLite și necesarul de recuperare a secretelor fără a afișa valori. — [MIGRATION_INVENTORY.md](../../MIGRATION_INVENTORY.md): notebook_data (11 fișiere), surreal_data (7 fișiere), checkpoints.sqlite.
+- [x] Salvăm datele existente prin backup coerent și verificăm restaurarea. — `backups/pre-migration-20260906-112923/` (zip + sha256, 18/18 hash-uri verificate; servicii oprite la copiere).
+- [x] Configurăm origin către fork și upstream către Open Notebook, fără reclonare peste checkout. — origin=mariuscerescu/Guguta-Platform, upstream=lfnovo/open-notebook.
+- [x] Fixăm commitul de bază și strategia de actualizări upstream. — baza `8297bb2`; upstream doar fetch, fără push; actualizări pe ramuri dedicate.
+- [x] Creăm ramura de lucru și convențiile de PR/release. — `guguta/foundation`; livrări mici cu raport per livrare (GHID §15).
+- [x] Păstrăm LICENSE MIT și adăugăm registrul de proveniență. — LICENSE neatins; NOTICE creat.
+- [x] Versionăm un singur set canonic de documente în fork, cu linkuri actualizate. — docs/guguta/ (5 documente + checklist mutat + README canonic).
+- [x] Scriem ADR-urile PostgreSQL/vectori, joburi, identitate, stocare, memorie și copii independente. — adr/ADR-0001..0007.
+- [x] Fixăm politica de licențe și inventariem dependențele obligatorii. — ANALIZA_OSS.md §5 + NOTICE; SBOM complet la build release (R05).
+- [x] Pornim CI cu lint, tipuri, teste și scanare de secrete; protecția ramurii se configurează unde există acces. — `.github/workflows/guguta-ci.yml` (ruff, mypy, pytest cu PostgreSQL pgvector, gitleaks); rularea pe runner nu a fost încă verificată (push la fork pendinte de mandat/acces).
+- [x] Înregistrăm deciziile externe încă necesare cu responsabil și termen. — [DECIZII_EXTERNE.md](DECIZII_EXTERNE.md) D-01..D-10.
 
 **Închidere:** date protejate, inventar și bază reproductibilă. Nu presupunem că fork-ul comunicat are deja configurate remote-urile checkoutului.
 
 ## L1 — PostgreSQL și schemă
 
-- [ ] Pornim un Compose separat pentru Guguță, fără a șterge volumele demo.
-- [ ] Fixăm PostgreSQL 17 la un patch suportat și pgvector compatibil.
-- [ ] Introducem SQLAlchemy async, psycopg 3 și Alembic cu versiuni blocate.
-- [ ] Configurăm roluri separate pentru migrator, API și worker.
-- [ ] Definim User/Identity/Session și DigitalNotebook cu proprietar obligatoriu.
-- [ ] Definim SourceAsset, MaterialVersion și NotebookSource distincte.
-- [ ] Definim ProcessingArtifact/Chunk/Embedding cu metadate de versiune și dimensiune.
-- [ ] Definim mesajele/citările și notițele cu relații consistente de proprietate.
-- [ ] Adăugăm constrângeri, indici și timestampuri UTC.
-- [ ] Scriem politicile RLS și testele cu rolul runtime real.
-- [ ] Rulăm migrarea de la zero și testăm upgrade-ul între versiuni Guguță.
-- [ ] Adăugăm health checks și un migrator unic pe release.
-- [ ] Documentăm .env.example fără secrete și pornirea Windows/Linux.
+- [x] Pornim un Compose separat pentru Guguță, fără a șterge volumele demo. — `docker-compose.guguta.yml` (proiect `guguta`, volum numit `guguta_pg_data`; surreal_data/notebook_data neatinse).
+- [x] Fixăm PostgreSQL 17 la un patch suportat și pgvector compatibil. — `pgvector/pgvector:0.8.0-pg17` + digest fixat.
+- [x] Introducem SQLAlchemy async, psycopg 3 și Alembic cu versiuni blocate. — pyproject: sqlalchemy[asyncio] <2.1, psycopg[binary,pool] <3.3, alembic <1.15, pgvector <0.4; uv.lock actualizat.
+- [x] Configurăm roluri separate pentru migrator, API și worker. — create în bootstrap + migrație (idempotent); granturi + default privileges; test `test_runtime_roles_not_owners`.
+- [x] Definim User/Identity/Session și DigitalNotebook cu proprietar obligatoriu. — `open_notebook/database/guguta/models.py`.
+- [x] Definim SourceAsset, MaterialVersion și NotebookSource distincte. — ADR-0006; trigger anti-rebind; FK RESTRICT.
+- [x] Definim ProcessingArtifact/Chunk/Embedding cu metadate de versiune și dimensiune. — embedding_spaces + trigger de validare dimensiune.
+- [x] Definim mesajele/citările și notițele cu relații consistente de proprietate. — chat_sessions/chat_messages/citations/notes; citări cu SET NULL pentru istoric „Sursă eliminată”.
+- [x] Adăugăm constrângeri, indici și timestampuri UTC. — CHECK/UNIQUE/partial index; timestamptz; trigger updated_at.
+- [x] Scriem politicile RLS și testele cu rolul runtime real. — 77 politici pe 26 tabele; `tests/guguta/test_rls_isolation.py` (A/B, fără actor, refolosire pool, worker vs coadă) — 14/14 trecute pe PostgreSQL real.
+- [x] Rulăm migrarea de la zero și testăm upgrade-ul între versiuni Guguță. — migrare de la zero în container (migrator) și în teste; upgrade între versiuni Guguță: **în așteptare** (prima versiune Guguță anterioară nu există încă; se retestează la migrația 0002).
+- [x] Adăugăm health checks și un migrator unic pe release. — healthcheck `pg_isready`; serviciul `migrator` one-shot; API/worker nu migrează la pornire.
+- [x] Documentăm .env.example fără secrete și pornirea Windows/Linux. — `.env.guguta.example`; `scripts/dev.ps1` (Windows); compose pentru Linux; notă: pe mașina curentă `localhost` blochează rezolvarea IPv6 — DSN-urile folosesc `127.0.0.1`.
 
 **Închidere:** schema și infrastructura nouă rulează. Nu se cere încă paritate cu toate rutele upstream.
 

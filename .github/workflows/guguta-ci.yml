@@ -1,0 +1,74 @@
+name: guguta-ci
+
+# Guguță CI (L0): lint, typecheck, tests with a real PostgreSQL (pgvector),
+# and secret scanning. Runs on the Guguță work branch; upstream workflows
+# remain untouched until L8.
+
+on:
+  push:
+    branches: ["guguta/**", "main"]
+  pull_request:
+    branches: ["main", "guguta/**"]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Secret scan (gitleaks)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Ruff
+        run: uv run ruff check open_notebook/database/guguta alembic tests/guguta api open_notebook
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Sync dependencies
+        run: uv sync
+      - name: Mypy (Guguță package)
+        run: uv run mypy open_notebook/database/guguta tests/guguta
+
+  tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:0.8.0-pg17
+        env:
+          POSTGRES_DB: guguta
+          POSTGRES_USER: guguta_migrator
+          POSTGRES_PASSWORD: guguta_dev_migrator
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U guguta_migrator -d guguta"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      GUGUTA_TEST_DATABASE_URL: postgresql+psycopg://guguta_migrator:guguta_dev_migrator@localhost:5433/guguta
+      GUGUTA_PG_API_PASSWORD: guguta_dev_api
+      GUGUTA_PG_WORKER_PASSWORD: guguta_dev_worker
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: "3.12"
+      - name: Sync dependencies
+        run: uv sync
+      - name: Guguță PostgreSQL tests (migrations + RLS)
+        run: uv run pytest tests/guguta -q
+      - name: Upstream unit tests
+        run: uv run pytest tests/ -q --ignore=tests/guguta -x
+        continue-on-error: false

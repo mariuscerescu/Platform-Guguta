@@ -46,6 +46,14 @@ dependencies = [
     "numpy>=2.4.1",
     "pycountry>=26.2.16",
     "babel>=2.18.0",
+    # Guguță foundation (ADR-0001/0002/0007): PostgreSQL stack.
+    # The legacy surrealdb / surreal-commands deps above stay until L8; new
+    # Guguță code must not import them.
+    "sqlalchemy[asyncio]>=2.0.36,<2.1",
+    "psycopg[binary,pool]>=3.2.3,<3.3",
+    "alembic>=1.14.0,<1.15",
+    "pgvector>=0.3.6,<0.4",
+    "pydantic-settings>=2.6.0,<3",
 ]
 
 [tool.setuptools]
