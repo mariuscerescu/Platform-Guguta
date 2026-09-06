@@ -25,7 +25,6 @@ from open_notebook.jobs.guguta.queue import (
     ClaimedJob,
     LeaseStale,
     cancel_for_target,
-    complete,
     fail,
 )
 from open_notebook.storage.guguta.base import StorageBackend
@@ -136,60 +135,97 @@ async def process_material_version(
         vectors = provider.embed([c.text for c in chunks])
     except parsing.ExtractionError as exc:
         # Permanent: user-presentable error (A24, R42) — no blind retry.
-        await _mark_source_error(engine, actor_id, source_id, str(exc))
-        await _fail_quietly(engine, job, str(exc), permanent=True)
+        # F10: the error write is lease-fenced and marks the job failed.
+        try:
+            await _mark_source_error(engine, actor_id, source_id, str(exc), job)
+        except LeaseStale:
+            logger.warning("eroarea sursei nu a putut fi scrisă (lease) %s", job.id)
         return
     except Exception as exc:  # transient (storage/provider/network)
         await _fail_quietly(engine, job, f"eroare tranzitorie: {exc}", permanent=False)
         return
 
-    # 3) Publish atomically: artifact + chunks + embeddings + source ready.
+    # 3) Publish atomically WITH fencing (F10): the job row is locked and the
+    #    lease/revision verified in the SAME transaction as the publication —
+    #    a stale worker can no longer commit artifacts or flip the source.
     artifact_id = uuid.uuid4()
     checksum_src = "\x1e".join(c.text for c in chunks)
     import hashlib
 
     checksum = hashlib.sha256(checksum_src.encode("utf-8")).hexdigest()
     try:
-        async with actor_connection(engine, actor_id) as conn:
-            space_id = await _ensure_embedding_space(conn, provider)
-            await conn.execute(
-                text(
-                    "INSERT INTO processing_artifacts (id, material_version_id, parser,"
-                    " parser_version, chunker, chunker_version, chunk_size, chunk_overlap,"
-                    " status, result_checksum, completed_at)"
-                    " VALUES (:id, :mv, :p, :pv, :c, :cv, :cs, :co, 'complete', :sum, now())"
-                ),
-                {"id": artifact_id, "mv": mv_id, "p": PARSER, "pv": PARSER_VERSION,
-                 "c": CHUNKER, "cv": CHUNKER_VERSION, "cs": chunk_size_chars,
-                 "co": overlap_chars, "sum": checksum},
-            )
-            for chunk, vec in zip(chunks, vectors):
-                chunk_id = uuid.uuid4()
+        async with system_connection(engine) as job_conn:
+            # fence: lock the job and verify lease + revision before publishing
+            fenced = (
+                await job_conn.execute(
+                    text(
+                        "SELECT id FROM processing_jobs"
+                        " WHERE id = :id AND lease_token = :t"
+                        "   AND status IN ('claimed','running')"
+                        "   AND target_revision = :trev"
+                        "   AND lease_until > now()"
+                        " FOR UPDATE"
+                    ),
+                    {"id": job.id, "t": job.lease_token,
+                     "trev": job.target_revision},
+                )
+            ).first()
+            if fenced is None:
+                raise LeaseStale(
+                    "jobul nu mai deține lease-ul; publicare refuzată"
+                )
+            async with actor_connection(engine, actor_id) as conn:
+                space_id = await _ensure_embedding_space(conn, provider)
                 await conn.execute(
                     text(
-                        "INSERT INTO chunks (id, artifact_id, position, text, locator,"
-                        " char_start, char_end) VALUES (:id, :a, :pos, :t,"
-                        " CAST(:loc AS jsonb), :cs, :ce)"
+                        "INSERT INTO processing_artifacts (id, material_version_id, parser,"
+                        " parser_version, chunker, chunker_version, chunk_size, chunk_overlap,"
+                        " status, result_checksum, completed_at)"
+                        " VALUES (:id, :mv, :p, :pv, :c, :cv, :cs, :co, 'complete', :sum, now())"
                     ),
-                    {"id": chunk_id, "a": artifact_id, "pos": chunk.position,
-                     "t": chunk.text, "loc": _json(chunk.locator),
-                     "cs": chunk.char_start, "ce": chunk.char_end},
+                    {"id": artifact_id, "mv": mv_id, "p": PARSER, "pv": PARSER_VERSION,
+                     "c": CHUNKER, "cv": CHUNKER_VERSION, "cs": chunk_size_chars,
+                     "co": overlap_chars, "sum": checksum},
                 )
+                for chunk, vec in zip(chunks, vectors):
+                    chunk_id = uuid.uuid4()
+                    await conn.execute(
+                        text(
+                            "INSERT INTO chunks (id, artifact_id, position, text, locator,"
+                            " char_start, char_end) VALUES (:id, :a, :pos, :t,"
+                            " CAST(:loc AS jsonb), :cs, :ce)"
+                        ),
+                        {"id": chunk_id, "a": artifact_id, "pos": chunk.position,
+                         "t": chunk.text, "loc": _json(chunk.locator),
+                         "cs": chunk.char_start, "ce": chunk.char_end},
+                    )
+                    await conn.execute(
+                        text(
+                            "INSERT INTO embeddings (id, chunk_id, embedding_space_id, embedding)"
+                            " VALUES (:id, :c, :s, :v)"
+                        ),
+                        {"id": uuid.uuid4(), "c": chunk_id, "s": space_id,
+                         "v": str(vec)},
+                    )
                 await conn.execute(
                     text(
-                        "INSERT INTO embeddings (id, chunk_id, embedding_space_id, embedding)"
-                        " VALUES (:id, :c, :s, :v)"
+                        "UPDATE notebook_sources SET status = 'ready', status_detail = NULL"
+                        " WHERE id = :id"
                     ),
-                    {"id": uuid.uuid4(), "c": chunk_id, "s": space_id,
-                     "v": str(vec)},
+                    {"id": source_id},
                 )
-            await conn.execute(
-                text(
-                    "UPDATE notebook_sources SET status = 'ready', status_detail = NULL"
-                    " WHERE id = :id"
-                ),
-                {"id": source_id},
-            )
+                # finalize the job in the same transaction as the publication
+                await job_conn.execute(
+                    text(
+                        "UPDATE processing_jobs SET status = 'succeeded',"
+                        " completed_at = now(), last_error = NULL"
+                        " WHERE id = :id AND lease_token = :t"
+                    ),
+                    {"id": job.id, "t": job.lease_token},
+                )
+    except LeaseStale:
+        logger.warning("completare refuzată pentru job %s (lease/revizie)", job.id)
+        return
     except Exception as exc:
         # Duplicate-artifact race or transient DB error: distinguish.
         if "ux_artifacts_mv_parser" in str(exc):
@@ -197,13 +233,6 @@ async def process_material_version(
             return
         await _fail_quietly(engine, job, f"publicare eșuată: {exc}", permanent=False)
         return
-
-    # 4) Lease-checked completion (refuses stale workers, GHID §6.3).
-    try:
-        await complete(engine, job.id, job.lease_token,
-                       target_revision=job.target_revision)
-    except LeaseStale:
-        logger.warning("completare refuzată pentru job %s (lease/revizie)", job.id)
 
 
 def _json(value: dict[str, Any]) -> str:
@@ -213,15 +242,37 @@ def _json(value: dict[str, Any]) -> str:
 
 
 async def _mark_source_error(
-    engine: AsyncEngine, actor_id: uuid.UUID, source_id: uuid.UUID, detail: str
+    engine: AsyncEngine, actor_id: uuid.UUID, source_id: uuid.UUID, detail: str,
+    job: ClaimedJob,
 ) -> None:
-    async with actor_connection(engine, actor_id) as conn:
-        await conn.execute(
+    """F10: the error status is written with the same lease fencing."""
+    async with system_connection(engine) as job_conn:
+        fenced = (
+            await job_conn.execute(
+                text(
+                    "SELECT id FROM processing_jobs"
+                    " WHERE id = :id AND lease_token = :t"
+                    "   AND status IN ('claimed','running') FOR UPDATE"
+                ),
+                {"id": job.id, "t": job.lease_token},
+            )
+        ).first()
+        if fenced is None:
+            raise LeaseStale("lease pierdut; eroarea sursei nu mai poate fi scrisă")
+        async with actor_connection(engine, actor_id) as conn:
+            await conn.execute(
+                text(
+                    "UPDATE notebook_sources SET status = 'error', status_detail = :d"
+                    " WHERE id = :id"
+                ),
+                {"id": source_id, "d": detail[:2000]},
+            )
+        await job_conn.execute(
             text(
-                "UPDATE notebook_sources SET status = 'error', status_detail = :d"
-                " WHERE id = :id"
+                "UPDATE processing_jobs SET status = 'failed', completed_at = now(),"
+                " last_error = :d, lease_token = NULL WHERE id = :id"
             ),
-            {"id": source_id, "d": detail[:2000]},
+            {"id": job.id, "d": detail[:2000]},
         )
 
 

@@ -191,20 +191,28 @@ class SharingService:
     async def revoke_share(
         self, actor: ActorContext, notebook_id: uuid.UUID, share_id: uuid.UUID
     ) -> dict[str, Any]:
-        """Revoke link AND code together; existing copies are untouched."""
+        """Revoke link AND code together; existing copies are untouched.
+        F12: the snapshot row is locked via the definer function for the whole
+        transaction, serializing against in-flight imports (A19)."""
         async with actor_connection(self._engine, actor.actor_id) as conn:
             row = (
                 await conn.execute(
                     text(
                         "SELECT id, status FROM share_snapshots"
-                        " WHERE id = :id AND notebook_id = :nb FOR UPDATE"
+                        " WHERE id = :id AND notebook_id = :nb"
                     ),
                     {"id": share_id, "nb": notebook_id},
                 )
             ).first()
             if row is None:
                 raise ShareNotFound()
-            if row[1] == "revoked":
+            # F12 lock held until commit; concurrent imports block here
+            locked = (
+                await conn.execute(
+                    text("SELECT guguta_share_lock(:id)"), {"id": share_id}
+                )
+            ).scalar_one()
+            if locked == "revoked":
                 return {"revoked": True, "already_revoked": True}
             await conn.execute(
                 text(
@@ -355,6 +363,15 @@ class SharingService:
         async with actor_connection(
             self._engine, actor.actor_id, share_context=snapshot_id
         ) as conn:
+            # F12: serialize with revocation via a definer row-lock on the
+            # snapshot — held until this transaction commits. A concurrent
+            # revoke blocks here instead of racing the final check.
+            locked_status = (
+                await conn.execute(
+                    text("SELECT guguta_share_lock(:id)"),
+                    {"id": snapshot_id},
+                )
+            ).scalar_one()
             # serialize the recipient's own concurrent imports (quota, A20)
             await conn.execute(
                 text("SELECT id FROM users WHERE id = :a FOR UPDATE"),
@@ -369,7 +386,7 @@ class SharingService:
                     {"id": snapshot_id},
                 )
             ).mappings().first()
-            if snap is None or snap["status"] != "active":
+            if snap is None or snap["status"] != "active" or locked_status != "active":
                 raise ShareRevoked(
                     "Pachetul nu mai este disponibil pentru import (revocat)."
                 )

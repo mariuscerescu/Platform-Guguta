@@ -17,6 +17,7 @@ from __future__ import annotations
 import hashlib
 import json
 import uuid
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from sqlalchemy import text
@@ -67,6 +68,8 @@ class ChatService:
         self._provider = provider
         self._max_context_chars = max_context_chars
         self._max_history = max_history_messages
+        # F09: a 'pending' generation older than this is recovered on retry
+        self._pending_recovery_seconds = 300
 
     # -- sessions -----------------------------------------------------------
 
@@ -214,7 +217,15 @@ class ChatService:
                 actor, "chat_message", idempotency_key, payload_hash
             )
             if existing is not None:
-                return existing
+                if existing.get("retry"):
+                    # F09: failed/stale attempt — clean it and re-run the same
+                    # operation once, so the key finalizes exactly one message.
+                    await self._cleanup_failed_attempt(
+                        actor, "chat_message", idempotency_key,
+                        existing["user_message_id"],
+                    )
+                else:
+                    return existing
 
         # Phase 1 (one transaction): lock session, validate, build context,
         # insert the user message + idempotency record. No AI call inside.
@@ -260,13 +271,18 @@ class ChatService:
                     "selectează materiale în carnet înainte de a întreba."
                 )
 
+            # F07: the model context includes only messages generated under the
+            # CURRENT revision. Older messages stay visible in UI history but
+            # never re-enter the prompt after a source change (A17).
             history_rows = (
                 await conn.execute(
                     text(
                         "SELECT role, content FROM chat_messages WHERE session_id = :sid"
+                        " AND context_revision = :rev"
                         " ORDER BY seq DESC LIMIT :lim"
                     ),
-                    {"sid": session_id, "lim": self._max_history},
+                    {"sid": session_id, "rev": context_revision,
+                     "lim": self._max_history},
                 )
             ).all()
             history = [
@@ -293,29 +309,75 @@ class ChatService:
                  "rev": context_revision},
             )
             if idempotency_key:
-                await conn.execute(
-                    text(
-                        "INSERT INTO idempotency_records (id, actor_id, operation_type,"
-                        " idempotency_key, payload_hash, result_type, result_id)"
-                        " VALUES (:id, :a, 'chat_message', :k, :ph, 'pending', :rid)"
-                    ),
-                    {"id": uuid.uuid4(), "a": actor.actor_id, "k": idempotency_key,
-                     "ph": payload_hash, "rid": user_msg_id},
-                )
+                try:
+                    await conn.execute(
+                        text(
+                            "INSERT INTO idempotency_records (id, actor_id, operation_type,"
+                            " idempotency_key, payload_hash, result_type, result_id)"
+                            " VALUES (:id, :a, 'chat_message', :k, :ph, 'pending', :rid)"
+                        ),
+                        {"id": uuid.uuid4(), "a": actor.actor_id, "k": idempotency_key,
+                         "ph": payload_hash, "rid": user_msg_id},
+                    )
+                except Exception as exc:  # F13: concurrent same-key insert
+                    if "ux_idempotency_records" in str(exc):
+                        # the concurrent request won the record: replay/409 per
+                        # contract (the tx is aborted — the client retries once
+                        # for the rare failed-record race)
+                        existing = await self._idempotent_lookup(
+                            actor, "chat_message", idempotency_key, payload_hash
+                        )
+                        if existing is not None and not existing.get("retry"):
+                            return existing
+                        raise IdempotencyConflict(
+                            "Operațiune concurentă pe aceeași cheie; repetați cererea."
+                        )
+                    raise
 
         # Phase 2: generation OUTSIDE any DB transaction (GHID §4.5/§7).
         try:
             answer = self._provider.generate(content, context, history)
         except Exception as exc:
-            # Controlled provider failure (A26): the user message remains as
-            # history; no partial assistant message is saved. A transient
-            # outage must not look like a wrong answer.
+            # A26 + F09: controlled provider failure. The user message remains
+            # as history; the idempotency record becomes 'failed' so a retry
+            # with the same key can complete the operation (after cleanup).
+            if idempotency_key:
+                async with actor_connection(self._engine, actor.actor_id) as conn:
+                    await conn.execute(
+                        text(
+                            "UPDATE idempotency_records SET result_type = 'failed'"
+                            " WHERE actor_id = :a AND operation_type = 'chat_message'"
+                            " AND idempotency_key = :k AND result_type = 'pending'"
+                        ),
+                        {"a": actor.actor_id, "k": idempotency_key},
+                    )
             raise ChatProviderUnavailable(
                 "Furnizorul AI nu a răspuns. Încearcă din nou în câteva momente."
             ) from exc
 
-        # Phase 3 (one transaction): save assistant message + validated citations.
+        # Phase 3 (one transaction, F08): re-lock the session, re-check the
+        # revision, allocate seq under the lock, save assistant message +
+        # validated citations, finalize idempotency.
         async with actor_connection(self._engine, actor.actor_id) as conn:
+            locked = (
+                await conn.execute(
+                    text(
+                        "SELECT id FROM chat_sessions WHERE id = :sid FOR UPDATE"
+                    ),
+                    {"sid": session_id},
+                )
+            ).first()
+            if locked is None:
+                raise ChatSessionNotFound()
+            current_revision = (
+                await conn.execute(
+                    text(
+                        "SELECT context_revision FROM digital_notebooks WHERE id = :nb"
+                    ),
+                    {"nb": notebook_id},
+                )
+            ).scalar_one()
+            cancelled = current_revision != context_revision
             assistant_seq = (
                 await conn.execute(
                     text(
@@ -326,8 +388,6 @@ class ChatService:
                 )
             ).scalar_one()
             assistant_id = uuid.uuid4()
-            # cost/usage measurement (L5): char-based estimates for the mock,
-            # real usage numbers arrive with real providers (D-02).
             prompt_tokens = (len(content) + sum(len(c.text) for c in context)) // 4
             completion_tokens = len(answer.content) // 4
             await conn.execute(
@@ -335,31 +395,34 @@ class ChatService:
                     "INSERT INTO chat_messages (id, session_id, seq, role, content,"
                     " status, context_revision, model, prompt_version, prompt_tokens,"
                     " completion_tokens, total_tokens, estimated_cost)"
-                    " VALUES (:id, :sid, :seq, 'assistant', :c, 'complete', :rev,"
+                    " VALUES (:id, :sid, :seq, 'assistant', :c, :st, :rev,"
                     " :model, :pv, :pt, :ct, :tt, :cost)"
                 ),
                 {"id": assistant_id, "sid": session_id, "seq": assistant_seq,
-                 "c": answer.content, "rev": context_revision,
+                 "c": answer.content,
+                 "st": "cancelled" if cancelled else "complete",
+                 "rev": context_revision,
                  "model": answer.model, "pv": "guguta-mock-1",
                  "pt": prompt_tokens, "ct": completion_tokens,
                  "tt": prompt_tokens + completion_tokens,
                  "cost": 0.0},
             )
-            for idx in answer.cited:
-                if idx < 0 or idx >= len(context):
-                    continue  # invalid citation index refused (A12)
-                chunk = context[idx]
-                await conn.execute(
-                    text(
-                        "INSERT INTO citations (id, message_id, notebook_source_id,"
-                        " material_version_id, chunk_id, display_name, locator)"
-                        " VALUES (:id, :mid, :ns, :mv, :c, :name, CAST(:loc AS jsonb))"
-                    ),
-                    {"id": uuid.uuid4(), "mid": assistant_id,
-                     "ns": chunk.notebook_source_id, "mv": chunk.material_version_id,
-                     "c": chunk.chunk_id, "name": chunk.local_name,
-                     "loc": _json(chunk.locator)},
-                )
+            if not cancelled:
+                for idx in answer.cited:
+                    if idx < 0 or idx >= len(context):
+                        continue  # invalid citation index refused (A12)
+                    chunk = context[idx]
+                    await conn.execute(
+                        text(
+                            "INSERT INTO citations (id, message_id, notebook_source_id,"
+                            " material_version_id, chunk_id, display_name, locator)"
+                            " VALUES (:id, :mid, :ns, :mv, :c, :name, CAST(:loc AS jsonb))"
+                        ),
+                        {"id": uuid.uuid4(), "mid": assistant_id,
+                         "ns": chunk.notebook_source_id, "mv": chunk.material_version_id,
+                         "c": chunk.chunk_id, "name": chunk.local_name,
+                         "loc": _json(chunk.locator)},
+                    )
             if idempotency_key:
                 await conn.execute(
                     text(
@@ -369,21 +432,30 @@ class ChatService:
                     ),
                     {"aid": assistant_id, "a": actor.actor_id, "k": idempotency_key},
                 )
-        return {
+        result = {
             "user_message_id": str(user_msg_id),
             "assistant_message_id": str(assistant_id),
             "context_revision": context_revision,
-            "cited": len(answer.cited),
+            "cited": len(answer.cited) if not cancelled else 0,
         }
+        if cancelled:
+            result["cancelled"] = True  # A17: stale generation, not published
+        return result
 
     async def _idempotent_lookup(
         self, actor: ActorContext, op: str, key: str, payload_hash: str
     ) -> Optional[dict[str, Any]]:
+        """F09: resolve an idempotency record with recovery semantics.
+        - completed  -> replay the stored result
+        - pending, fresh -> 'pending' replay (generation in flight)
+        - pending, older than the recovery timeout, or failed -> mark 'retry':
+          the caller cleans the failed attempt and re-runs the operation.
+        """
         async with actor_connection(self._engine, actor.actor_id) as conn:
             row = (
                 await conn.execute(
                     text(
-                        "SELECT payload_hash, result_type, result_id"
+                        "SELECT payload_hash, result_type, result_id, created_at"
                         " FROM idempotency_records"
                         " WHERE actor_id = :a AND operation_type = :op"
                         " AND idempotency_key = :k"
@@ -399,8 +471,31 @@ class ChatService:
             )
         if row[1] == "chat_message":
             return {"replayed": True, "assistant_message_id": str(row[2])}
-        # generation still in flight for this key
+        if row[1] == "failed":
+            return {"retry": True, "user_message_id": str(row[2])}
+        # pending: recover stale generations (timeout = 5x chat timeout, min 5 min)
+        age = (datetime.now(timezone.utc) - row[3]).total_seconds()
+        if age > self._pending_recovery_seconds:
+            return {"retry": True, "user_message_id": str(row[2])}
         return {"replayed": True, "pending": True, "user_message_id": str(row[2])}
+
+    async def _cleanup_failed_attempt(
+        self, actor: ActorContext, op: str, key: str, user_message_id: str
+    ) -> None:
+        """Remove the orphaned user message + record of a failed attempt so the
+        retry with the same key completes exactly one operation (F09)."""
+        async with actor_connection(self._engine, actor.actor_id) as conn:
+            await conn.execute(
+                text("DELETE FROM chat_messages WHERE id = :id"),
+                {"id": uuid.UUID(user_message_id)},
+            )
+            await conn.execute(
+                text(
+                    "DELETE FROM idempotency_records WHERE actor_id = :a"
+                    " AND operation_type = :op AND idempotency_key = :k"
+                ),
+                {"a": actor.actor_id, "op": op, "k": key},
+            )
 
     def _budget(self, retrieval: list[RetrievedChunk]) -> list[RetrievedChunk]:
         """Cap the context size; the budget is explicit, never silent (A26)."""

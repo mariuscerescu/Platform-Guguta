@@ -41,6 +41,7 @@ class ClaimedJob:
 
 DEFAULT_LEASE_SECONDS = 300
 DEFAULT_MAX_ATTEMPTS = 5
+DEFAULT_MAX_CONCURRENT_PER_USER = 2
 
 
 async def enqueue(
@@ -85,18 +86,45 @@ def _json(value: dict[str, Any]) -> str:
 async def claim(
     engine: AsyncEngine, *, lease_seconds: int = DEFAULT_LEASE_SECONDS,
     worker_name: str = "worker",
+    max_concurrent_per_user: int = DEFAULT_MAX_CONCURRENT_PER_USER,
 ) -> Optional[ClaimedJob]:
-    """Claim one runnable job (queued, or with an expired lease)."""
+    """Claim one runnable job (queued, or with an expired lease).
+
+    F11 controls applied at claim time: expired deadlines fail the job,
+    the attempts budget is enforced, and the per-user concurrency cap is
+    respected."""
     lease_token = secrets.token_urlsafe(24)
     async with system_connection(engine) as conn:
+        # sweep: jobs past their deadline or out of attempts never run again
+        await conn.execute(
+            text(
+                "UPDATE processing_jobs SET status = 'failed', completed_at = now(),"
+                " last_error = coalesce(last_error, 'deadline depășit / încercări epuizate')"
+                " WHERE status IN ('queued','claimed','running')"
+                "   AND ("
+                "     (deadline IS NOT NULL AND deadline < now())"
+                "     OR (attempts >= max_attempts AND status <> 'failed')"
+                "   )"
+            )
+        )
         row = (
             await conn.execute(
                 text(
                     "WITH runnable AS ("
                     "  SELECT id FROM processing_jobs"
-                    "  WHERE (status = 'queued' AND run_after <= now())"
+                    "  WHERE (status = 'queued' AND run_after <= now()"
+                    "         AND attempts < max_attempts"
+                    "         AND (deadline IS NULL OR deadline > now()))"
                     "     OR (status IN ('claimed','running')"
-                    "         AND lease_until IS NOT NULL AND lease_until < now())"
+                    "         AND lease_until IS NOT NULL AND lease_until < now()"
+                    "         AND attempts < max_attempts"
+                    "         AND (deadline IS NULL OR deadline > now()))"
+                    "   AND (actor_id IS NULL OR actor_id NOT IN ("
+                    "        SELECT j2.actor_id FROM processing_jobs j2"
+                    "        WHERE j2.status IN ('claimed','running')"
+                    "          AND j2.actor_id IS NOT NULL"
+                    "        GROUP BY j2.actor_id"
+                    "        HAVING count(*) >= :maxc))"
                     "  ORDER BY created_at"
                     "  FOR UPDATE SKIP LOCKED LIMIT 1"
                     ") "
@@ -113,6 +141,7 @@ async def claim(
                     "owner": worker_name,
                     "token": lease_token,
                     "lease": lease_seconds,
+                    "maxc": max_concurrent_per_user,
                 },
             )
         ).mappings().first()
@@ -151,7 +180,8 @@ async def complete(
     engine: AsyncEngine, job_id: uuid.UUID, lease_token: str, *,
     target_revision: int,
 ) -> None:
-    """Mark succeeded; refuses stale leases or outdated target revisions."""
+    """Mark succeeded; refuses stale leases (incl. expired lease_until),
+    outdated target revisions, or a lost token (F10/F11)."""
     async with system_connection(engine) as conn:
         row = (
             await conn.execute(
@@ -161,6 +191,7 @@ async def complete(
                     " WHERE id = :id AND lease_token = :t"
                     "   AND status IN ('claimed','running')"
                     "   AND target_revision = :trev"
+                    "   AND (lease_until IS NULL OR lease_until > now())"
                     " RETURNING id"
                 ),
                 {"id": job_id, "t": lease_token, "trev": target_revision},

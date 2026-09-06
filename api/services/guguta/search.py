@@ -112,7 +112,7 @@ class SearchService:
                             " JOIN material_versions mv ON mv.id = pa.material_version_id"
                             " JOIN notebook_sources ns ON ns.material_version_id = mv.id"
                             " JOIN digital_notebooks dn ON dn.id = ns.notebook_id"
-                            " WHERE dn.id = :nb AND ns.selected_for_chat"
+                            " WHERE dn.id = :nb AND ns.selected_for_chat AND ns.status = 'ready'"
                             "   AND (c.text ILIKE :like"
                             "        OR (CAST(:tsq AS text) <> ''"
                             "           AND to_tsvector('simple', c.text)"
@@ -150,7 +150,7 @@ class SearchService:
                                 " JOIN material_versions mv ON mv.id = pa.material_version_id"
                                 " JOIN notebook_sources ns ON ns.material_version_id = mv.id"
                                 " JOIN digital_notebooks dn ON dn.id = ns.notebook_id"
-                                " WHERE dn.id = :nb AND ns.selected_for_chat AND es.is_active"
+                                " WHERE dn.id = :nb AND ns.selected_for_chat AND ns.status = 'ready' AND es.is_active"
                                 "   AND e.embedding <=> CAST(:qv AS vector)"
                                 "       <= CAST(:maxd AS float8)"
                                 " ORDER BY e.embedding <=> CAST(:qv AS vector)"
@@ -172,7 +172,13 @@ class SearchService:
                             score=float(r["dist"]), mode="vector",
                         )
 
+        # F16: text score = ts_rank (higher better); vector score = cosine
+        # distance (lower better). Normalize before merging.
+        def _relevance(c: RetrievedChunk) -> float:
+            return c.score if c.mode == "text" else -c.score
+
         ordered = sorted(
-            results.values(), key=lambda c: (0 if c.mode == "text" else 1, -c.score)
+            results.values(),
+            key=lambda c: (0 if c.mode == "text" else 1, -_relevance(c)),
         )
         return ordered[:limit]

@@ -166,6 +166,12 @@ class SourcesService:
 
         try:
             async with actor_connection(self._engine, actor.actor_id) as conn:
+                # F13: lock the user row so concurrent uploads cannot bypass
+                # the quota/count checks (same protocol as import).
+                await conn.execute(
+                    text("SELECT id FROM users WHERE id = :a FOR UPDATE"),
+                    {"a": actor.actor_id},
+                )
                 await self._check_notebook(conn, notebook_id)
                 await self._check_quota(conn, actor.actor_id, len(data))
                 count = (

@@ -389,10 +389,20 @@ class CatalogService:
                     "template_version_id": replay["version_id"]}
 
         async with actor_connection(self._engine, actor.actor_id) as conn:
-            # No FOR UPDATE here: the caller does not own the row, and locking
-            # via RLS requires passing the UPDATE policy. Instead, the version
-            # status is re-checked at the END of the transaction, which
-            # serializes against retire/publish commits.
+            # F12: lock the template row via the definer function for the whole
+            # transaction — serializes instantiate against retire/publish.
+            locked_status = (
+                await conn.execute(
+                    text("SELECT guguta_template_lock(:id)"),
+                    {"id": template_id},
+                )
+            ).scalar_one()
+            # F13: lock the recipient row so concurrent instantiations cannot
+            # bypass the logical storage quota.
+            await conn.execute(
+                text("SELECT id FROM users WHERE id = :a FOR UPDATE"),
+                {"a": actor.actor_id},
+            )
             tpl = (
                 await conn.execute(
                     text(
@@ -402,7 +412,7 @@ class CatalogService:
                     {"id": template_id},
                 )
             ).mappings().first()
-            if tpl is None:
+            if tpl is None or locked_status != "published":
                 raise TemplateNotFound()
             version = (
                 await conn.execute(
@@ -417,6 +427,39 @@ class CatalogService:
             if version is None:
                 raise RetiredTemplate(
                     "Șablonul nu are o ediție publicată activă."
+                )
+            # F13: quota check under the user lock (logical bytes)
+            used = (
+                await conn.execute(
+                    text(
+                        "SELECT coalesce(sum(sa.byte_size), 0)"
+                        " FROM source_assets sa"
+                        " JOIN material_versions mv ON mv.source_asset_id = sa.id"
+                        " JOIN notebook_sources ns ON ns.material_version_id = mv.id"
+                        " JOIN digital_notebooks dn ON dn.id = ns.notebook_id"
+                        " WHERE dn.owner_id = :a"
+                    ),
+                    {"a": actor.actor_id},
+                )
+            ).scalar_one()
+            incoming = (
+                await conn.execute(
+                    text(
+                        "SELECT coalesce(sum(sa.byte_size), 0)"
+                        " FROM template_materials tm"
+                        " JOIN material_versions mv ON mv.id = tm.material_version_id"
+                        " JOIN source_assets sa ON sa.id = mv.source_asset_id"
+                        " WHERE tm.template_version_id = :vid"
+                    ),
+                    {"vid": version["id"]},
+                )
+            ).scalar_one()
+            from open_notebook.database.guguta.config import GugutaConfig
+
+            quota_bytes = GugutaConfig().quota_mib_per_user * 1024 * 1024
+            if int(used) + int(incoming) > quota_bytes:
+                raise InvalidInputError(
+                    "Instanțierea ar depăși cota de stocare; operațiune refuzată."
                 )
             nb_id = uuid.uuid4()
             await conn.execute(

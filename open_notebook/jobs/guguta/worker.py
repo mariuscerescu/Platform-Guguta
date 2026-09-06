@@ -30,7 +30,8 @@ class Worker:
         self._stopping = asyncio.Event()
 
     async def process_one(self) -> bool:
-        """Claim and process exactly one job. Returns True if a job ran."""
+        """Claim and process exactly one job, with a heartbeat loop running
+        for the duration (F11). Returns True if a job ran."""
         job = await claim(
             self._engine,
             lease_seconds=self._config.job_lease_seconds,
@@ -39,24 +40,45 @@ class Worker:
         if job is None:
             return False
         logger.info("job revendicat: %s (%s)", job.id, job.job_type)
-        if job.job_type == "process_material_version":
-            await process_material_version(
-                self._engine,
-                self._storage,
-                self._provider,
-                job,
-                chunk_size_chars=self._config.chunk_size_chars,
-                overlap_chars=self._config.chunk_overlap_chars,
-            )
-        else:
-            logger.error("tip de job necunoscut: %s", job.job_type)
-            from open_notebook.jobs.guguta.queue import fail
 
-            await fail(
-                self._engine, job.id, job.lease_token,
-                f"tip necunoscut: {job.job_type}",
-                target_revision=job.target_revision, permanent=True,
-            )
+        from open_notebook.jobs.guguta.queue import heartbeat
+
+        async def _heartbeat_loop() -> None:
+            interval = max(5, self._config.job_lease_seconds // 4)
+            while True:
+                await asyncio.sleep(interval)
+                try:
+                    await heartbeat(self._engine, job.id, job.lease_token,
+                                    extend_seconds=self._config.job_lease_seconds)
+                except Exception:
+                    logger.warning("heartbeat eșuat pentru job %s", job.id)
+
+        hb_task = asyncio.create_task(_heartbeat_loop())
+        try:
+            if job.job_type == "process_material_version":
+                await process_material_version(
+                    self._engine,
+                    self._storage,
+                    self._provider,
+                    job,
+                    chunk_size_chars=self._config.chunk_size_chars,
+                    overlap_chars=self._config.chunk_overlap_chars,
+                )
+            else:
+                logger.error("tip de job necunoscut: %s", job.job_type)
+                from open_notebook.jobs.guguta.queue import fail
+
+                await fail(
+                    self._engine, job.id, job.lease_token,
+                    f"tip necunoscut: {job.job_type}",
+                    target_revision=job.target_revision, permanent=True,
+                )
+        finally:
+            hb_task.cancel()
+            try:
+                await hb_task
+            except asyncio.CancelledError:
+                pass
         return True
 
     async def run(self) -> None:
