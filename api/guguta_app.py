@@ -79,7 +79,7 @@ from api.services.guguta.sources import (
     SourceValidation,
 )
 from open_notebook.auth.guguta.actor import ActorDenied
-from open_notebook.auth.guguta.oidc import OidcError
+from open_notebook.auth.guguta.oidc import OidcError, SignedStateCodec
 from open_notebook.auth.guguta.sessions import (
     CSRF_HEADER,
     SESSION_COOKIE,
@@ -151,6 +151,16 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
     )
     app.state.guguta_notes = NotesService(engine)
     app.state.guguta_catalog = CatalogService(engine)
+    app.state.guguta_state_codec = SignedStateCodec(config.server_secret)
+    if config.auth_mode == "oidc" and config.oidc_issuer:
+        from open_notebook.auth.guguta.oidc import OidcClient, OidcConfig
+
+        app.state.guguta_oidc = OidcClient(OidcConfig(
+            issuer=config.oidc_issuer,
+            client_id=config.oidc_client_id,
+            client_secret=config.oidc_client_secret,
+            redirect_uri=config.oidc_redirect_uri,
+        ))
     app.state.guguta_sharing = SharingService(
         engine, quota_mib_per_user=config.quota_mib_per_user
     )

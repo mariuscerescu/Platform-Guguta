@@ -75,7 +75,7 @@ def test_no_legacy_imports_in_guguta_runtime() -> None:
 
 def test_no_sqlite_files_in_guguta_paths() -> None:
     """No SQLite databases inside the Guguță-owned paths (ADR-0005)."""
-    offenders = []
+    offenders: list[str] = []
     for entry in GUUGUTA_PATHS:
         full = REPO_ROOT / entry
         if full.is_dir():

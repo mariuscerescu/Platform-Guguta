@@ -10,6 +10,7 @@ import uuid
 from typing import Any, Optional
 
 from fastapi import APIRouter, Request, Response
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
 from open_notebook.auth.guguta.actor import ActorContext, ActorDenied
@@ -90,6 +91,63 @@ async def dev_login(body: DevLoginRequest, request: Request, response: Response)
     set_session_cookie(response, request, token)
     response.headers[CSRF_HEADER] = csrf
     return MeResponse(id=str(user_id), display_name=name, roles=["user"])
+
+
+_STATE_COOKIE = "guguta_oidc_state"
+
+
+@auth_router.get("/oidc/login", status_code=307)
+async def oidc_login(request: Request, response: Response):
+    """Start the OIDC Authorization Code + PKCE flow (ADR-0003).
+
+    Only available when auth_mode=oidc and an OIDC client is configured on
+    app.state (production path); dev-login remains the test-mode path.
+    """
+    config = request.app.state.guguta_config
+    if config.auth_mode != "oidc":
+        raise ActorDenied("OIDC nu este activat.")
+    client = request.app.state.guguta_oidc
+    url, cookie_value = client.begin_login(request.app.state.guguta_state_codec)
+    response.set_cookie(
+        _STATE_COOKIE, cookie_value,
+        httponly=True, samesite="lax",
+        secure=config.public_origin.startswith("https://"),
+        max_age=600, path="/",
+    )
+    return RedirectResponse(url, status_code=307)
+
+
+@auth_router.get("/oidc/callback")
+async def oidc_callback(request: Request, response: Response, code: str = "",
+                        state: str = "") -> RedirectResponse:
+    """Finish the OIDC flow: validate, provision, open the session."""
+    config = request.app.state.guguta_config
+    if config.auth_mode != "oidc":
+        raise ActorDenied("OIDC nu este activat.")
+    state_cookie = request.cookies.get(_STATE_COOKIE)
+    if not state_cookie:
+        raise AuthenticationError("Flux OIDC pierdut (fără state).")
+    client = request.app.state.guguta_oidc
+    result = await client.complete_login(
+        request.app.state.guguta_state_codec, state_cookie, state, code
+    )
+    engine = request.app.state.guguta_engine
+    from sqlalchemy import text
+
+    async with engine.begin() as conn:
+        user_id = (
+            await conn.execute(
+                text("SELECT guguta_provision_user(:i, :s, :n, :e)"),
+                {"i": result.issuer, "s": result.subject,
+                 "n": result.display_name, "e": result.email},
+            )
+        ).scalar_one()
+    sessions: SessionService = get_session_service(request)
+    token, csrf = await sessions.create_session(user_id)
+    set_session_cookie(response, request, token)
+    response.headers[CSRF_HEADER] = csrf
+    response.delete_cookie(_STATE_COOKIE, path="/")
+    return RedirectResponse("/", status_code=303)
 
 
 @auth_router.post("/logout")

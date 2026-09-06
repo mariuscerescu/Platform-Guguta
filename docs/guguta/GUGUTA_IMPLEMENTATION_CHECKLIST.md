@@ -55,7 +55,7 @@ Revizia 1.1 aliniază ordinea cu livrările L0–L10. Testele, identitatea și C
 
 ## L2 — Identitate și CRUD autorizat
 
-- [ ] Implementăm adaptorul OIDC și sesiunea opacă server-side. — **în curs**: adaptorul OIDC implementat (`open_notebook/auth/guguta/oidc.py`: PKCE S256, state/nonce semnate, JWKS, validare issuer/aud/nonce); sesiunea opacă testată end-to-end (dev-login/me/logout/revocare/suspendare). **Rămâne:** proba completă OIDC cu issuer fals în teste (RFC flow cu token exchange).
+- [x] Implementăm adaptorul OIDC și sesiunea opacă server-side. — `oidc.py` (PKCE S256, state/nonce semnate, JWKS, validare iss/aud/exp/nonce) + rute `/api/v1/auth/oidc/{login,callback}` (Redirect 307/303, provisioning prin funcție) + **proba completă cu issuer fals**: RSA+JWKS, exchange, sub/email; state modificat → eroare; token expirat → eroare (`test_oidc_flow.py`). Sesiunea opacă testată end-to-end (dev-login/me/logout/revocare/suspendare).
 - [x] Implementăm ActorContext și stabilirea identității numai pe server. — `ActorContext` construit exclusiv din sesiunea validată; provisioning prin `guguta_provision_user` (SECURITY DEFINER, migrația 0002).
 - [x] Adăugăm cookie-uri, CSRF, expirare, logout și revocare. — cookie HttpOnly/SameSite/Secure(https); CSRF derivat HMAC din token hash (tested: lipsă→403); Origin verificat (tested: străină→403); expirare absolută + inactivitate; logout/revocare tested.
 - [x] Definim rolurile utilizator, editor de catalog și administrator; profesorul poate folosi rolul obișnuit. — `users.roles` cu CHECK, `ActorContext.require_role/require_any_role`; ecranele dedicate vin cu modulele lor (L5/L6).

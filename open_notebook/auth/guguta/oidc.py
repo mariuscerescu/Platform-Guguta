@@ -183,7 +183,11 @@ class OidcClient:
             )
         except JoseError as exc:
             raise OidcError(f"id_token validation failed: {exc}") from exc
-        claims.validate(now=int(time.time()), leeway=60)
+        try:
+            claims.validate(now=int(time.time()), leeway=60)
+        except JoseError as exc:
+            # covers ExpiredTokenError / ImmatureTokenError etc.
+            raise OidcError(f"id_token claims invalid: {exc}") from exc
         if expected_nonce and not hmac.compare_digest(
             str(claims.get("nonce", "")), expected_nonce
         ):
