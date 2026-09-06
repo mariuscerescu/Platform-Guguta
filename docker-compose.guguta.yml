@@ -90,7 +90,17 @@ services:
     command: ["python", "-m", "open_notebook.jobs.guguta.worker"]
     restart: unless-stopped
 
-  # frontend: Next.js production build (L5 — open item)
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/guguta/frontend.Dockerfile
+    environment:
+      GUGUTA_API_URL: http://api:5055
+    ports:
+      - "127.0.0.1:3001:3001"
+    depends_on:
+      - api
+    restart: unless-stopped
 
 volumes:
   guguta_pg_data:

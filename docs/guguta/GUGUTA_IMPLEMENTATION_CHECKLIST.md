@@ -113,13 +113,13 @@ Revizia 1.1 aliniază ordinea cu livrările L0–L10. Testele, identitatea și C
 
 - [x] Portăm DOCX, PPTX, TXT/Markdown și text introdus. — extracție OOXML prin stdlib (paragrafe/slide-uri cu locatori; testate); textul introdus din L3.
 - [x] Implementăm notițe private și salvarea răspunsurilor. — CRUD notițe + save-as-note cu source_message_id; izolare A/B (testate); notițele nu intră în share (allowlist L7).
-- [ ] Aplicăm localizarea ro-MD și terminologia Carnet digital/Materiale/Notițe/Conversație. — **în curs**: contractele API și mesajele de eroare sunt în română; interfața Next.js Guguță (frontend) rămâne de construit/adaptat.
-- [ ] Aplicăm wordmark, tokens, tipografie și spațiere din ghid. — **deschis** (frontend; tokens definite în ghid §9.1, neaplicate în UI).
-- [ ] Implementăm pagina principală și carduri distincte oficial/personal. — **deschis** (frontend).
-- [ ] Implementăm trei panouri desktop și taburi mobile, conform ghidului. — **deschis** (frontend).
-- [ ] Implementăm citarea în panou și toate stările loading/empty/error/success. — **parțial**: datele pentru panoul de citare există la API (endpoint citări + source_removed); UI rămâne.
-- [ ] Verificăm 360/768/1440px, zoom 200%, focus, tastatură și contrast. — **deschis** (după UI).
-- [x] Ascundem setările tehnice elevilor și le protejăm în API. — suprafața elev nu expune rute de configurare; admin-only pe /api/v1/admin/* (403 testat).
+- [x] Aplicăm localizarea ro-MD și terminologia Carnet digital/Materiale/Notițe/Conversație. — frontend Guguță (`frontend-guguta/`, Next.js 15 App Router): layout lang="ro-MD", wordmark „Guguță — Învață cu materialele tale", terminologia ghidului pe toate ecranele.
+- [x] Aplicăm wordmark, tokens, tipografie și spațiere din ghid. — CSS variables: #F8FAFC/#FFFFFF/#0F172A/#475569/#0F766E/#B91C1C/#CBD5E1, radius 12px, spațiere 4/8, touch 44px, focus vizibil (§9.1).
+- [x] Implementăm pagina principală și carduri distincte oficial/personal. — „Carnetele mele" + „Catalogul oficial Guguță" (badge „Din catalogul oficial"/„Personal"/„Importat" + „Publicat de Guguță") + „Importă prin link sau cod" vizibil secundar.
+- [x] Implementăm trei panouri desktop și taburi mobile, conform ghidului. — grid 280px/1fr/300px desktop; taburi Materiale/Conversație/Notițe sub 1024px.
+- [x] Implementăm citarea în panou și toate stările loading/empty/error/success. — citările afișate în mesaj (incl. „Sursă eliminată"); stări loading/empty/error în toate listele; disabled pe butoane.
+- [ ] Verificăm 360/768/1440px, zoom 200%, focus, tastatură și contrast. — **parțial**: responsive prin taburi + focus/tokenuri implementate; sweep-ul complet de accesibilitate rămâne (revizie umană + Playwright).
+- [x] Ascundem setările tehnice elevilor și le protejăm în API. — UI nu expune provideri/chei/infrastructură; admin-only pe /api/v1/admin/*.
 - [x] Portăm configurarea centrală chat/embedding și criptarea cheilor cu posibilitate de rotație. — `admin_credentials` criptate Fernet cu key_id + MultiFernet; rotație și decriptare auditate în DB; funcții SECURITY DEFINER cu rol admin verificat în DB; metadata-only în răspunsuri (testate).
 - [x] Introducem cote și măsurarea costurilor/încercărilor. — cotă logică per utilizator (L3) + tokeni/cost înregistrați pe mesaje (estimări, mock); încercări worker cu attempts/max_attempts.
 - [x] Dezactivăm pe server Podcasts, source-chat, Ask global, URL/media/arhive și runtime-uri amânate. — suprafața Guguță nu le montează deloc (R26; testat A23).
