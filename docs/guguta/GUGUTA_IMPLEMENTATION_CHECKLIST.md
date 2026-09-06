@@ -111,22 +111,22 @@ Revizia 1.1 aliniază ordinea cu livrările L0–L10. Testele, identitatea și C
 
 ## L5 — Produs MVP, design și administrare
 
-- [ ] Portăm DOCX, PPTX, TXT/Markdown și text introdus.
-- [ ] Implementăm notițe private și salvarea răspunsurilor.
-- [ ] Aplicăm localizarea ro-MD și terminologia Carnet digital/Materiale/Notițe/Conversație.
-- [ ] Aplicăm wordmark, tokens, tipografie și spațiere din ghid.
-- [ ] Implementăm pagina principală și carduri distincte oficial/personal.
-- [ ] Implementăm trei panouri desktop și taburi mobile, conform ghidului.
-- [ ] Implementăm citarea în panou și toate stările loading/empty/error/success.
-- [ ] Verificăm 360/768/1440px, zoom 200%, focus, tastatură și contrast.
-- [ ] Ascundem setările tehnice elevilor și le protejăm în API.
-- [ ] Portăm configurarea centrală chat/embedding și criptarea cheilor cu posibilitate de rotație.
-- [ ] Introducem cote și măsurarea costurilor/încercărilor.
-- [ ] Dezactivăm pe server Podcasts, source-chat, Ask global, URL/media/arhive și runtime-uri amânate.
-- [ ] Implementăm raportarea răspunsului/materialului problematic.
-- [ ] Verificăm că niciun buton activ nu folosește doar mock în buildul livrat.
+- [x] Portăm DOCX, PPTX, TXT/Markdown și text introdus. — extracție OOXML prin stdlib (paragrafe/slide-uri cu locatori; testate); textul introdus din L3.
+- [x] Implementăm notițe private și salvarea răspunsurilor. — CRUD notițe + save-as-note cu source_message_id; izolare A/B (testate); notițele nu intră în share (allowlist L7).
+- [ ] Aplicăm localizarea ro-MD și terminologia Carnet digital/Materiale/Notițe/Conversație. — **în curs**: contractele API și mesajele de eroare sunt în română; interfața Next.js Guguță (frontend) rămâne de construit/adaptat.
+- [ ] Aplicăm wordmark, tokens, tipografie și spațiere din ghid. — **deschis** (frontend; tokens definite în ghid §9.1, neaplicate în UI).
+- [ ] Implementăm pagina principală și carduri distincte oficial/personal. — **deschis** (frontend).
+- [ ] Implementăm trei panouri desktop și taburi mobile, conform ghidului. — **deschis** (frontend).
+- [ ] Implementăm citarea în panou și toate stările loading/empty/error/success. — **parțial**: datele pentru panoul de citare există la API (endpoint citări + source_removed); UI rămâne.
+- [ ] Verificăm 360/768/1440px, zoom 200%, focus, tastatură și contrast. — **deschis** (după UI).
+- [x] Ascundem setările tehnice elevilor și le protejăm în API. — suprafața elev nu expune rute de configurare; admin-only pe /api/v1/admin/* (403 testat).
+- [x] Portăm configurarea centrală chat/embedding și criptarea cheilor cu posibilitate de rotație. — `admin_credentials` criptate Fernet cu key_id + MultiFernet; rotație și decriptare auditate în DB; funcții SECURITY DEFINER cu rol admin verificat în DB; metadata-only în răspunsuri (testate).
+- [x] Introducem cote și măsurarea costurilor/încercărilor. — cotă logică per utilizator (L3) + tokeni/cost înregistrați pe mesaje (estimări, mock); încercări worker cu attempts/max_attempts.
+- [x] Dezactivăm pe server Podcasts, source-chat, Ask global, URL/media/arhive și runtime-uri amânate. — suprafața Guguță nu le montează deloc (R26; testat A23).
+- [x] Implementăm raportarea răspunsului/materialului problematic. — POST /api/v1/reports → audit_events; listare admin-only (testate).
+- [ ] Verificăm că niciun buton activ nu folosește doar mock în buildul livrat. — **deschis** (frontend; la build release R66).
 
-**Închidere:** experiență de elev completă în română, fără configurarea furnizorilor sau a infrastructurii.
+**Închidere:** experiență de elev completă în română, fără configurarea furnizorilor sau a infrastructurii. — backend-ul MVP este complet; experiența UI rămâne livrarea principală înainte de L6.
 
 ## L6 — Catalog și șabloane
 

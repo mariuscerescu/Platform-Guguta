@@ -23,7 +23,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from api.services.guguta.search import RetrievedChunk
-from open_notebook.ai.guguta.chat import SYSTEM_PROMPT, ChatProvider
+from open_notebook.ai.guguta.chat import ChatProvider
 from open_notebook.auth.guguta.actor import ActorContext
 from open_notebook.database.guguta.engine import actor_connection
 from open_notebook.exceptions import NotFoundError, OpenNotebookError
@@ -314,16 +314,24 @@ class ChatService:
                 )
             ).scalar_one()
             assistant_id = uuid.uuid4()
+            # cost/usage measurement (L5): char-based estimates for the mock,
+            # real usage numbers arrive with real providers (D-02).
+            prompt_tokens = (len(content) + sum(len(c.text) for c in context)) // 4
+            completion_tokens = len(answer.content) // 4
             await conn.execute(
                 text(
                     "INSERT INTO chat_messages (id, session_id, seq, role, content,"
-                    " status, context_revision, model, prompt_version)"
+                    " status, context_revision, model, prompt_version, prompt_tokens,"
+                    " completion_tokens, total_tokens, estimated_cost)"
                     " VALUES (:id, :sid, :seq, 'assistant', :c, 'complete', :rev,"
-                    " :model, :pv)"
+                    " :model, :pv, :pt, :ct, :tt, :cost)"
                 ),
                 {"id": assistant_id, "sid": session_id, "seq": assistant_seq,
                  "c": answer.content, "rev": context_revision,
-                 "model": answer.model, "pv": SYSTEM_PROMPT[:100]},
+                 "model": answer.model, "pv": "guguta-mock-1",
+                 "pt": prompt_tokens, "ct": completion_tokens,
+                 "tt": prompt_tokens + completion_tokens,
+                 "cost": 0.0},
             )
             for idx in answer.cited:
                 if idx < 0 or idx >= len(context):

@@ -110,11 +110,97 @@ def extract_text(data: bytes) -> tuple[list[TextUnit], Optional[int]]:
     return units, None
 
 
+def _ooxml_paragraphs(xml_bytes: bytes, run_tag_local: str = "t") -> list[str]:
+    """Extract text runs from OOXML document.xml (namespace-agnostic)."""
+    import xml.etree.ElementTree as ET
+
+    paragraphs: list[str] = []
+    try:
+        root = ET.fromstring(xml_bytes)
+    except ET.ParseError as exc:
+        raise ExtractionError("Documentul OOXML este corupt.") from exc
+    for para in root.iter():
+        tag = para.tag.rsplit("}", 1)[-1]
+        if tag != "p":
+            continue
+        pieces = [
+            (node.text or "")
+            for node in para.iter()
+            if node.tag.rsplit("}", 1)[-1] == run_tag_local
+        ]
+        text_value = "".join(pieces).strip()
+        if text_value:
+            paragraphs.append(text_value)
+    return paragraphs
+
+
+def extract_docx(data: bytes) -> tuple[list[TextUnit], Optional[int]]:
+    """DOCX text: one unit per non-empty paragraph, locator = paragraph index."""
+    import io
+    import zipfile
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            xml_bytes = zf.read("word/document.xml")
+    except KeyError as exc:
+        raise ExtractionError("DOCX invalid: document.xml lipsește.") from exc
+    paragraphs = _ooxml_paragraphs(xml_bytes)
+    if not paragraphs:
+        raise ExtractionError("DOCX-ul nu conține text.")
+    units = [
+        TextUnit(text=p, locator={"paragraph": i})
+        for i, p in enumerate(paragraphs, start=1)
+    ]
+    return units, len(paragraphs)
+
+
+def extract_pptx(data: bytes) -> tuple[list[TextUnit], Optional[int]]:
+    """PPTX text: one unit per slide, locator = slide number."""
+    import io
+    import re
+    import zipfile
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(data)) as zf:
+            slide_names = sorted(
+                (n for n in zf.namelist() if re.fullmatch(r"ppt/slides/slide\d+\.xml", n)),
+                key=lambda n: int(re.search(r"(\d+)", n).group(1)),  # type: ignore[union-attr]
+            )
+            units: list[TextUnit] = []
+            for idx, name in enumerate(slide_names, start=1):
+                pieces = [
+                    (node.text or "")
+                    for node in ET_iter(zf.read(name))
+                    if node.tag.rsplit("}", 1)[-1] == "t"
+                ]
+                text_value = " ".join(" ".join(pieces).split())
+                if text_value:
+                    units.append(TextUnit(text=text_value, locator={"slide": idx}))
+    except ExtractionError:
+        raise
+    except Exception as exc:
+        raise ExtractionError("PPTX invalid.") from exc
+    if not units:
+        raise ExtractionError("PPTX-ul nu conține text.")
+    return units, len(slide_names)
+
+
+def ET_iter(xml_bytes: bytes):
+    import xml.etree.ElementTree as ET
+
+    root = ET.fromstring(xml_bytes)
+    return root.iter()
+
+
 def extract_units(kind: str, data: bytes) -> tuple[list[TextUnit], Optional[int]]:
     if kind == "pdf":
         return extract_pdf(data)
     if kind == "text":
         return extract_text(data)
+    if kind == "docx":
+        return extract_docx(data)
+    if kind == "pptx":
+        return extract_pptx(data)
     raise ExtractionError(
         f"Extracția pentru formatul '{kind}' nu este disponibilă încă."
     )

@@ -418,3 +418,173 @@ async def get_citations(
     actor = get_actor(request)
     service = request.app.state.guguta_chat
     return await service.get_citations(actor, notebook_id, session_id, message_id)
+
+
+# ---------------------------------------------------------------------------
+# Notes (L5) — private, excluded from shares
+# ---------------------------------------------------------------------------
+
+
+class NoteCreate(BaseModel):
+    title: str = Field(min_length=1, max_length=500)
+    content: str = Field(min_length=1, max_length=100_000)
+
+
+class NoteUpdate(BaseModel):
+    title: Optional[str] = Field(default=None, min_length=1, max_length=500)
+    content: Optional[str] = Field(default=None, min_length=1, max_length=100_000)
+
+
+class SaveAnswerRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=500)
+
+
+notes_router = APIRouter(
+    prefix="/api/v1/notebooks/{notebook_id}/notes", tags=["notes"]
+)
+
+
+def get_notes_service(request: Request) -> Any:
+    return request.app.state.guguta_notes
+
+
+@notes_router.post("", status_code=201)
+async def create_note(
+    notebook_id: uuid.UUID, body: NoteCreate, request: Request
+) -> dict[str, Any]:
+    actor = get_actor(request)
+    return await get_notes_service(request).create(
+        actor, notebook_id, title=body.title, content=body.content
+    )
+
+
+@notes_router.get("")
+async def list_notes(notebook_id: uuid.UUID, request: Request) -> list[dict[str, Any]]:
+    actor = get_actor(request)
+    return await get_notes_service(request).list_for_notebook(actor, notebook_id)
+
+
+@notes_router.get("/{note_id}")
+async def get_note(
+    notebook_id: uuid.UUID, note_id: uuid.UUID, request: Request
+) -> dict[str, Any]:
+    actor = get_actor(request)
+    return await get_notes_service(request).get(actor, notebook_id, note_id)
+
+
+@notes_router.patch("/{note_id}")
+async def update_note(
+    notebook_id: uuid.UUID, note_id: uuid.UUID, body: NoteUpdate, request: Request
+) -> dict[str, Any]:
+    actor = get_actor(request)
+    return await get_notes_service(request).update(
+        actor, notebook_id, note_id, title=body.title, content=body.content
+    )
+
+
+@notes_router.delete("/{note_id}")
+async def delete_note(
+    notebook_id: uuid.UUID, note_id: uuid.UUID, request: Request
+) -> dict[str, Any]:
+    actor = get_actor(request)
+    deleted = await get_notes_service(request).delete(actor, notebook_id, note_id)
+    return {"deleted": deleted}
+
+
+@chat_router.post("/{session_id}/messages/{message_id}/save-as-note", status_code=201)
+async def save_answer_as_note(
+    notebook_id: uuid.UUID, session_id: uuid.UUID, message_id: uuid.UUID,
+    body: SaveAnswerRequest, request: Request,
+) -> dict[str, Any]:
+    actor = get_actor(request)
+    chat = request.app.state.guguta_chat
+    messages = await chat.list_messages(actor, notebook_id, session_id)
+    target = next((m for m in messages if m["id"] == message_id), None)
+    if target is None:
+        from api.services.guguta.chat import ChatSessionNotFound
+
+        raise ChatSessionNotFound()
+    return await get_notes_service(request).create(
+        actor, notebook_id,
+        title=body.title,
+        content=target["content"],
+        source_message_id=message_id,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Admin (L5) — central AI credentials, content reports
+# ---------------------------------------------------------------------------
+
+
+class CredentialCreate(BaseModel):
+    provider: str = Field(min_length=1, max_length=100)
+    name: str = Field(min_length=1, max_length=200)
+    secret_value: str = Field(min_length=1, max_length=10_000)
+
+
+class RotateRequest(BaseModel):
+    new_secret: Optional[str] = Field(default=None, max_length=10_000)
+
+
+class ReportCreate(BaseModel):
+    target_type: str = Field(min_length=1, max_length=50)
+    target_id: str = Field(min_length=1, max_length=100)
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+admin_router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
+
+
+@admin_router.post("/credentials", status_code=201)
+async def set_credential(body: CredentialCreate, request: Request) -> dict[str, Any]:
+    actor = get_actor(request)
+    return await request.app.state.guguta_admin.set_credential(
+        actor, provider=body.provider, name=body.name, secret_value=body.secret_value
+    )
+
+
+@admin_router.get("/credentials")
+async def list_credentials(request: Request) -> list[dict[str, Any]]:
+    actor = get_actor(request)
+    return await request.app.state.guguta_admin.list_credentials(actor)
+
+
+@admin_router.delete("/credentials/{credential_id}")
+async def delete_credential(credential_id: uuid.UUID, request: Request) -> dict[str, Any]:
+    actor = get_actor(request)
+    await request.app.state.guguta_admin.delete_credential(actor, credential_id)
+    return {"deleted": True}
+
+
+@admin_router.post("/credentials/{credential_id}/rotate")
+async def rotate_credential(
+    credential_id: uuid.UUID, body: RotateRequest, request: Request
+) -> dict[str, Any]:
+    actor = get_actor(request)
+    return await request.app.state.guguta_admin.rotate_credential(
+        actor, credential_id, new_secret=body.new_secret
+    )
+
+
+@admin_router.get("/reports")
+async def list_reports(request: Request) -> list[dict[str, Any]]:
+    actor = get_actor(request)
+    return await request.app.state.guguta_admin.list_reports(actor)
+
+
+reports_router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
+
+
+@reports_router.post("", status_code=201)
+async def create_report(body: ReportCreate, request: Request) -> dict[str, Any]:
+    actor = get_actor(request)
+    try:
+        target_uuid = uuid.UUID(body.target_id)
+    except ValueError as exc:
+        from open_notebook.exceptions import InvalidInputError
+
+        raise InvalidInputError("target_id trebuie să fie UUID.") from exc
+    return await request.app.state.guguta_admin.create_report(
+        actor, target_type=body.target_type, target_id=target_uuid, reason=body.reason
+    )

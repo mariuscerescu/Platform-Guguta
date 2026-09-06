@@ -54,7 +54,9 @@ class FilesystemStorage:
         key = f"{prefix}/{uid[0:2]}/{uid[2:4]}/{uid}"
         path = self._path(key)
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+        # O_BINARY: without it, Windows CRT text mode translates LF->CRLF and
+        # corrupts binary payloads (PDFs, OOXML zips).
+        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)
         fd = os.open(path, flags, 0o600)
         try:
             os.write(fd, data)

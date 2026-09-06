@@ -24,13 +24,17 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from api.routers.guguta_v1 import (
+    admin_router,
     auth_router,
     chat_router,
     jobs_router,
     notebooks_router,
+    notes_router,
+    reports_router,
     search_router,
     sources_router,
 )
+from api.services.guguta.admin import AdminService
 from api.services.guguta.chat import (
     ChatService,
     ChatSessionNotFound,
@@ -42,6 +46,11 @@ from api.services.guguta.notebooks import (
     NotebookNotFound,
     NotebookService,
     NotebookValidation,
+)
+from api.services.guguta.notes import (
+    NoteNotFound,
+    NotesService,
+    NoteValidation,
 )
 from api.services.guguta.search import SearchService
 from api.services.guguta.sources import (
@@ -121,6 +130,15 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
         app.state.guguta_search,
         get_chat_provider(config.chat_provider),
     )
+    app.state.guguta_notes = NotesService(engine)
+    from open_notebook.auth.guguta.crypto import CredentialCrypto
+
+    app.state.guguta_admin = AdminService(
+        engine,
+        CredentialCrypto(
+            config.credential_encryption_keys, config.credential_key_primary_id
+        ),
+    )
 
     @app.on_event("shutdown")
     async def _dispose() -> None:
@@ -185,6 +203,9 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
     app.include_router(jobs_router)
     app.include_router(search_router)
     app.include_router(chat_router)
+    app.include_router(notes_router)
+    app.include_router(admin_router)
+    app.include_router(reports_router)
 
     @app.exception_handler(AuthenticationError)
     async def auth_error(request: Request, exc: AuthenticationError) -> JSONResponse:
@@ -237,6 +258,15 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
     async def quota_exceeded(request: Request, exc: QuotaExceeded) -> JSONResponse:
         return _error("quota_exceeded", str(exc), 429,
                       request.headers.get("x-request-id", "-"))
+
+    @app.exception_handler(NoteNotFound)
+    async def note_not_found(request: Request, exc: NoteNotFound) -> JSONResponse:
+        return _error("not_found", "Resursa nu există.", 404,
+                      request.headers.get("x-request-id", "-"))
+
+    @app.exception_handler(NoteValidation)
+    async def note_validation(request: Request, exc: NoteValidation) -> JSONResponse:
+        return _error("invalid", str(exc), 422, request.headers.get("x-request-id", "-"))
 
     from open_notebook.jobs.guguta.parsing import ExtractionError
 

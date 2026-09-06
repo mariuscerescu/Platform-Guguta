@@ -73,6 +73,13 @@ class GugutaConfig(BaseSettings):
     oidc_client_secret: str = ""
     oidc_redirect_uri: str = ""
 
+    # Credential encryption (L5): dict of key_id -> secret; the primary id
+    # encrypts new payloads, the others allow rotation fallbacks.
+    credential_key_primary_id: str = "k1"
+    credential_encryption_keys: dict[str, str] = {
+        "k1": "dev-only-insecure-key-change-me"
+    }
+
     # API surface mode: guguta = only /api/v1 (+health); legacy = upstream.
     api_mode: Literal["guguta", "legacy"] = "guguta"
 
