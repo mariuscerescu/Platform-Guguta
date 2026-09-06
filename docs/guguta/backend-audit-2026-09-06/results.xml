@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="18" skipped="0" tests="23" time="13.129" timestamp="2026-09-06T21:47:57.447216+03:00" hostname="Marius"><testcase classname="docs.guguta.backend-audit-2026-09-06.test_backend_audit" name="test_timestamps_advance_between_inserts" time="1.556"><failure message="AssertionError: timestamps identical; DB default='2026-09-06 18:47:58.950578+00'::timestamp with time zone&#10;assert datetime.datetime(2026, 9, 6, 18, 47, 58, 950578, tzinfo=zoneinfo.ZoneInfo(key='Etc/UTC')) &gt; datetime.datetime(2026, 9, 6, 18, 47, 58, 950578, tzinfo=zoneinfo.ZoneInfo(key='Etc/UTC'))">docs\guguta\backend-audit-2026-09-06\test_backend_audit.py:92: in test_timestamps_advance_between_inserts
+    assert times[1] &gt; times[0], f"timestamps identical; DB default={default}"
+E   AssertionError: timestamps identical; DB default='2026-09-06 18:47:58.950578+00'::timestamp with time zone
+E   assert datetime.datetime(2026, 9, 6, 18, 47, 58, 950578, tzinfo=zoneinfo.ZoneInfo(key='Etc/UTC')) &gt; datetime.datetime(2026, 9, 6, 18, 47, 58, 950578, tzinfo=zoneinfo.ZoneInfo(key='Etc/UTC'))</failure></testcase><testcase classname="docs.guguta.backend-audit-2026-09-06.test_backend_audit" name="test_worker_cannot_mint_admin_http_session" time="0.208"><failure message="AssertionError: worker DB role minted an HTTP session for synthetic admin&#10;assert 200 == 401&#10; +  where 200 = &lt;Response [200 OK]&gt;.status_code">docs\guguta\backend-audit-2026-09-06\test_backend_audit.py:108: in test_worker_cannot_mint_admin_http_session
+    assert r.status_code == 401, "worker DB role minted an HTTP session for synthetic admin"
+E   AssertionError: worker DB role minted an HTTP session for synthetic admin
+E   assert 200 == 401
+E    +  where 200 = &lt;Response [200 OK]&gt;.status_code</failure></testcase><testcase classname="docs.guguta.backend-audit-2026-09-06.test_backend_audit" name="test_source_patch_enforces_parent_notebook" time="0.495"><failure message="AssertionError: wrong notebook accepted: 200&#10;assert 200 == 404&#10; +  where 200 = &lt;Response [200 OK]&gt;.status_code">docs\guguta\backend-audit-2026-09-06\test_backend_audit.py:116: in test_source_patch_enforces_parent_notebook
+    assert r.status_code == 404, f"wrong notebook accepted: {r.status_code}"
+E   AssertionError: wrong notebook accepted: 200
+E   assert 200 == 404
+E    +  where 200 = &lt;Response [200 OK]&gt;.status_code</failure></testcase><testcase classname="docs.guguta.backend-audit-2026-09-06.test_backend_audit" name="test_note_patch_enforces_parent_notebook" time="0.258"><failure message="AssertionError: wrong notebook accepted: 200&#10;assert 200 == 404&#10; +  where 200 = &lt;Response [200 OK]&gt;.status_code">docs\guguta\backend-audit-2026-09-06\test_backend_audit.py:124: in test_note_patch_enforces_parent_notebook
+    assert r.status_code == 404, f"wrong notebook accepted: {r.status_code}"
+E   AssertionError: wrong notebook accepted: 200
+E   assert 200 == 404
+E    +  where 200 = &lt;Response [200 OK]&gt;.status_code</failure></testcase><testcase classname="docs.guguta.backend-audit-2026-09-06.test_backend_audit" name="test_queue_respects_per_user_cap" time="0.435"><failure message="AssertionError: third queued job claimed despite cap=2&#10;assert ClaimedJob(id=UUID('8f09012d-d559-43de-8fc6-d65e2510a288'), job_type='process_material_version', target_type='material..., payload={'kind': 'text', 'local_name': 'Audit material'}, lease_token='Hjs9v05hCYTFAUCKK9Kg_m5Ljahx8bWs', attempts=1) is None">docs\guguta\backend-audit-2026-09-06\test_backend_audit.py:135: in test_queue_respects_per_user_cap
+    assert third is None, "third queued job claimed despite cap=2"
+E   AssertionError: third queued job claimed despite cap=2
+E   assert ClaimedJob(id=UUID('8f09012d-d559-43de-8fc6-d65e2510a288'), job_type='process_material_version', target_type='material..., payload={'kind': 'text', 'local_name': 'Audit material'}, lease_token='Hjs9v05hCYTFAUCKK9Kg_m5Ljahx8bWs', attempts=1) is None</failure></testcase><testcase classname="docs.guguta.backend-audit-2026-09-06.test_backend_audit" name="test_claim_does_not_fail_active_last_attempt" time="0.363"><failure message="AssertionError: valid last attempt marked failed by another claim&#10;assert 'failed' == 'running'&#10;  &#10;  - running&#10;  + failed">docs\guguta\backend-audit-2026-09-06\test_backend_audit.py:149: in test_claim_does_not_fail_active_last_attempt
+    assert state == "running", f"valid last attempt marked {state} by another claim"
+E   AssertionError: valid last attempt marked failed by another claim
+E   assert 'failed' == 'running'
+E     
+E     - running
+E     + failed</failure></testcase><testcase classname="docs.guguta.backend-audit-2026-09-06.test_backend_audit" name="test_worker_publication_atomic_if_outer_transaction_fails" time="0.423"><failure message="AssertionError: job=queued, published artifacts=1&#10;assert ('queued' == 'succeeded'&#10;  &#10;  - succeeded&#10;  + queued or 1 == 0)">docs\guguta\backend-audit-2026-09-06\test_backend_audit.py:170: in test_worker_publication_atomic_if_outer_transaction_fails
+    assert state == "succeeded" or published == 0, f"job={state}, published artifacts={published}"
+E   AssertionError: job=queued, published artifacts=1
+E   assert ('queued' == 'succeeded'
+E     
+E     - succeeded
+E     + queued or 1 == 0)</failure></testcase><testcase classname="docs.guguta.backend-audit-2026-09-06.test_backend_audit" name="test_truncated_embeddings_cannot_publish_ready" time="0.396"><failure message="AssertionError: ready source with zero embeddings/chunks&#10;assert 'ready' != 'ready'">docs\guguta\backend-audit-2026-09-06\test_backend_audit.py:185: in test_truncated_embeddings_cannot_publish_ready
+    assert r.json()["status"] != "ready", "ready source with zero embeddings/chunks"
+E   AssertionError: ready source with zero embeddings/chunks
+E   assert 'ready' != 'ready'</failure></testcase><testcase classname="docs.guguta.backend-audit-2026-09-06.test_backend_audit" name="test_final_provider_failure_marks_source_error" time="0.338"><failure message="AssertionError: terminal job failure leaves source=processing&#10;assert 'processing' == 'error'&#10;  &#10;  - error&#10;  + processing">docs\guguta\backend-audit-2026-09-06\test_backend_audit.py:199: in test_final_provider_failure_marks_source_error
+    assert r.json()["status"] == "error", f"terminal job failure leaves source={r.json()['status']}"
+E   AssertionError: terminal job failure leaves source=processing
+E   assert 'processing' == 'error'
+E     
+E     - error
+E     + processing</failure></testcase><testcase classname="docs.guguta.backend-audit-2026-09-06.test_backend_audit" name="test_cancelled_generation_not_exposed_as_answer" time="0.881"><failure message="AssertionError: cancelled answer still exposed by GET messages&#10;assert False&#10; +  where False = all(&lt;generator object test_cancelled_generation_not_exposed_as_answer.&lt;locals&gt;.&lt;genexpr&gt; at 0x000001D157AE4860&gt;)">docs\guguta\backend-audit-2026-09-06\test_backend_audit.py:216: in test_cancelled_generation_not_exposed_as_answer
+    assert all(m["content"] != "STALE_AUDIT_ANSWER" for m in history), "cancelled answer still exposed by GET messages"
+E   AssertionError: cancelled answer still exposed by GET messages
+E   assert False
+E    +  where False = all(&lt;generator object test_cancelled_generation_not_exposed_as_answer.&lt;locals&gt;.&lt;genexpr&gt; at 0x000001D157AE4860&gt;)</failure></testcase><testcase classname="docs.guguta.backend-audit-2026-09-06.test_backend_audit" name="test_import_same_key_concurrent_replays" time="0.649"><failure message="AssertionError: statuses=[500, 201]&#10;assert [500, 201] == [201, 201]&#10;  &#10;  At index 0 diff: 500 != 201&#10;  Use -v to get more diff">docs\guguta\backend-audit-2026-09-06\test_backend_audit.py:241: in test_import_same_key_concurrent_replays
+    assert [r.status_code for r in responses] == [201,201], f"statuses={[r.status_code for r in responses]}"
+E   AssertionError: statuses=[500, 201]
+E   assert [500, 201] == [201, 201]
+E     
+E     At index 0 diff: 500 != 201
+E     Use -v to get more diff</failure></testcase><testcase classname="docs.guguta.backend-audit-2026-09-06.test_backend_audit" name="test_same_email_distinct_oidc_subjects_can_provision" time="0.112"><failure message="AssertionError: distinct issuer/subject rejected on email: UniqueViolation&#10;assert 'UniqueViolation' is None">docs\guguta\backend-audit-2026-09-06\test_backend_audit.py:255: in test_same_email_distinct_oidc_subjects_can_provision
+    assert error is None, f"distinct issuer/subject rejected on email: {error}"
+E   AssertionError: distinct issuer/subject rejected on email: UniqueViolation
+E   assert 'UniqueViolation' is None</failure></testcase><testcase classname="docs.guguta.backend-audit-2026-09-06.test_backend_audit" name="test_oidc_required_claim_is_mandatory[exp]" time="0.213"><failure message="Failed: DID NOT RAISE &lt;class 'open_notebook.auth.guguta.oidc.OidcError'&gt;">docs\guguta\backend-audit-2026-09-06\test_backend_audit.py:272: in test_oidc_required_claim_is_mandatory
+    with pytest.raises(OidcError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE &lt;class 'open_notebook.auth.guguta.oidc.OidcError'&gt;</failure></testcase><testcase classname="docs.guguta.backend-audit-2026-09-06.test_backend_audit" name="test_oidc_required_claim_is_mandatory[iss]" time="0.053" /><testcase classname="docs.guguta.backend-audit-2026-09-06.test_backend_audit" name="test_oidc_required_claim_is_mandatory[aud]" time="0.180"><failure message="Failed: DID NOT RAISE &lt;class 'open_notebook.auth.guguta.oidc.OidcError'&gt;">docs\guguta\backend-audit-2026-09-06\test_backend_audit.py:272: in test_oidc_required_claim_is_mandatory
+    with pytest.raises(OidcError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^
+E   Failed: DID NOT RAISE &lt;class 'open_notebook.auth.guguta.oidc.OidcError'&gt;</failure></testcase><testcase classname="docs.guguta.backend-audit-2026-09-06.test_backend_audit" name="test_oidc_real_routes_with_isolated_dsn" time="0.374" /><testcase classname="docs.guguta.backend-audit-2026-09-06.test_backend_audit" name="test_cross_user_download_and_notes_denied" time="0.491" /><testcase classname="docs.guguta.backend-audit-2026-09-06.test_backend_audit" name="test_malformed_template_item_returns_validation_error" time="0.208"><failure message="AssertionError: invalid display_name returned 500&#10;assert 500 == 422&#10; +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code">docs\guguta\backend-audit-2026-09-06\test_backend_audit.py:312: in test_malformed_template_item_returns_validation_error
+    assert r.status_code==422, f"invalid display_name returned {r.status_code}"
+E   AssertionError: invalid display_name returned 500
+E   assert 500 == 422
+E    +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code</failure></testcase><testcase classname="docs.guguta.backend-audit-2026-09-06.test_backend_audit" name="test_pdf_romanian_filename_roundtrip" time="0.624" /><testcase classname="docs.guguta.backend-audit-2026-09-06.test_backend_audit" name="test_history_exclusion_same_session_after_source_change" time="1.064" /><testcase classname="docs.guguta.backend-audit-2026-09-06.test_backend_audit" name="test_chat_works_with_one_connection_pool" time="1.748"><failure message="AssertionError: nested pool checkout: HTTP 500&#10;assert 500 == 200&#10; +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code">docs\guguta\backend-audit-2026-09-06\test_backend_audit.py:356: in test_chat_works_with_one_connection_pool
+    assert r.status_code==200,f"nested pool checkout: HTTP {r.status_code}"
+E   AssertionError: nested pool checkout: HTTP 500
+E   assert 500 == 200
+E    +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code</failure></testcase><testcase classname="docs.guguta.backend-audit-2026-09-06.test_backend_audit" name="test_auth_mode_uses_actual_app_config" time="0.218"><failure message="AssertionError: discovery disagrees with configured app&#10;assert 'test' == 'oidc'&#10;  &#10;  - oidc&#10;  + test">docs\guguta\backend-audit-2026-09-06\test_backend_audit.py:368: in test_auth_mode_uses_actual_app_config
+    assert r.json()["auth_mode"]=="oidc", "discovery disagrees with configured app"
+E   AssertionError: discovery disagrees with configured app
+E   assert 'test' == 'oidc'
+E     
+E     - oidc
+E     + test</failure></testcase><testcase classname="docs.guguta.backend-audit-2026-09-06.test_backend_audit" name="test_upload_rejects_nul_as_client_error" time="0.313"><failure message="AssertionError: invalid PostgreSQL text returned 500&#10;assert 500 == 422&#10; +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code">docs\guguta\backend-audit-2026-09-06\test_backend_audit.py:378: in test_upload_rejects_nul_as_client_error
+    assert r.status_code==422,f"invalid PostgreSQL text returned {r.status_code}"
+E   AssertionError: invalid PostgreSQL text returned 500
+E   assert 500 == 422
+E    +  where 500 = &lt;Response [500 Internal Server Error]&gt;.status_code</failure></testcase></testsuite></testsuites>

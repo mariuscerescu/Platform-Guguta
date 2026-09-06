@@ -324,7 +324,7 @@ class SourcesService:
             raise SourceValidation("Nimic de actualizat.")
         async with actor_connection(self._engine, actor.actor_id) as conn:
             result = await conn.execute(
-                text(f"UPDATE notebook_sources SET {', '.join(sets)} WHERE id = :id"),
+                text(f"UPDATE notebook_sources SET {', '.join(sets)} WHERE id = :id AND notebook_id = :n"),
                 params,
             )
             if result.rowcount == 0:

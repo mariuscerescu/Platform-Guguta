@@ -190,8 +190,10 @@ class OidcClient:
                 token,
                 key_data,
                 claims_options={
-                    "iss": {"value": self._cfg.issuer},
-                    "aud": {"value": self._cfg.client_id},
+                    "iss": {"essential": True, "value": self._cfg.issuer},
+                    "aud": {"essential": True, "value": self._cfg.client_id},
+                    "exp": {"essential": True},
+                    "sub": {"essential": True},
                 },
             )
         except JoseError as exc:

@@ -144,7 +144,7 @@ class NotesService:
             raise NoteValidation("Nimic de actualizat.")
         async with actor_connection(self._engine, actor.actor_id) as conn:
             result = await conn.execute(
-                text(f"UPDATE notes SET {', '.join(sets)} WHERE id = :id"),
+                text(f"UPDATE notes SET {', '.join(sets)} WHERE id = :id AND notebook_id = :nb"),
                 params,
             )
             if result.rowcount == 0:

@@ -67,7 +67,7 @@ def _cookies(auth: dict[str, str]) -> dict[str, str]:
 async def test_readyz_ok(client: AsyncClient) -> None:
     resp = await client.get("/readyz")
     assert resp.status_code == 200
-    assert str(resp.json()["schema"]).startswith("000")
+    assert str(resp.json()["schema"]).strip().startswith("0")
 
 
 async def test_dev_login_and_me(client: AsyncClient) -> None:

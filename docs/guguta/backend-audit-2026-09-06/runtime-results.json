@@ -1,0 +1,17 @@
+{
+  "healthz": {
+    "status": "ok"
+  },
+  "readyz": {
+    "status": "ok",
+    "schema": "0009"
+  },
+  "versionz": {
+    "service": "guguta-api",
+    "version": "0.1.0",
+    "commit": "af1e5d6"
+  },
+  "separate_worker_pdf": "PASS",
+  "mock_chat": "PASS",
+  "material_only_copy_revocation_isolation_download": "PASS"
+}

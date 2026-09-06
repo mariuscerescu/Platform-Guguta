@@ -95,36 +95,47 @@ async def claim(
     respected."""
     lease_token = secrets.token_urlsafe(24)
     async with system_connection(engine) as conn:
-        # sweep: jobs past their deadline or out of attempts never run again
+        # B06 sweep: only expire jobs whose lease has ALREADY lapsed or that
+        # are queued past their budget. Active running jobs with valid leases
+        # are never swept, even on their last attempt.
         await conn.execute(
             text(
                 "UPDATE processing_jobs SET status = 'failed', completed_at = now(),"
                 " last_error = coalesce(last_error, 'deadline depășit / încercări epuizate')"
-                " WHERE status IN ('queued','claimed','running')"
-                "   AND ("
-                "     (deadline IS NOT NULL AND deadline < now())"
-                "     OR (attempts >= max_attempts AND status <> 'failed')"
-                "   )"
+                " WHERE ("
+                "   status = 'queued' AND attempts >= max_attempts"
+                " ) OR ("
+                "   status IN ('claimed','running')"
+                "   AND lease_until IS NOT NULL AND lease_until < now()"
+                "   AND attempts >= max_attempts"
+                " ) OR ("
+                "   deadline IS NOT NULL AND deadline < now()"
+                "   AND status IN ('queued','claimed','running')"
+                " )"
             )
         )
+        # B05: correct SQL precedence — the maxc filter applies to BOTH
+        # branches because the OR is fully parenthesised before the AND.
         row = (
             await conn.execute(
                 text(
                     "WITH runnable AS ("
                     "  SELECT id FROM processing_jobs"
-                    "  WHERE (status = 'queued' AND run_after <= now()"
-                    "         AND attempts < max_attempts"
-                    "         AND (deadline IS NULL OR deadline > now()))"
-                    "     OR (status IN ('claimed','running')"
-                    "         AND lease_until IS NOT NULL AND lease_until < now()"
-                    "         AND attempts < max_attempts"
-                    "         AND (deadline IS NULL OR deadline > now()))"
-                    "   AND (actor_id IS NULL OR actor_id NOT IN ("
-                    "        SELECT j2.actor_id FROM processing_jobs j2"
-                    "        WHERE j2.status IN ('claimed','running')"
-                    "          AND j2.actor_id IS NOT NULL"
-                    "        GROUP BY j2.actor_id"
-                    "        HAVING count(*) >= :maxc))"
+                    "  WHERE ("
+                    "    (status = 'queued' AND run_after <= now()"
+                    "     AND attempts < max_attempts"
+                    "     AND (deadline IS NULL OR deadline > now()))"
+                    "    OR (status IN ('claimed','running')"
+                    "        AND lease_until IS NOT NULL AND lease_until < now()"
+                    "        AND attempts < max_attempts"
+                    "        AND (deadline IS NULL OR deadline > now()))"
+                    "  )"
+                    "  AND (actor_id IS NULL OR actor_id NOT IN ("
+                    "       SELECT j2.actor_id FROM processing_jobs j2"
+                    "       WHERE j2.status IN ('claimed','running')"
+                    "         AND j2.actor_id IS NOT NULL"
+                    "       GROUP BY j2.actor_id"
+                    "       HAVING count(*) >= :maxc))"
                     "  ORDER BY created_at"
                     "  FOR UPDATE SKIP LOCKED LIMIT 1"
                     ") "
