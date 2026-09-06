@@ -20,7 +20,10 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from open_notebook.auth.guguta.actor import ActorContext
-from open_notebook.database.guguta.engine import actor_connection
+from open_notebook.database.guguta.engine import (
+    actor_connection,
+    system_connection,
+)
 from open_notebook.exceptions import InvalidInputError, NotFoundError, OpenNotebookError
 
 
@@ -132,6 +135,31 @@ class CatalogService:
                     )
                 ).scalar_one()
         return {**dict(row), "material_count": material_count}
+
+    async def list_public_templates_visitor(self) -> list[dict[str, Any]]:
+        """Visitor (unauthenticated) view: only published templates, no drafts,
+        no personal data — the RLS published-path stays the gate (A01)."""
+        async with system_connection(self._engine) as conn:
+            rows = (
+                await conn.execute(
+                    text(
+                        "SELECT t.id, t.slug, t.title, t.description, t.class_level,"
+                        " t.discipline, t.language, t.edition,"
+                        " v.id AS current_version_id, v.version AS current_version,"
+                        " (SELECT count(*) FROM template_materials tm"
+                        "  WHERE tm.template_version_id = v.id) AS material_count"
+                        " FROM templates t"
+                        " LEFT JOIN LATERAL ("
+                        "   SELECT id, version FROM template_versions tv"
+                        "   WHERE tv.template_id = t.id AND tv.status = 'published'"
+                        "   ORDER BY tv.version DESC LIMIT 1"
+                        " ) v ON true"
+                        " WHERE t.status = 'published'"
+                        " ORDER BY t.class_level, t.discipline, t.title"
+                    )
+                )
+            ).mappings().all()
+        return [dict(r) for r in rows]
 
     async def list_public_templates(self, actor: ActorContext) -> list[dict[str, Any]]:
         async with actor_connection(self._engine, actor.actor_id) as conn:

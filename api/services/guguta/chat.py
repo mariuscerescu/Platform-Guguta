@@ -48,6 +48,10 @@ class SourcesRequired(OpenNotebookError):
     """No eligible sources selected (maps to 422 with a helpful message)."""
 
 
+class ChatProviderUnavailable(OpenNotebookError):
+    """The AI provider failed (maps to 502 — controlled, no partial answer)."""
+
+
 def _json(value: Any) -> str:
     return json.dumps(value, ensure_ascii=False)
 
@@ -300,7 +304,15 @@ class ChatService:
                 )
 
         # Phase 2: generation OUTSIDE any DB transaction (GHID §4.5/§7).
-        answer = self._provider.generate(content, context, history)
+        try:
+            answer = self._provider.generate(content, context, history)
+        except Exception as exc:
+            # Controlled provider failure (A26): the user message remains as
+            # history; no partial assistant message is saved. A transient
+            # outage must not look like a wrong answer.
+            raise ChatProviderUnavailable(
+                "Furnizorul AI nu a răspuns. Încearcă din nou în câteva momente."
+            ) from exc
 
         # Phase 3 (one transaction): save assistant message + validated citations.
         async with actor_connection(self._engine, actor.actor_id) as conn:

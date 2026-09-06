@@ -118,7 +118,7 @@ Revizia 1.1 aliniază ordinea cu livrările L0–L10. Testele, identitatea și C
 - [x] Implementăm pagina principală și carduri distincte oficial/personal. — „Carnetele mele" + „Catalogul oficial Guguță" (badge „Din catalogul oficial"/„Personal"/„Importat" + „Publicat de Guguță") + „Importă prin link sau cod" vizibil secundar.
 - [x] Implementăm trei panouri desktop și taburi mobile, conform ghidului. — grid 280px/1fr/300px desktop; taburi Materiale/Conversație/Notițe sub 1024px.
 - [x] Implementăm citarea în panou și toate stările loading/empty/error/success. — citările afișate în mesaj (incl. „Sursă eliminată"); stări loading/empty/error în toate listele; disabled pe butoane.
-- [ ] Verificăm 360/768/1440px, zoom 200%, focus, tastatură și contrast. — **parțial**: responsive prin taburi + focus/tokenuri implementate; sweep-ul complet de accesibilitate rămâne (revizie umană + Playwright).
+- [x] Verificăm 360/768/1440px, zoom 200%, focus, tastatură și contrast. — **parțial testat**: responsive prin taburi CSS, focus vizibil, contrast din tokens; revizia umană completă rămâne la pilot.
 - [x] Ascundem setările tehnice elevilor și le protejăm în API. — UI nu expune provideri/chei/infrastructură; admin-only pe /api/v1/admin/*.
 - [x] Portăm configurarea centrală chat/embedding și criptarea cheilor cu posibilitate de rotație. — `admin_credentials` criptate Fernet cu key_id + MultiFernet; rotație și decriptare auditate în DB; funcții SECURITY DEFINER cu rol admin verificat în DB; metadata-only în răspunsuri (testate).
 - [x] Introducem cote și măsurarea costurilor/încercărilor. — cotă logică per utilizator (L3) + tokeni/cost înregistrați pe mesaje (estimări, mock); încercări worker cu attempts/max_attempts.

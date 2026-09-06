@@ -716,14 +716,16 @@ catalog_router = APIRouter(prefix="/api/v1/catalog/templates", tags=["catalog"])
 
 @catalog_router.get("")
 async def list_public_templates(request: Request) -> list[dict[str, Any]]:
-    actor = get_actor(request)
-    return await request.app.state.guguta_catalog.list_public_templates(actor)
+    """A01: public catalog — visible to visitors (published only, no drafts)."""
+    return await request.app.state.guguta_catalog.list_public_templates_visitor()
 
 
 @catalog_router.get("/{template_id}")
 async def get_public_template(
     template_id: uuid.UUID, request: Request
 ) -> dict[str, Any]:
+    # authenticated view adds nothing here; visitors and users see the same
+    # published metadata (no drafts, no personal data leak either way)
     actor = get_actor(request)
     return await request.app.state.guguta_catalog.get_template(actor, template_id)
 

@@ -46,6 +46,7 @@ from api.services.guguta.catalog import (
     TemplateNotFound,
 )
 from api.services.guguta.chat import (
+    ChatProviderUnavailable,
     ChatService,
     ChatSessionNotFound,
     ChatValidation,
@@ -376,6 +377,11 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
     @app.exception_handler(ChatSessionNotFound)
     async def chat_session_missing(request: Request, exc: ChatSessionNotFound) -> JSONResponse:
         return _error("not_found", "Resursa nu există.", 404,
+                      request.headers.get("x-request-id", "-"))
+
+    @app.exception_handler(ChatProviderUnavailable)
+    async def provider_unavailable(request: Request, exc: ChatProviderUnavailable) -> JSONResponse:
+        return _error("provider_unavailable", str(exc), 502,
                       request.headers.get("x-request-id", "-"))
 
     return app
