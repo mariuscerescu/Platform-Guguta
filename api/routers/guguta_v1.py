@@ -102,25 +102,28 @@ async def oidc_login(request: Request, response: Response):
 
     Only available when auth_mode=oidc and an OIDC client is configured on
     app.state (production path); dev-login remains the test-mode path.
+    The state cookie is set ON THE RETURNED redirect object (F01).
     """
     config = request.app.state.guguta_config
     if config.auth_mode != "oidc":
         raise ActorDenied("OIDC nu este activat.")
     client = request.app.state.guguta_oidc
-    url, cookie_value = client.begin_login(request.app.state.guguta_state_codec)
-    response.set_cookie(
+    url, cookie_value = await client.begin_login(request.app.state.guguta_state_codec)
+    redirect = RedirectResponse(url, status_code=307)
+    redirect.set_cookie(
         _STATE_COOKIE, cookie_value,
         httponly=True, samesite="lax",
         secure=config.public_origin.startswith("https://"),
         max_age=600, path="/",
     )
-    return RedirectResponse(url, status_code=307)
+    return redirect
 
 
 @auth_router.get("/oidc/callback")
 async def oidc_callback(request: Request, response: Response, code: str = "",
                         state: str = "") -> RedirectResponse:
-    """Finish the OIDC flow: validate, provision, open the session."""
+    """Finish the OIDC flow: validate, provision, open the session.
+    Session cookie + CSRF are set ON THE RETURNED redirect object (F01)."""
     config = request.app.state.guguta_config
     if config.auth_mode != "oidc":
         raise ActorDenied("OIDC nu este activat.")
@@ -144,10 +147,42 @@ async def oidc_callback(request: Request, response: Response, code: str = "",
         ).scalar_one()
     sessions: SessionService = get_session_service(request)
     token, csrf = await sessions.create_session(user_id)
-    set_session_cookie(response, request, token)
-    response.headers[CSRF_HEADER] = csrf
-    response.delete_cookie(_STATE_COOKIE, path="/")
-    return RedirectResponse("/", status_code=303)
+    redirect = RedirectResponse("/", status_code=303)
+    redirect.set_cookie(
+        SESSION_COOKIE, token,
+        httponly=True, samesite="lax",
+        secure=config.public_origin.startswith("https://"),
+        path="/",
+    )
+    redirect.headers[CSRF_HEADER] = csrf
+    redirect.delete_cookie(_STATE_COOKIE, path="/")
+    return redirect
+
+
+@auth_router.get("/config")
+async def auth_config() -> dict[str, str]:
+    """Public auth-mode discovery for the login screen (F02): no secrets,
+    only which login surface the UI should render."""
+    from open_notebook.database.guguta.config import GugutaConfig
+
+    try:
+        config = GugutaConfig()
+    except ValueError:
+        config = None
+    mode = config.auth_mode if config else "oidc"
+    return {"auth_mode": mode}
+
+
+@auth_router.get("/csrf")
+async def csrf_bootstrap(request: Request) -> dict[str, str]:
+    """F02: safe CSRF bootstrap for an existing session — the session cookie
+    authenticates, the returned token is bound to it server-side."""
+    actor = get_actor(request)
+    sessions: SessionService = get_session_service(request)
+    token = request.cookies.get(SESSION_COOKIE)
+    if not token:
+        raise AuthenticationError("Autentificare necesară.")
+    return {"csrf": sessions.csrf_token_for(token), "actor_id": str(actor.actor_id)}
 
 
 @auth_router.post("/logout")

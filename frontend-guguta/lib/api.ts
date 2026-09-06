@@ -73,13 +73,39 @@ export async function loginDev(displayName: string): Promise<void> {
   if (csrf) setCsrf(csrf);
 }
 
+/** F02: session is determined by an authenticated endpoint, never by
+ * localStorage. The CSRF token is bootstrapped from the same session. */
 export async function me(): Promise<{ display_name: string } | null> {
   try {
-    return await api<{ display_name: string }>("GET", "/api/v1/auth/me");
-  } catch (err) {
-    if (err instanceof ApiError && err.status === 401) return null;
-    throw err;
+    const r = await fetch(`${API}/api/v1/auth/me`, {
+      credentials: "same-origin",
+    });
+    if (r.status === 401) return null;
+    if (!r.ok) return null;
+    const data = (await r.json()) as { display_name: string };
+    if (!getCsrf()) await bootstrapCsrf();
+    return data;
+  } catch {
+    return null;
   }
+}
+
+export async function bootstrapCsrf(): Promise<void> {
+  const r = await fetch(`${API}/api/v1/auth/csrf`, {
+    credentials: "same-origin",
+  });
+  if (r.ok) {
+    const data = (await r.json()) as { csrf: string };
+    setCsrf(data.csrf);
+  }
+}
+
+export async function authMode(): Promise<string> {
+  try {
+    const r = await fetch(`${API}/api/v1/auth/config`);
+    if (r.ok) return ((await r.json()) as { auth_mode: string }).auth_mode;
+  } catch { }
+  return "test";
 }
 
 export interface Notebook {

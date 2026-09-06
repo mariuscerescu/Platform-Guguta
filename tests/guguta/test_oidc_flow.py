@@ -63,6 +63,7 @@ def _make_provider() -> tuple[httpx.AsyncClient, dict[str, Any]]:
         if url.endswith("/.well-known/openid-configuration"):
             return httpx.Response(200, json={
                 "issuer": ISSUER,
+                "authorization_endpoint": f"{ISSUER}/authorize",
                 "token_endpoint": f"{ISSUER}/token",
                 "jwks_uri": f"{ISSUER}/jwks.json",
             })
@@ -105,7 +106,7 @@ def _decode_cookie_state(cookie: str) -> dict[str, Any]:
 async def test_oidc_happy_path() -> None:
     client, issued = _make_client()
     codec = SignedStateCodec("test-secret")
-    url, cookie = client.begin_login(codec)
+    url, cookie = await client.begin_login(codec)
     assert "code_challenge_method=S256" in url
 
     qs = parse_qs(urlparse(url).query)
@@ -121,7 +122,7 @@ async def test_oidc_happy_path() -> None:
 async def test_oidc_rejects_tampered_state() -> None:
     client, issued = _make_client()
     codec = SignedStateCodec("test-secret")
-    _, cookie = client.begin_login(codec)
+    _, cookie = await client.begin_login(codec)
     with pytest.raises(OidcError):
         await client.complete_login(codec, cookie, "tampered-state", "code")
     await client.aclose()
@@ -130,7 +131,7 @@ async def test_oidc_rejects_tampered_state() -> None:
 async def test_oidc_rejects_expired_id_token() -> None:
     client, issued = _make_client()
     codec = SignedStateCodec("test-secret")
-    url, cookie = client.begin_login(codec)
+    url, cookie = await client.begin_login(codec)
     qs = parse_qs(urlparse(url).query)
     code = "expired-code"
     issued[code] = {

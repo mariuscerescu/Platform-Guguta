@@ -103,17 +103,49 @@ class GugutaConfig(BaseSettings):
             problems.append("GUGUTA_AUTH_MODE=test is refused outside development/ci")
         if not self.database_url_api or not self.database_url_worker:
             problems.append("runtime database URLs are required outside development/ci")
-        if not self.database_url_migrator:
-            problems.append("migrator URL is required (single migrator per release)")
         origins = [o.strip() for o in self.cors_origins]
+        if not origins or any(not o for o in origins):
+            problems.append("at least one explicit CORS origin is required")
         if any(o == "*" for o in origins):
             problems.append("wildcard CORS origin is refused")
-        if self.server_secret == "dev-only-insecure-secret-change-me":
-            problems.append("GUGUTA_SERVER_SECRET must be set (no default secret)")
-        if self.auth_mode == "oidc" and not (
-            self.oidc_issuer and self.oidc_client_id and self.oidc_client_secret
-        ):
-            problems.append("OIDC issuer/client/secret are required when auth_mode=oidc")
+        if any(not o.startswith("https://") for o in origins):
+            problems.append("CORS origins must use https outside development/ci")
+        if not self.public_origin.startswith("https://"):
+            problems.append("GUGUTA_PUBLIC_ORIGIN must use https outside development/ci")
+        # F14: fail-closed on secrets — empty, short or dev-default values
+        if not self.server_secret or len(self.server_secret) < 16:
+            problems.append("GUGUTA_SERVER_SECRET must be set (min 16 chars)")
+        elif self.server_secret == "dev-only-insecure-secret-change-me":
+            problems.append("GUGUTA_SERVER_SECRET must not be the development default")
+        if not self.credential_encryption_keys:
+            problems.append("GUGUTA_CREDENTIAL_ENCRYPTION_KEYS must be set")
+        else:
+            if self.credential_key_primary_id not in self.credential_encryption_keys:
+                problems.append(
+                    f"primary credential key '{self.credential_key_primary_id}' "
+                    "is not in GUGUTA_CREDENTIAL_ENCRYPTION_KEYS"
+                )
+            for kid, secret in self.credential_encryption_keys.items():
+                if not secret or len(secret) < 16 or secret.startswith("dev-only-insecure"):
+                    problems.append(
+                        f"credential encryption key '{kid}' is missing or insecure"
+                    )
+        if self.auth_mode == "oidc":
+            if not (self.oidc_issuer and self.oidc_client_id and self.oidc_client_secret):
+                problems.append("OIDC issuer/client/secret are required when auth_mode=oidc")
+            elif not self.oidc_issuer.startswith("https://"):
+                problems.append("OIDC issuer must use https outside development/ci")
+            if not self.oidc_redirect_uri:
+                problems.append("OIDC redirect URI is required when auth_mode=oidc")
+            elif not self.oidc_redirect_uri.startswith("https://"):
+                problems.append("OIDC redirect URI must use https outside development/ci")
+        # F14: simulated AI providers are refused for real users
+        if self.chat_provider in ("mock",):
+            problems.append("mock chat provider is refused outside development/ci")
+        if self.embedding_provider in ("mock", "hash"):
+            problems.append("hash embedding provider is refused outside development/ci")
+        if self.api_mode != "guguta":
+            problems.append("legacy API surface is refused outside development/ci")
         if problems:
             raise ValueError("unsafe configuration: " + "; ".join(problems))
         return self

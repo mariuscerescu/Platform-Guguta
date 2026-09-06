@@ -55,6 +55,10 @@ services:
       GUGUTA_ENVIRONMENT: development
       GUGUTA_AUTH_MODE: ${GUGUTA_AUTH_MODE:-test}
       GUGUTA_COMMIT: ${GUGUTA_COMMIT:-dev}
+      # F19: the browser origin is the FRONTEND (3001); CORS/public origin
+      # must match it, or cookie-authenticated mutations are rejected.
+      GUGUTA_PUBLIC_ORIGIN: ${GUGUTA_PUBLIC_ORIGIN:-http://localhost:3001}
+      GUGUTA_CORS_ORIGINS: '["http://localhost:3001", "http://localhost:3000"]'
       GUGUTA_DATABASE_URL_API: postgresql+psycopg://guguta_api:${GUGUTA_PG_API_PASSWORD:-guguta_dev_api}@db:5432/guguta
       GUGUTA_STORAGE_ROOT: /data/guguta_storage
     volumes:

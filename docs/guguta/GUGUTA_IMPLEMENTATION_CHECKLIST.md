@@ -20,7 +20,7 @@ Revizia 1.1 aliniază ordinea cu livrările L0–L10. Testele, identitatea și C
 
 > **⚠ AUDIT 2026-09-06 (AUDIT_IMPLEMENTARE_2026-09-06.md, commit 64732f5) — verdict NO-GO pentru pilot.**
 > Următoarele bife sunt **redeschise** până la remedierea cu dovezi (Fxx = constatarea din audit):
-> - L2: adaptor OIDC (F01 — cookie pierdut la redirect, reprodus), cookie/CSRF (F02), CI (F21)
+> - L2: ~~adaptor OIDC (F01), cookie/CSRF (F02)~~ — **REZOLVATE**: cookie pe obiectul returnat, flux HTTP complet testat cu issuer fals (login→callback→me→mutație→logout, test_oidc_http_f01.py), discovery authorization_endpoint, /auth/csrf + /auth/config pentru sesiune prin endpoint; F21 parțial rămas
 > - L3: worker (F10 — publicare înainte de verificarea lease, reprodus; F11 — claim/heartbeat/deadline; F17 — limite upload/parse), cote (F13)
 > - L4: căutare/chat (F07 — istoric reintroduce surse eliminate, reprodus; F08 — răspunsuri în curs/ordonare; F09 — idempotency pending permanent, reprodus; F15 — provideri mock/limite), A01 UI (F06)
 > - L5: panouri mobile (F03 — toate invizibile sub 1024px), fluxuri UI MVP (F04), link share (F05), origin compose (F19), a11y sweep

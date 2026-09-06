@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import {
   api,
   CatalogTemplate,
-  getCsrf,
+  me,
   Notebook,
 } from "../lib/api";
 
@@ -18,18 +18,18 @@ export default function HomePage() {
   const [importing, setImporting] = useState(false);
 
   useEffect(() => {
-    if (!getCsrf()) {
-      setAuthed(false);
-      return;
-    }
     (async () => {
+      // F02: session via authenticated endpoint (me + CSRF bootstrap),
+      // never via the presence of localStorage.
+      const user = await me();
+      setAuthed(user !== null);
+      if (user === null) return;
       try {
         const list = await api<{ items: Notebook[] }>(
           "GET",
           "/api/v1/notebooks",
         );
         setNotebooks(list.items);
-        setAuthed(true);
       } catch (err) {
         if ((err as { status?: number }).status === 401) setAuthed(false);
         else setError((err as Error).message);

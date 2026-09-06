@@ -89,15 +89,28 @@ class OidcClient:
     def __init__(self, config: OidcConfig, http: Optional[httpx.AsyncClient] = None) -> None:
         self._cfg = config
         self._http = http or httpx.AsyncClient(timeout=15)
+        self._authorization_endpoint: Optional[str] = None
 
-    def begin_login(self, codec: SignedStateCodec) -> tuple[str, str]:
-        """Returns (authorize_url, signed_state_cookie_value)."""
+    async def _discovery(self) -> dict[str, Any]:
+        if getattr(self, "_discovery_cache", None) is None:
+            self._discovery_cache = await self._get(
+                f"{self._cfg.issuer.rstrip('/')}/.well-known/openid-configuration"
+            )
+        return self._discovery_cache
+
+    async def begin_login(self, codec: SignedStateCodec) -> tuple[str, str]:
+        """Build the authorize redirect. The authorization endpoint comes from
+        discovery — never assumed to be `<issuer>/authorize` (F02)."""
         state = secrets.token_urlsafe(24)
         nonce = secrets.token_urlsafe(24)
         verifier, challenge = _pkce_pair()
         cookie_value = codec.dump(
             {"state": state, "nonce": nonce, "verifier": verifier, "ts": time.time()}
         )
+        discovery = await self._discovery()
+        authorization_endpoint = discovery.get("authorization_endpoint")
+        if not authorization_endpoint:
+            raise OidcError("provider discovery incomplete")
         params = {
             "response_type": "code",
             "client_id": self._cfg.client_id,
@@ -108,7 +121,7 @@ class OidcClient:
             "code_challenge": challenge,
             "code_challenge_method": "S256",
         }
-        url = f"{self._cfg.issuer.rstrip('/')}/authorize?{urlencode(params)}"
+        url = f"{authorization_endpoint}?{urlencode(params)}"
         return url, cookie_value
 
     async def complete_login(self, codec: SignedStateCodec,
@@ -118,7 +131,7 @@ class OidcClient:
         if not hmac.compare_digest(str(cookie.get("state")), returned_state or ""):
             raise OidcError("state mismatch")
 
-        discovery = await self._get(f"{self._cfg.issuer.rstrip('/')}/.well-known/openid-configuration")
+        discovery = await self._discovery()
         token_endpoint = discovery.get("token_endpoint")
         jwks_uri = discovery.get("jwks_uri")
         if not token_endpoint or not jwks_uri:
