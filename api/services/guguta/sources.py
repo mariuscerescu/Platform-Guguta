@@ -124,6 +124,9 @@ class SourcesService:
         self, actor: ActorContext, notebook_id: uuid.UUID, *,
         text_content: str, title: Optional[str] = None,
     ) -> dict[str, Any]:
+        # B14: reject NUL bytes (PostgreSQL text cannot store them)
+        if "\x00" in text_content:
+            raise SourceValidation("Textul conține caractere nul (NUL).")
         if not text_content or not text_content.strip():
             raise SourceValidation("Textul introdus este vid.")
         return await self._create_source(

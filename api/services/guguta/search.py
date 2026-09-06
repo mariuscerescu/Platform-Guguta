@@ -79,98 +79,117 @@ class SearchService:
     async def search_notebook(
         self, actor_id: uuid.UUID, notebook_id: uuid.UUID, query: str, *,
         mode: str = "both", limit: int = 8,
+        conn: Any = None,
     ) -> list[RetrievedChunk]:
-        """Search only the authorized notebook scope; results feed the model."""
+        """Search only the authorized notebook scope; results feed the model.
+        When ``conn`` is provided, reuse the caller's connection/transaction
+        (B12: avoids nested checkout with pool_size=1)."""
         if not query or not query.strip():
             return []
         limit = max(1, min(limit, 50))
         results: dict[uuid.UUID, RetrievedChunk] = {}
 
-        async with actor_connection(self._engine, actor_id) as conn:
-            # Foreign notebooks return 404 rather than an empty result set.
-            nb = (
-                await conn.execute(
-                    text("SELECT id FROM digital_notebooks WHERE id = :id"),
-                    {"id": notebook_id},
-                )
-            ).first()
-            if nb is None:
-                from open_notebook.exceptions import NotFoundError
+        if conn is not None:
+            return await self._search_on_conn(
+                conn, actor_id, notebook_id, query, mode=mode, limit=limit,
+                results=results,
+            )
 
-                raise NotFoundError()
-            tsq = _or_tsquery(query)
-            if mode in ("text", "both"):
-                rows = (
+        async with actor_connection(self._engine, actor_id) as owned_conn:
+            return await self._search_on_conn(
+                owned_conn, actor_id, notebook_id, query, mode=mode, limit=limit,
+                results=results,
+            )
+
+    async def _search_on_conn(
+        self, conn: Any, actor_id: uuid.UUID, notebook_id: uuid.UUID,
+        query: str, *, mode: str, limit: int,
+        results: dict[uuid.UUID, RetrievedChunk],
+    ) -> list[RetrievedChunk]:
+        # Foreign notebooks return 404 rather than an empty result set.
+        nb = (
+            await conn.execute(
+                text("SELECT id FROM digital_notebooks WHERE id = :id"),
+                {"id": notebook_id},
+            )
+        ).first()
+        if nb is None:
+            from open_notebook.exceptions import NotFoundError
+
+            raise NotFoundError()
+        tsq = _or_tsquery(query)
+        if mode in ("text", "both"):
+            rows = (
+                await conn.execute(
+                    text(
+                        "SELECT c.id, c.text, c.locator, ns.id AS ns_id,"
+                        " mv.id AS mv_id, ns.local_name,"
+                        " ts_rank(to_tsvector('simple', c.text),"
+                        "         to_tsquery('simple', :tsq)) AS rank"
+                        " FROM chunks c"
+                        " JOIN processing_artifacts pa ON pa.id = c.artifact_id"
+                        " JOIN material_versions mv ON mv.id = pa.material_version_id"
+                        " JOIN notebook_sources ns ON ns.material_version_id = mv.id"
+                        " JOIN digital_notebooks dn ON dn.id = ns.notebook_id"
+                        " WHERE dn.id = :nb AND ns.selected_for_chat AND ns.status = 'ready'"
+                        "   AND (c.text ILIKE :like"
+                        "        OR (CAST(:tsq AS text) <> ''"
+                        "           AND to_tsvector('simple', c.text)"
+                        "           @@ to_tsquery('simple', :tsq)))"
+                        " ORDER BY rank DESC, ns.position, c.position"
+                        " LIMIT :lim"
+                    ),
+                    {"tsq": tsq, "like": f"%{query.strip()}%",
+                     "nb": notebook_id, "lim": limit},
+                )
+            ).mappings().all()
+            for r in rows:
+                results[r["id"]] = RetrievedChunk(
+                    chunk_id=r["id"], text=r["text"],
+                    locator=dict(r["locator"] or {}),
+                    notebook_source_id=r["ns_id"],
+                    material_version_id=r["mv_id"],
+                    local_name=r["local_name"], score=float(r["rank"]),
+                    mode="text",
+                )
+
+        if mode in ("vector", "both"):
+            qvec = await self._embed_query(conn, query.strip())
+            if qvec is not None:
+                vrows = (
                     await conn.execute(
                         text(
                             "SELECT c.id, c.text, c.locator, ns.id AS ns_id,"
                             " mv.id AS mv_id, ns.local_name,"
-                            " ts_rank(to_tsvector('simple', c.text),"
-                            "         to_tsquery('simple', :tsq)) AS rank"
-                            " FROM chunks c"
+                            " e.embedding <=> CAST(:qv AS vector) AS dist"
+                            " FROM embeddings e"
+                            " JOIN chunks c ON c.id = e.chunk_id"
+                            " JOIN embedding_spaces es ON es.id = e.embedding_space_id"
                             " JOIN processing_artifacts pa ON pa.id = c.artifact_id"
                             " JOIN material_versions mv ON mv.id = pa.material_version_id"
                             " JOIN notebook_sources ns ON ns.material_version_id = mv.id"
                             " JOIN digital_notebooks dn ON dn.id = ns.notebook_id"
-                            " WHERE dn.id = :nb AND ns.selected_for_chat AND ns.status = 'ready'"
-                            "   AND (c.text ILIKE :like"
-                            "        OR (CAST(:tsq AS text) <> ''"
-                            "           AND to_tsvector('simple', c.text)"
-                            "           @@ to_tsquery('simple', :tsq)))"
-                            " ORDER BY rank DESC, ns.position, c.position"
+                            " WHERE dn.id = :nb AND ns.selected_for_chat AND ns.status = 'ready' AND es.is_active"
+                            "   AND e.embedding <=> CAST(:qv AS vector)"
+                            "       <= CAST(:maxd AS float8)"
+                            " ORDER BY e.embedding <=> CAST(:qv AS vector)"
                             " LIMIT :lim"
                         ),
-                        {"tsq": tsq, "like": f"%{query.strip()}%",
-                         "nb": notebook_id, "lim": limit},
+                        {"qv": str(qvec), "nb": notebook_id, "lim": limit,
+                         "maxd": self._max_vector_distance},
                     )
                 ).mappings().all()
-                for r in rows:
+                for r in vrows:
+                    if r["id"] in results:
+                        continue
                     results[r["id"]] = RetrievedChunk(
                         chunk_id=r["id"], text=r["text"],
                         locator=dict(r["locator"] or {}),
                         notebook_source_id=r["ns_id"],
                         material_version_id=r["mv_id"],
-                        local_name=r["local_name"], score=float(r["rank"]),
-                        mode="text",
+                        local_name=r["local_name"],
+                        score=float(r["dist"]), mode="vector",
                     )
-
-            if mode in ("vector", "both"):
-                qvec = await self._embed_query(conn, query.strip())
-                if qvec is not None:
-                    vrows = (
-                        await conn.execute(
-                            text(
-                                "SELECT c.id, c.text, c.locator, ns.id AS ns_id,"
-                                " mv.id AS mv_id, ns.local_name,"
-                                " e.embedding <=> CAST(:qv AS vector) AS dist"
-                                " FROM embeddings e"
-                                " JOIN chunks c ON c.id = e.chunk_id"
-                                " JOIN embedding_spaces es ON es.id = e.embedding_space_id"
-                                " JOIN processing_artifacts pa ON pa.id = c.artifact_id"
-                                " JOIN material_versions mv ON mv.id = pa.material_version_id"
-                                " JOIN notebook_sources ns ON ns.material_version_id = mv.id"
-                                " JOIN digital_notebooks dn ON dn.id = ns.notebook_id"
-                                " WHERE dn.id = :nb AND ns.selected_for_chat AND ns.status = 'ready' AND es.is_active"
-                                "   AND e.embedding <=> CAST(:qv AS vector)"
-                                "       <= CAST(:maxd AS float8)"
-                                " ORDER BY e.embedding <=> CAST(:qv AS vector)"
-                                " LIMIT :lim"
-                            ),
-                            {"qv": str(qvec), "nb": notebook_id, "lim": limit,
-                             "maxd": self._max_vector_distance},
-                        )
-                    ).mappings().all()
-                    for r in vrows:
-                        if r["id"] in results:
-                            continue
-                        results[r["id"]] = RetrievedChunk(
-                            chunk_id=r["id"], text=r["text"],
-                            locator=dict(r["locator"] or {}),
-                            notebook_source_id=r["ns_id"],
-                            material_version_id=r["mv_id"],
-                            local_name=r["local_name"],
-                            score=float(r["dist"]), mode="vector",
-                        )
 
         # F16: text score = ts_rank (higher better); vector score = cosine
         # distance (lower better). Normalize before merging.

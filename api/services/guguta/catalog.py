@@ -52,8 +52,9 @@ def hashlib_sha256(value: str) -> str:
 
 
 class CatalogService:
-    def __init__(self, engine: AsyncEngine) -> None:
+    def __init__(self, engine: AsyncEngine, *, quota_mib_per_user: int = 1024) -> None:
         self._engine = engine
+        self._quota_mib_per_user = quota_mib_per_user
 
     def _require_editor(self, actor: ActorContext) -> None:
         actor.require_any_role("catalog_editor", "admin")
@@ -186,7 +187,7 @@ class CatalogService:
 
     async def create_version(
         self, actor: ActorContext, template_id: uuid.UUID, *,
-        items: list[dict[str, Any]],
+        items: list[Any],
     ) -> dict[str, Any]:
         """Create a draft version from the editor's own processed materials."""
         self._require_editor(actor)
@@ -225,8 +226,8 @@ class CatalogService:
             )
             manifest_items = []
             for position, item in enumerate(items, start=1):
-                mv_id = item.get("material_version_id")
-                display_name = (item.get("display_name") or "").strip() or "Material"
+                mv_id = item.material_version_id
+                display_name = (item.display_name or "").strip() or "Material"
                 try:
                     mv_uuid = uuid.UUID(str(mv_id))
                 except ValueError as exc:
@@ -454,9 +455,7 @@ class CatalogService:
                     {"vid": version["id"]},
                 )
             ).scalar_one()
-            from open_notebook.database.guguta.config import GugutaConfig
-
-            quota_bytes = GugutaConfig().quota_mib_per_user * 1024 * 1024
+            quota_bytes = self._quota_mib_per_user * 1024 * 1024
             if int(used) + int(incoming) > quota_bytes:
                 raise InvalidInputError(
                     "Instanțierea ar depăși cota de stocare; operațiune refuzată."

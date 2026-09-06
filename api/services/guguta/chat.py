@@ -152,7 +152,11 @@ class ChatService:
             rows = (
                 await conn.execute(
                     text(
-                        "SELECT id, seq, role, content, status, context_revision,"
+                        "SELECT id, seq, role,"
+                        " CASE WHEN status = 'cancelled' THEN"
+                        "   '[Generare anulată: contextul carnetului s-a schimbat]'"
+                        "   ELSE content END AS content,"
+                        " status, context_revision,"
                         " model, prompt_version, created_at FROM chat_messages"
                         " WHERE session_id = :sid ORDER BY seq"
                     ),
@@ -253,6 +257,7 @@ class ChatService:
 
             retrieval = await self._search.search_notebook(
                 actor.actor_id, notebook_id, content, mode="both", limit=6,
+                conn=conn,
             )
             context = self._budget(retrieval)
             selected = (

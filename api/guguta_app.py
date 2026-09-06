@@ -151,7 +151,9 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
         get_chat_provider(config.chat_provider),
     )
     app.state.guguta_notes = NotesService(engine)
-    app.state.guguta_catalog = CatalogService(engine)
+    app.state.guguta_catalog = CatalogService(
+        engine, quota_mib_per_user=config.quota_mib_per_user
+    )
     app.state.guguta_state_codec = SignedStateCodec(config.server_secret)
     if config.auth_mode == "oidc" and config.oidc_issuer:
         from open_notebook.auth.guguta.oidc import OidcClient, OidcConfig

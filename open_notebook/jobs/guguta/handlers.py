@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Any
+from typing import Any, Optional
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine

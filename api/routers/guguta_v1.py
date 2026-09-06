@@ -160,16 +160,14 @@ async def oidc_callback(request: Request, response: Response, code: str = "",
 
 
 @auth_router.get("/config")
-async def auth_config() -> dict[str, str]:
-    """Public auth-mode discovery for the login screen (F02): no secrets,
-    only which login surface the UI should render."""
-    from open_notebook.database.guguta.config import GugutaConfig
-
+async def auth_config(request: Request) -> dict[str, str]:
+    """Public auth-mode discovery for the login screen (B15): reads from
+    the validated app.state config, never from a fresh env re-read."""
     try:
-        config = GugutaConfig()
-    except ValueError:
-        config = None
-    mode = config.auth_mode if config else "oidc"
+        config = request.app.state.guguta_config
+        mode = config.auth_mode
+    except AttributeError:
+        mode = "oidc"
     return {"auth_mode": mode}
 
 
@@ -709,8 +707,13 @@ class TemplateCreate(BaseModel):
     rights_note: Optional[str] = Field(default=None, max_length=5000)
 
 
+class VersionItem(BaseModel):
+    material_version_id: str = Field(min_length=1)
+    display_name: str = Field(min_length=1, max_length=500)
+
+
 class VersionCreate(BaseModel):
-    items: list[dict[str, Any]] = Field(min_length=1)
+    items: list[VersionItem] = Field(min_length=1)
 
 
 admin_catalog_router = APIRouter(
