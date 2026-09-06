@@ -186,3 +186,131 @@ async def delete_notebook(notebook_id: uuid.UUID, request: Request) -> dict[str,
 
         raise NotebookNotFound()
     return {"deleted": True}
+
+
+# ---------------------------------------------------------------------------
+# Sources (materials)
+# ---------------------------------------------------------------------------
+
+from fastapi import UploadFile  # noqa: E402
+
+
+class TextSourceCreate(BaseModel):
+    title: Optional[str] = Field(default=None, max_length=500)
+    text: str = Field(min_length=1, max_length=2_000_000)
+
+
+def get_sources_service(request: Request) -> Any:
+    return request.app.state.guguta_sources
+
+
+sources_router = APIRouter(
+    prefix="/api/v1/notebooks/{notebook_id}/sources", tags=["sources"]
+)
+
+
+@sources_router.post("/file", status_code=201)
+async def upload_source(
+    notebook_id: uuid.UUID, request: Request, file: UploadFile
+) -> dict[str, Any]:
+    actor = get_actor(request)
+    service = get_sources_service(request)
+    return await service.upload_file(
+        actor, notebook_id,
+        stream=file.file, original_name=file.filename, local_name=None,
+    )
+
+
+@sources_router.post("/text", status_code=201)
+async def add_text_source(
+    notebook_id: uuid.UUID, body: TextSourceCreate, request: Request
+) -> dict[str, Any]:
+    actor = get_actor(request)
+    service = get_sources_service(request)
+    return await service.add_text(
+        actor, notebook_id, text_content=body.text, title=body.title
+    )
+
+
+@sources_router.get("")
+async def list_sources(notebook_id: uuid.UUID, request: Request) -> list[dict[str, Any]]:
+    actor = get_actor(request)
+    service = get_sources_service(request)
+    return await service.list_for_notebook(actor, notebook_id)
+
+
+@sources_router.get("/{source_id}")
+async def get_source(
+    notebook_id: uuid.UUID, source_id: uuid.UUID, request: Request
+) -> dict[str, Any]:
+    actor = get_actor(request)
+    service = get_sources_service(request)
+    return await service.get(actor, notebook_id, source_id)
+
+
+@sources_router.patch("/{source_id}")
+async def update_source(
+    notebook_id: uuid.UUID, source_id: uuid.UUID,
+    body: dict[str, Any], request: Request,
+) -> dict[str, Any]:
+    actor = get_actor(request)
+    service = get_sources_service(request)
+    if not set(body.keys()) <= {"local_name", "selected_for_chat"}:
+        from open_notebook.exceptions import InvalidInputError
+
+        raise InvalidInputError("Câmpuri neacceptate.")
+    return await service.update(
+        actor, notebook_id, source_id,
+        local_name=body.get("local_name"),
+        selected_for_chat=body.get("selected_for_chat"),
+    )
+
+
+@sources_router.delete("/{source_id}")
+async def delete_source(
+    notebook_id: uuid.UUID, source_id: uuid.UUID, request: Request
+) -> dict[str, Any]:
+    actor = get_actor(request)
+    service = get_sources_service(request)
+    deleted = await service.delete(actor, notebook_id, source_id)
+    return {"deleted": deleted}
+
+
+@sources_router.get("/{source_id}/download")
+async def download_source(
+    notebook_id: uuid.UUID, source_id: uuid.UUID, request: Request
+) -> Any:
+    from fastapi.responses import Response
+
+    actor = get_actor(request)
+    service = get_sources_service(request)
+    data, mime, original = await service.download(actor, notebook_id, source_id)
+    headers = {"Content-Disposition": f'attachment; filename="{original or "material"}"'}
+    return Response(content=data, media_type=mime, headers=headers)
+
+
+@sources_router.post("/{source_id}/retry")
+async def retry_source(
+    notebook_id: uuid.UUID, source_id: uuid.UUID, request: Request
+) -> dict[str, Any]:
+    actor = get_actor(request)
+    service = get_sources_service(request)
+    ok = await service.retry(actor, notebook_id, source_id)
+    return {"requeued": ok}
+
+
+jobs_router = APIRouter(prefix="/api/v1/jobs", tags=["jobs"])
+
+
+@jobs_router.get("/{job_id}")
+async def get_job(job_id: uuid.UUID, request: Request) -> dict[str, Any]:
+    actor = get_actor(request)
+    from open_notebook.jobs.guguta.queue import get_job_for_actor
+
+    engine = request.app.state.guguta_engine
+    job = await get_job_for_actor(engine, job_id, actor.actor_id)
+    if job is None:
+        from open_notebook.exceptions import NotFoundError
+
+        raise NotFoundError()
+    return job

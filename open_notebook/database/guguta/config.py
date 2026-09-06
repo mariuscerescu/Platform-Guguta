@@ -76,6 +76,15 @@ class GugutaConfig(BaseSettings):
     # API surface mode: guguta = only /api/v1 (+health); legacy = upstream.
     api_mode: Literal["guguta", "legacy"] = "guguta"
 
+    # --- Materials pipeline (L3, GHID §6) ---
+    chunk_size_chars: int = 2000
+    chunk_overlap_chars: int = 200
+    embedding_provider: str = "hash"  # mock until D-02 closes
+    embedding_dimension: int = 8
+    job_lease_seconds: int = 300
+    job_poll_seconds: float = 2.0
+    job_worker_name: str = "worker-1"
+
     @model_validator(mode="after")
     def _refuse_unsafe_production_config(self) -> "GugutaConfig":
         if self.environment in _DEV_ENVIRONMENTS:

@@ -82,7 +82,7 @@ def test_embedding_dimension_trigger(migrator_engine: sa.Engine) -> None:
         conn.execute(
             sa.text(
                 "INSERT INTO embedding_spaces (id, model_name, model_revision, dimension, is_active) "
-                "VALUES (:id, 'test-model', 'rev1', 4, true)"
+                "VALUES (:id, 'test-model', 'rev1', 4, false)"
             ),
             {"id": space_id},
         )

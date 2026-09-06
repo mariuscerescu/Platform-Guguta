@@ -505,6 +505,8 @@ class Chunk(GugutaBase):
         JSONB, nullable=False, server_default="{}"
     )
     token_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    char_start: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    char_end: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     __table_args__ = (
         UniqueConstraint("artifact_id", "position", name="ux_chunks_pos"),

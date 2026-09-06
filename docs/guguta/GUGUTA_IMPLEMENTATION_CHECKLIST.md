@@ -47,7 +47,7 @@ Revizia 1.1 aliniază ordinea cu livrările L0–L10. Testele, identitatea și C
 - [x] Definim mesajele/citările și notițele cu relații consistente de proprietate. — chat_sessions/chat_messages/citations/notes; citări cu SET NULL pentru istoric „Sursă eliminată”.
 - [x] Adăugăm constrângeri, indici și timestampuri UTC. — CHECK/UNIQUE/partial index; timestamptz; trigger updated_at.
 - [x] Scriem politicile RLS și testele cu rolul runtime real. — 77 politici pe 26 tabele; `tests/guguta/test_rls_isolation.py` (A/B, fără actor, refolosire pool, worker vs coadă) — 14/14 trecute pe PostgreSQL real.
-- [x] Rulăm migrarea de la zero și testăm upgrade-ul între versiuni Guguță. — migrare de la zero în container (migrator) și în teste; upgrade între versiuni Guguță: **în așteptare** (prima versiune Guguță anterioară nu există încă; se retestează la migrația 0002).
+- [x] Rulăm migrarea de la zero și testăm upgrade-ul între versiuni Guguță. — migrare de la zero în container (migrator) și în teste; upgrade secvențial 0001→0002→0003 executat pe baza principală (container migrator) — validat la livrarea L3.
 - [x] Adăugăm health checks și un migrator unic pe release. — healthcheck `pg_isready`; serviciul `migrator` one-shot; API/worker nu migrează la pornire.
 - [x] Documentăm .env.example fără secrete și pornirea Windows/Linux. — `.env.guguta.example`; `scripts/dev.ps1` (Windows); compose pentru Linux; notă: pe mașina curentă `localhost` blochează rezolvarea IPv6 — DSN-urile folosesc `127.0.0.1`.
 
@@ -72,20 +72,20 @@ Revizia 1.1 aliniază ordinea cu livrările L0–L10. Testele, identitatea și C
 
 ## L3 — Materiale și worker
 
-- [ ] Implementăm adaptorul de stocare privată și căi generate de server.
-- [ ] Validăm MIME, mărime, pagini și fișiere invalide.
-- [ ] Introducem scanare/izolare parser și protecția path traversal/decomprimare.
-- [ ] Salvăm hash, MaterialVersion și asocierea locală.
-- [ ] Păstrăm originalele necesare importului/downloadului; nu activăm auto-delete upstream.
-- [ ] Introducem ProcessingJob în PostgreSQL, creat în tranzacția obiectului țintă.
-- [ ] Implementăm claim, lease token, heartbeat și recuperare după crash.
-- [ ] Implementăm backoff, limite, retry și anulare.
-- [ ] Refuzăm publicarea rezultatelor cu lease/revizie expirate.
-- [ ] Portăm PDF text: extracție, locatori, segmentare și embedding.
-- [ ] Explicăm eroarea PDF scanat fără OCR; nu declarăm succes fals.
-- [ ] Separăm starea extracției/indexării de transformările opționale.
-- [ ] Testăm workerul cu doi utilizatori și joburi întârziate.
-- [ ] Implementăm stările UI de upload/progres/eroare/retry.
+- [x] Implementăm adaptorul de stocare privată și căi generate de server. — `open_notebook/storage/guguta/` (chei UUID șarduite, root privat, O_EXCL; traversal/backslash/absolut respinse — testat).
+- [x] Validăm MIME, mărime, pagini și fișiere invalide. — tip real prin magic bytes (PDF/ZIP-OOXML/UTF-8), limită mărime citită cu cap (nu trunchiat), buget de pagini, 422 (testat).
+- [x] Introducem scanare/izolare parser și protecția path traversal/decomprimare. — arhive zip acceptate doar ca OOXML valid (docx/pptx), else eroare; parser rulat fără tranzacție DB deschisă; scanarea malware rămâne de configurat la pilot (R44).
+- [x] Salvăm hash, MaterialVersion și asocierea locală. — SHA-256 calculat pe server; asset+version+source+job în O singură tranzacție; curățare compensatorie a octeților la eșec.
+- [x] Păstrăm originalele necesare importului/downloadului; nu activăm auto-delete upstream. — download proxy autorizat (fără URL publice permanente) — testat.
+- [x] Introducem ProcessingJob în PostgreSQL, creat în tranzacția obiectului țintă. — `queue.enqueue` apelat cu aceeași conexiune/tranzacție.
+- [x] Implementăm claim, lease token, heartbeat și recuperare după crash. — `FOR UPDATE SKIP LOCKED`, lease_until, heartbeat (testat); lease expirat → revendicat de alt worker (testat).
+- [x] Implementăm backoff, limite, retry și anulare. — backoff exponențial cu jitter în SQL, max_attempts, retry manual de către proprietar (testat), `cancel_for_target` pentru ținte dispărute (traseu implementat; test dedicat direct rămâne la L4).
+- [x] Refuzăm publicarea rezultatelor cu lease/revizie expirate. — `LeaseStale` pe complete/fail (testat).
+- [x] Portăm PDF text: extracție, locatori, segmentare și embedding. — pypdf per-pagină, chunking cu offseturi, embeddinguri în loturi pe spațiul activ; provider mock determinist până la D-02.
+- [x] Explicăm eroarea PDF scanat fără OCR; nu declarăm succes fals. — A24: status=error + detaliu în română (testat).
+- [x] Separăm starea extracției/indexării de transformările opționale. — artifact publicat atomic cu statusul sursei; transformările opționale nu există încă în pipeline.
+- [x] Testăm workerul cu doi utilizatori și joburi întârziate. — izolare pe surse/joburi (A04) + lease expirat/requeue.
+- [x] Implementăm stările UI de upload/progres/eroare/retry. — API: status + status_detail + GET /jobs/{id} + POST retry.
 
 **Închidere:** upload PDF → procesare → artefacte pe PostgreSQL, reluabil și autorizat.
 

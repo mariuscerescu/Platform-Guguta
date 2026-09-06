@@ -23,11 +23,22 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
-from api.routers.guguta_v1 import auth_router, notebooks_router
+from api.routers.guguta_v1 import (
+    auth_router,
+    jobs_router,
+    notebooks_router,
+    sources_router,
+)
 from api.services.guguta.notebooks import (
     NotebookNotFound,
     NotebookService,
     NotebookValidation,
+)
+from api.services.guguta.sources import (
+    QuotaExceeded,
+    SourceNotFound,
+    SourcesService,
+    SourceValidation,
 )
 from open_notebook.auth.guguta.actor import ActorDenied
 from open_notebook.auth.guguta.oidc import OidcError
@@ -41,6 +52,7 @@ from open_notebook.database.guguta.engine import create_engine_for_role
 from open_notebook.exceptions import (
     AuthenticationError,
     InvalidInputError,
+    NotFoundError,
     OpenNotebookError,
 )
 
@@ -74,6 +86,16 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
         inactivity_ttl=timedelta(minutes=config.session_inactivity_ttl_minutes),
     )
     app.state.guguta_notebooks = NotebookService(engine)
+    from open_notebook.storage.guguta.filesystem import FilesystemStorage
+
+    app.state.guguta_sources = SourcesService(
+        engine,
+        FilesystemStorage(config.storage_root),
+        max_upload_mib=config.max_upload_mib,
+        max_pdf_pages=config.max_pdf_pages,
+        max_sources_per_notebook=config.max_sources_per_notebook,
+        quota_mib_per_user=config.quota_mib_per_user,
+    )
 
     @app.on_event("shutdown")
     async def _dispose() -> None:
@@ -129,6 +151,8 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
 
     app.include_router(auth_router)
     app.include_router(notebooks_router)
+    app.include_router(sources_router)
+    app.include_router(jobs_router)
 
     @app.exception_handler(AuthenticationError)
     async def auth_error(request: Request, exc: AuthenticationError) -> JSONResponse:
@@ -149,6 +173,11 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
         return _error("forbidden", "Acțiune nepermisă.", 403,
                       request.headers.get("x-request-id", "-"))
 
+    @app.exception_handler(NotFoundError)
+    async def not_found_error(request: Request, exc: NotFoundError) -> JSONResponse:
+        return _error("not_found", "Resursa nu există.", 404,
+                      request.headers.get("x-request-id", "-"))
+
     @app.exception_handler(OpenNotebookError)
     async def domain_error(request: Request, exc: OpenNotebookError) -> JSONResponse:
         return _error("error", "Eroare internă.", 500, request.headers.get("x-request-id", "-"))
@@ -162,6 +191,27 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
     @app.exception_handler(NotebookValidation)
     async def validation_error(request: Request, exc: NotebookValidation) -> JSONResponse:
         return _error("invalid", str(exc), 422, request.headers.get("x-request-id", "-"))
+
+    @app.exception_handler(SourceNotFound)
+    async def source_not_found(request: Request, exc: SourceNotFound) -> JSONResponse:
+        return _error("not_found", "Resursa nu există.", 404,
+                      request.headers.get("x-request-id", "-"))
+
+    @app.exception_handler(SourceValidation)
+    async def source_validation(request: Request, exc: SourceValidation) -> JSONResponse:
+        return _error("invalid", str(exc), 422, request.headers.get("x-request-id", "-"))
+
+    @app.exception_handler(QuotaExceeded)
+    async def quota_exceeded(request: Request, exc: QuotaExceeded) -> JSONResponse:
+        return _error("quota_exceeded", str(exc), 429,
+                      request.headers.get("x-request-id", "-"))
+
+    from open_notebook.jobs.guguta.parsing import ExtractionError
+
+    @app.exception_handler(ExtractionError)
+    async def extraction_error(request: Request, exc: ExtractionError) -> JSONResponse:
+        return _error("unsupported", str(exc), 422,
+                      request.headers.get("x-request-id", "-"))
 
     return app
 
