@@ -55,20 +55,20 @@ Revizia 1.1 aliniază ordinea cu livrările L0–L10. Testele, identitatea și C
 
 ## L2 — Identitate și CRUD autorizat
 
-- [ ] Implementăm adaptorul OIDC și sesiunea opacă server-side.
-- [ ] Implementăm ActorContext și stabilirea identității numai pe server.
-- [ ] Adăugăm cookie-uri, CSRF, expirare, logout și revocare.
-- [ ] Definim rolurile utilizator, editor de catalog și administrator; profesorul poate folosi rolul obișnuit.
-- [ ] Izolăm modul de autentificare sintetică pentru teste/development.
-- [ ] Refuzăm auth de test la startup staging/production.
-- [ ] Portăm creare/listare/editare/arhivare/ștergere carnet.
-- [ ] Paginăm listele și validăm sortarea.
-- [ ] Testăm ID-uri străine și falsificarea owner_id.
-- [ ] Testăm conexiunile refolosite din pool și contextul RLS după rollback.
-- [ ] Dezactivăm rutele upstream neportate; nu rămâne ocolire globală în API.
-- [ ] Obținem două conturi sintetice cu date independente.
+- [ ] Implementăm adaptorul OIDC și sesiunea opacă server-side. — **în curs**: adaptorul OIDC implementat (`open_notebook/auth/guguta/oidc.py`: PKCE S256, state/nonce semnate, JWKS, validare issuer/aud/nonce); sesiunea opacă testată end-to-end (dev-login/me/logout/revocare/suspendare). **Rămâne:** proba completă OIDC cu issuer fals în teste (RFC flow cu token exchange).
+- [x] Implementăm ActorContext și stabilirea identității numai pe server. — `ActorContext` construit exclusiv din sesiunea validată; provisioning prin `guguta_provision_user` (SECURITY DEFINER, migrația 0002).
+- [x] Adăugăm cookie-uri, CSRF, expirare, logout și revocare. — cookie HttpOnly/SameSite/Secure(https); CSRF derivat HMAC din token hash (tested: lipsă→403); Origin verificat (tested: străină→403); expirare absolută + inactivitate; logout/revocare tested.
+- [x] Definim rolurile utilizator, editor de catalog și administrator; profesorul poate folosi rolul obișnuit. — `users.roles` cu CHECK, `ActorContext.require_role/require_any_role`; ecranele dedicate vin cu modulele lor (L5/L6).
+- [x] Izolăm modul de autentificare sintetică pentru teste/development. — `POST /api/v1/auth/dev-login` refuzat când auth_mode≠test sau environment∉{development,ci}.
+- [x] Refuzăm auth de test la startup staging/production. — validator `GugutaConfig` (+secret default interzis, wildcard CORS interzis) + verificare la startup-ul aplicației.
+- [x] Portăm creare/listare/editare/arhivare/ștergere carnet. — `/api/v1/notebooks` CRUD + arhivare; ștergerea logica; revocarea pachetelor active la ștergere rămâne L7 (notată).
+- [x] Paginăm listele și validăm sortarea. — page/page_size clamp (max 100); sort allowlist (tested: `sort=1; DROP…`→422).
+- [x] Testăm ID-uri străine și falsificarea owner_id. — GET/PATCH/DELETE pe carnet străin→404; `origin` setat de server (client ignorat); `owner_id` nu există în contractele de scriere.
+- [x] Testăm conexiunile refolosite din pool și contextul RLS după rollback. — test L1 cu pool de mărime 1 (actorul nu supraviețuiește rollback+refolosire).
+- [x] Dezactivăm rutele upstream neportate; nu rămâne ocolire globală în API. — suprafața Guguță montează doar /api/v1 (+healthz/readyz); admin/podcasturi/surse upstream → 404/405 (tested).
+- [x] Obținem două conturi sintetice cu date independente. — test CRUD izolat A/B (listă, ID direct, mutații, ștergere).
 
-**Închidere:** A04/A11 aplicabile CRUD și A23 trec înainte de încărcarea documentelor.
+**Închidere:** A04/A11 aplicabile CRUD și A23 trec înainte de încărcarea documentelor. — izolarea CRUD e testată; A11 complet (worker/streaming/export) se revalidează la L3/L4.
 
 ## L3 — Materiale și worker
 

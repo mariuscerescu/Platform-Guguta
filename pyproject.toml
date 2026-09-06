@@ -54,6 +54,7 @@ dependencies = [
     "alembic>=1.14.0,<1.15",
     "pgvector>=0.3.6,<0.4",
     "pydantic-settings>=2.6.0,<3",
+    "authlib>=1.3.2,<2",
 ]
 
 [tool.setuptools]

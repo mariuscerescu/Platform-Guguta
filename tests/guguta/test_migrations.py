@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import uuid
 
 import pytest
@@ -27,7 +28,13 @@ def test_migrations_from_zero(migrator_engine: sa.Engine) -> None:
         version = conn.execute(
             sa.text("SELECT version_num FROM guguta_alembic")
         ).scalar()
-        assert version == "0001"
+        # Compare with the alembic head so future migrations keep this green.
+        from alembic.config import Config
+        from alembic.script import ScriptDirectory
+
+        repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        script = ScriptDirectory.from_config(Config(os.path.join(repo_root, "alembic.ini")))
+        assert version == script.get_current_head()
         tables = {
             row[0]
             for row in conn.execute(

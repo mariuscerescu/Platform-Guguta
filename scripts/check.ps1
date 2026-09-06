@@ -14,11 +14,11 @@ $uv = "C:\Users\User\AppData\Local\Programs\Python\Python311\Scripts\uv.exe"
 if (Get-Command uv -ErrorAction SilentlyContinue) { $uv = "uv" }
 
 Write-Host "== 1/4 Ruff =="
-& $uv run ruff check open_notebook/database/guguta alembic tests/guguta
+& $uv run ruff check open_notebook/database/guguta open_notebook/auth/guguta api/services/guguta api/routers/guguta_v1.py api/guguta_app.py alembic tests/guguta
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "== 2/4 Mypy (pachetul Guguță) =="
-& $uv run mypy open_notebook/database/guguta tests/guguta
+& $uv run mypy open_notebook/database/guguta open_notebook/auth/guguta api/services/guguta api/routers/guguta_v1.py api/guguta_app.py tests/guguta
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 Write-Host "== 3/4 Teste Guguță PostgreSQL (migrări + RLS) =="

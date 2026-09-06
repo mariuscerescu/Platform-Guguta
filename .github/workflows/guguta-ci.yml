@@ -26,7 +26,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Ruff
-        run: uv run ruff check open_notebook/database/guguta alembic tests/guguta api open_notebook
+        run: uv run ruff check open_notebook/database/guguta open_notebook/auth/guguta api/services/guguta api/routers/guguta_v1.py api/guguta_app.py alembic tests/guguta
 
   typecheck:
     runs-on: ubuntu-latest
@@ -39,7 +39,7 @@ jobs:
       - name: Sync dependencies
         run: uv sync
       - name: Mypy (Guguță package)
-        run: uv run mypy open_notebook/database/guguta tests/guguta
+        run: uv run mypy open_notebook/database/guguta open_notebook/auth/guguta api/services/guguta api/routers/guguta_v1.py api/guguta_app.py tests/guguta
 
   tests:
     runs-on: ubuntu-latest

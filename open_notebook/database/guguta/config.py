@@ -60,6 +60,22 @@ class GugutaConfig(BaseSettings):
     max_concurrent_jobs_per_user: int = 2
     chat_total_timeout_seconds: int = 120
 
+    # --- Identity / sessions (ADR-0003) ---
+    # server_secret signs CSRF/state material; MUST come from the environment
+    # outside development. No default secret is treated as valid in staging.
+    server_secret: str = "dev-only-insecure-secret-change-me"
+    session_absolute_ttl_hours: int = 12
+    session_inactivity_ttl_minutes: int = 120
+
+    # OIDC provider (required when auth_mode=oidc).
+    oidc_issuer: str = ""
+    oidc_client_id: str = ""
+    oidc_client_secret: str = ""
+    oidc_redirect_uri: str = ""
+
+    # API surface mode: guguta = only /api/v1 (+health); legacy = upstream.
+    api_mode: Literal["guguta", "legacy"] = "guguta"
+
     @model_validator(mode="after")
     def _refuse_unsafe_production_config(self) -> "GugutaConfig":
         if self.environment in _DEV_ENVIRONMENTS:
@@ -74,6 +90,12 @@ class GugutaConfig(BaseSettings):
         origins = [o.strip() for o in self.cors_origins]
         if any(o == "*" for o in origins):
             problems.append("wildcard CORS origin is refused")
+        if self.server_secret == "dev-only-insecure-secret-change-me":
+            problems.append("GUGUTA_SERVER_SECRET must be set (no default secret)")
+        if self.auth_mode == "oidc" and not (
+            self.oidc_issuer and self.oidc_client_id and self.oidc_client_secret
+        ):
+            problems.append("OIDC issuer/client/secret are required when auth_mode=oidc")
         if problems:
             raise ValueError("unsafe configuration: " + "; ".join(problems))
         return self

@@ -136,7 +136,9 @@ class Identity(GugutaBase):
     issuer: Mapped[str] = mapped_column(String(512), nullable=False)
     subject: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[Optional[str]] = mapped_column(String(320), nullable=True)
-    email_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    email_verified: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=sa_false()
+    )
     created_at: Mapped[datetime] = _ts()
     last_login_at: Mapped[Optional[datetime]] = _ts_opt()
 
@@ -886,7 +888,9 @@ class AuditEvent(GugutaBase):
     target_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True), nullable=True
     )
-    result: Mapped[str] = mapped_column(String(20), nullable=False, default="allowed")
+    result: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="allowed", server_default="allowed"
+    )
     request_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     details: Mapped[dict[str, Any]] = mapped_column(
         JSONB, nullable=False, server_default="{}"
