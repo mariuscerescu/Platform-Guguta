@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
-import { api, ApiError, Note, Notebook, Source } from "../../../lib/api";
+import { api, ApiError, getCsrf, Note, Notebook, Source } from "../../../lib/api";
 
 interface ChatMessage {
   id: string;
@@ -157,6 +157,94 @@ export default function NotebookPage() {
     }
   }
 
+  // F04: file upload (multipart)
+  const [uploadingFile, setUploadingFile] = useState(false);
+  async function uploadFile(file: File) {
+    setUploadingFile(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const csrf = getCsrf();
+      const res = await fetch(`/guguta-api/api/v1/notebooks/${nbId}/sources/file`, {
+        method: "POST",
+        headers: { ...(csrf ? { "X-Guguta-CSRF": csrf } : {}), Origin: "http://localhost:3000" },
+        body: formData,
+      });
+      if (!res.ok) {
+        const d = (await res.json().catch(() => ({}))) as { code?: string; message?: string };
+        throw new ApiError(res.status, d.code ?? "error", d.message ?? "Upload eșuat.");
+      }
+      const result = (await res.json()) as { source: Source };
+      await loadAll();
+      // F04: poll source status until ready/error
+      const srcId = result.source.id;
+      const poll = setInterval(async () => {
+        const detail = await api<Source>(
+          "GET", `/api/v1/notebooks/${nbId}/sources/${srcId}`,
+        );
+        if (detail.status === "ready" || detail.status === "error") {
+          clearInterval(poll);
+          await loadAll();
+        }
+      }, 2000);
+      setTimeout(() => clearInterval(poll), 60_000); // max 60s polling
+    } catch (err) {
+      setError((err as Error).message);
+      setUploadingFile(false);
+    }
+  }
+
+  // F04: notebook management (rename/archive/delete)
+  async function deleteNotebook() {
+    if (!confirm(`Ștergi definitiv carnetul „${nb?.title}"?`)) return;
+    try {
+      await api("DELETE", `/api/v1/notebooks/${nbId}`);
+      window.location.href = "/";
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
+  async function renameNotebook() {
+    const newTitle = prompt("Titlul nou:", nb?.title ?? "");
+    if (!newTitle?.trim()) return;
+    try {
+      await api("PATCH", `/api/v1/notebooks/${nbId}`, { title: newTitle.trim() });
+      await loadAll();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
+  async function archiveNotebook(archive: boolean) {
+    try {
+      await api("PATCH", `/api/v1/notebooks/${nbId}`, { archive });
+      await loadAll();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
+  async function createShare() {
+    if (!sources?.length) return;
+    const ready = sources.filter((s) => s.status === "ready");
+    if (!ready.length) { setError("Niciun material gata pentru partajare."); return; }
+    try {
+      const share = await api<{ share_id: string; token: string; code: string }>(
+        "POST",
+        `/api/v1/notebooks/${nbId}/shares`,
+        { source_ids: ready.map((s) => s.id), title: nb?.title },
+      );
+      const link = `${window.location.origin}/import#token=${share.token}`;
+      await navigator.clipboard.writeText(link);
+      alert(`Link copiat:\n${link}\n\nCod: ${share.code}`);
+      await loadAll();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
   async function removeSource(id: string) {
     try {
       await api("DELETE", `/api/v1/notebooks/${nbId}/sources/${id}`);
@@ -210,7 +298,21 @@ export default function NotebookPage() {
 
   return (
     <>
-      <h1>{nb?.title ?? "Carnet"}</h1>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h1>{nb?.title ?? "Carnet"}</h1>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button onClick={renameNotebook}>Redenumește</button>
+          <button onClick={() => archiveNotebook(nb?.status !== "archived")}>
+            {nb?.status === "archived" ? "Dezarhivează" : "Arhivează"}
+          </button>
+          <button onClick={createShare} disabled={!sources?.some((s) => s.status === "ready")}>
+            Partajează
+          </button>
+          <button onClick={deleteNotebook} style={{ borderColor: "var(--error)", color: "var(--error)" }}>
+            Șterge
+          </button>
+        </div>
+      </div>
       {error && <p className="error-text">{error}</p>}
 
       <div className="tabs" role="tablist">
@@ -228,7 +330,7 @@ export default function NotebookPage() {
       </div>
 
       <div className="panes">
-        <section className="pane" aria-label="Materiale">
+        <section className={`pane ${tab === "sources" ? "active" : ""}`} aria-label="Materiale">
           <h2>Materiale</h2>
           {sources === null ? (
             <p className="muted">Se încarcă…</p>
@@ -295,9 +397,24 @@ export default function NotebookPage() {
               Adaugă materialul
             </button>
           </form>
+          <div style={{ marginTop: 24, paddingTop: 16, borderTop: "1px solid var(--border)" }}>
+            <h3>Adaugă fișier</h3>
+            <p className="muted">PDF, DOCX, PPTX, TXT sau Markdown (max 25 MiB)</p>
+            <input
+              type="file"
+              accept=".pdf,.docx,.pptx,.txt,.md"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) void uploadFile(file);
+                e.target.value = "";
+              }}
+              disabled={uploadingFile}
+            />
+            {uploadingFile && <p className="muted">Se încarcă și procesează…</p>}
+          </div>
         </section>
 
-        <section className="pane" aria-label="Conversație">
+        <section className={`pane ${tab === "chat" ? "active" : ""}`} aria-label="Conversație">
           <h2>Conversație</h2>
           <p>
             <button onClick={newSession}>Conversație nouă</button>
@@ -350,7 +467,7 @@ export default function NotebookPage() {
           )}
         </section>
 
-        <section className="pane" aria-label="Notițe">
+        <section className={`pane ${tab === "notes" ? "active" : ""}`} aria-label="Notițe">
           <h2>Notițe</h2>
           {notes === null ? (
             <p className="muted">Se încarcă…</p>

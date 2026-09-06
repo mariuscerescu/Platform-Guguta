@@ -373,12 +373,22 @@ async def delete_source(
 async def download_source(
     notebook_id: uuid.UUID, source_id: uuid.UUID, request: Request
 ) -> Any:
+    from urllib.parse import quote
+
     from fastapi.responses import Response
 
     actor = get_actor(request)
     service = get_sources_service(request)
     data, mime, original = await service.download(actor, notebook_id, source_id)
-    headers = {"Content-Disposition": f'attachment; filename="{original or "material"}"'}
+    # F24: safe Content-Disposition with ASCII fallback + UTF-8 extension
+    safe_name = (original or "material").replace('"', "").replace("\r", "").replace("\n", "")
+    ascii_name = safe_name.encode("ascii", "replace").decode("ascii")
+    utf8_name = quote(safe_name)
+    headers = {
+        "Content-Disposition": (
+            f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{utf8_name}"
+        )
+    }
     return Response(content=data, media_type=mime, headers=headers)
 
 
