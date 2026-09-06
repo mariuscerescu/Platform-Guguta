@@ -45,10 +45,53 @@ services:
     command: ["alembic", "upgrade", "head"]
     restart: "no"
 
-  # Wired in later deliveries:
-  # api:      build from the Guguță image, command uvicorn api... (L2)
-  # worker:   same image, worker command, GUGUTA_DATABASE_URL_WORKER (L3)
-  # frontend: Next.js production build (L5)
+  api:
+    build:
+      context: .
+      dockerfile: docker/guguta/api.Dockerfile
+      args:
+        GUGUTA_COMMIT: ${GUGUTA_COMMIT:-dev}
+    environment:
+      GUGUTA_ENVIRONMENT: development
+      GUGUTA_AUTH_MODE: ${GUGUTA_AUTH_MODE:-test}
+      GUGUTA_COMMIT: ${GUGUTA_COMMIT:-dev}
+      GUGUTA_DATABASE_URL_API: postgresql+psycopg://guguta_api:${GUGUTA_PG_API_PASSWORD:-guguta_dev_api}@db:5432/guguta
+      GUGUTA_STORAGE_ROOT: /data/guguta_storage
+    volumes:
+      - guguta_storage:/data/guguta_storage
+    ports:
+      - "127.0.0.1:5056:5055"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/guguta/api.Dockerfile
+      args:
+        GUGUTA_COMMIT: ${GUGUTA_COMMIT:-dev}
+    environment:
+      GUGUTA_ENVIRONMENT: development
+      GUGUTA_AUTH_MODE: test
+      GUGUTA_DATABASE_URL_WORKER: postgresql+psycopg://guguta_worker:${GUGUTA_PG_WORKER_PASSWORD:-guguta_dev_worker}@db:5432/guguta
+      GUGUTA_STORAGE_ROOT: /data/guguta_storage
+      GUGUTA_JOB_WORKER_NAME: guguta-worker-1
+    volumes:
+      - guguta_storage:/data/guguta_storage
+    depends_on:
+      db:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+    command: ["python", "-m", "open_notebook.jobs.guguta.worker"]
+    restart: unless-stopped
+
+  # frontend: Next.js production build (L5 — open item)
 
 volumes:
   guguta_pg_data:
+  guguta_storage:

@@ -209,6 +209,17 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
     async def healthz() -> dict[str, str]:
         return {"status": "ok"}  # liveness: process is up
 
+    @app.get("/versionz")
+    async def versionz() -> dict[str, str]:
+        """Release identification — no secrets (R102; GHID §10.3)."""
+        import os
+
+        return {
+            "service": "guguta-api",
+            "version": "0.1.0",
+            "commit": os.environ.get("GUGUTA_COMMIT", "unknown"),
+        }
+
     @app.get("/readyz")
     async def readyz() -> JSONResponse:
         # Readiness: schema reachable with the runtime role (worker/AI excluded;
@@ -360,8 +371,13 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
     return app
 
 
+# The `app` attribute is built lazily via module __getattr__ (PEP 562) so the
+# module can be imported without a runtime configuration (tests import
+# create_guguta_app directly). IMPORTANT: `app` must NOT be pre-assigned —
+# a module-level `app = None` would shadow __getattr__ and uvicorn would
+# receive None as the ASGI app.
+
 _config = None
-app = None  # built lazily via module __getattr__ so imports don't require env
 
 
 def _build_default_app() -> FastAPI:
@@ -372,8 +388,7 @@ def _build_default_app() -> FastAPI:
 
 def __getattr__(name: str) -> Any:
     if name == "app":
-        global app
-        if app is None:
-            app = _build_default_app()
-        return app
+        value = _build_default_app()
+        globals()["app"] = value
+        return value
     raise AttributeError(name)

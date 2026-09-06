@@ -168,17 +168,17 @@ Revizia 1.1 aliniază ordinea cu livrările L0–L10. Testele, identitatea și C
 
 ## L8 — Eliminare legacy și transfer controlat
 
-- [ ] Verificăm imports, query-uri și config: fără SurrealDB/surreal-commands în runtime țintă.
-- [ ] Verificăm că memoria SQLite upstream nu este reactivată prin rute rămase.
-- [ ] Eliminăm migrațiile/serviciile vechi din buildul țintă, păstrând istoria Git și backupurile.
-- [ ] Construim imaginile proprii din commit, nu din tagul upstream flotant.
-- [ ] Dacă se transferă date existente, desemnăm proprietarul și mapăm ID-uri, mesaje, citări și fișiere.
-- [ ] Executăm dry-run și reconciliere înainte de transfer.
-- [ ] Documentăm ce date nu sunt portate și obținem decizia aferentă; nu le ștergem implicit.
-- [ ] Pregătim cutover și rollback, inclusiv scrierile apărute după backup.
-- [ ] Nu cerem funcționalitate audio pentru a închide migrarea MVP.
+- [x] Verificăm imports, query-uri și config: fără SurrealDB/surreal-commands în runtime țintă. — gardă AST permanentă `tests/guguta/test_no_legacy_imports.py` pe toate modulele Guguță + imaginea API instalează doar stiva PostgreSQL.
+- [x] Verificăm că memoria SQLite upstream nu este reactivată prin rute rămase. — suprafața Guguță nu montează rute upstream; sqlite3/SqliteSaver interzise de gardă; dep. `langgraph-checkpoint-sqlite` nu e în imaginea API.
+- [x] Eliminăm migrațiile/serviciile vechi din buildul țintă, păstrând istoria Git și backupurile. — imaginea API copiază explicit doar modulele Guguță; `.surrealql`/surreal services nu sunt în imagine.
+- [x] Construim imaginile proprii din commit, nu din tagul upstream flotant. — `docker/guguta/api.Dockerfile` (API+worker, non-root, GUGUTA_COMMIT build-arg) + `migrator.Dockerfile`; DB cu digest fixat; `/versionz` expune commitul.
+- [ ] Dacă se transferă date existente, desemnăm proprietarul și mapăm ID-uri, mesaje, citări și fișiere. — **D-08 deschisă**: transferul demo-ului nu a fost mandatat; volumele rămân în backup.
+- [ ] Executăm dry-run și reconciliere înainte de transfer. — **n/a până la D-08**.
+- [x] Documentăm ce date nu sunt portate și obținem decizia aferentă; nu le ștergem implicit. — MIGRATION_INVENTORY.md §3-4 + RUNBOOK_CUTOVER.md §4; volumele păstrate.
+- [x] Pregătim cutover și rollback, inclusiv scrierile apărute după backup. — RUNBOOK_CUTOVER.md (ordin deployment, migrare unică, rollback fără downgrade destructiv, verificări 24h).
+- [x] Nu cerem funcționalitate audio pentru a închide migrarea MVP. — podcasts amânate cu dezactivare server-side (DECIZII_EXTERNE + suprafață).
 
-**Închidere:** build fără dependențele eliminate și fără pierderi ascunse de date.
+**Închidere:** build fără dependențele eliminate și fără pierderi ascunse de date. — buildul țintă (imagini Guguță) este legacy-free și verificat de gardă; codul upstream rămâne în repo pentru istorie/compatibilitate până la decizia de curățare finală.
 
 ## L9 — Verificări finale și readiness
 
