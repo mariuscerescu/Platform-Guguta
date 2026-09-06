@@ -1,0 +1,23 @@
+Guguță Platform
+Copyright 2026 contributors ai Platformei Guguță
+
+Acest produs include cod derivat din Open Notebook.
+
+Open Notebook
+Copyright (c) Luis Novo și contributori
+https://github.com/lfnovo/open-notebook
+Licență MIT (vezi LICENSE — păstrată integral în această distribuție).
+Modificările Guguță asupra acestui cod sunt distribuite sub MIT.
+
+Registru de proveniență (voluntar, conform ANALIZA_OSS.md §5):
+- Fork de bază: Open Notebook 1.14.0, commit 8297bb22e2eaeb0d8feafc0538f0d736453571d4.
+- Subsisteme înlocuite de componentele Guguță (fără cod upstream în runtime-ul țintă):
+  SurrealDB/surreal-commands → PostgreSQL + pgvector (ADR-0001, ADR-0002);
+  parolă comună de instanță → OIDC + sesiuni opace (ADR-0003);
+  SqliteSaver → mesaje PostgreSQL (ADR-0005).
+- Dependențe terțe: fiecare bibliotecă, runtime OCR/audio, imagine Docker și
+  model se inventariază la build (SBOM, R05); nimic din această listă nu
+  substituie inventarul de release.
+
+Licența aplicației nu acordă drepturi asupra manualelor, mărcilor sau vocilor.
+Drepturile materialelor și condițiile furnizorilor AI se verifică înainte de utilizare.
