@@ -17,6 +17,18 @@ Revizia 1.1 aliniază ordinea cu livrările L0–L10. Testele, identitatea și C
 - Deciziile de furnizor, pilot și date reale se închid la termenul indicat în specificații; nu redeschid alegerea bazei.
 - Nu folosi Computer Use. Testele UI se rulează din proiect prin CLI și sunt completate cu verificare umană când e necesar.
 
+
+> **⚠ AUDIT 2026-09-06 (AUDIT_IMPLEMENTARE_2026-09-06.md, commit 64732f5) — verdict NO-GO pentru pilot.**
+> Următoarele bife sunt **redeschise** până la remedierea cu dovezi (Fxx = constatarea din audit):
+> - L2: adaptor OIDC (F01 — cookie pierdut la redirect, reprodus), cookie/CSRF (F02), CI (F21)
+> - L3: worker (F10 — publicare înainte de verificarea lease, reprodus; F11 — claim/heartbeat/deadline; F17 — limite upload/parse), cote (F13)
+> - L4: căutare/chat (F07 — istoric reintroduce surse eliminate, reprodus; F08 — răspunsuri în curs/ordonare; F09 — idempotency pending permanent, reprodus; F15 — provideri mock/limite), A01 UI (F06)
+> - L5: panouri mobile (F03 — toate invizibile sub 1024px), fluxuri UI MVP (F04), link share (F05), origin compose (F19), a11y sweep
+> - L6/L7: serializare import↔revocare / retire↔instanțiere (F12), cote instanțiere (F13), GC lifecycle (F18), A22 restore bytes (F22), A28 cont (F23), Content-Disposition (F24), publicare fără verificarea drepturilor (F23)
+> - L8: runbook stivă greșită + imagini nereproductibile (F20), CI incomplet (F21), readiness/observabilitate (F25)
+> Configurația production acceptă secrete goale și simulări (F14, reprodus).
+> Bifele de mai jos rămân istoric; starea REALĂ este cea din acest bloc + audit. Remedierea urmează ordinea din audit §7.
+
 ## L0 — Inventar, fork, documentație și CI minim
 
 - [x] Verificăm HEAD, branch, remotes și modificările locale. — `main @ 8297bb2`, fără modificări pe fișiere urmărite; remotes reconfigurate (origin→fork, upstream→lfnovo).
