@@ -154,3 +154,7 @@ docker-compose.override.yml
 # Local QA/debug artifacts
 screenshot-*.png
 history.txt
+
+# Guguță local test/dev storage
+.guguta-test-storage/
+guguta_storage/
