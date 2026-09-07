@@ -7,6 +7,69 @@ type Tab = "mine" | "school";
 type View = "tiles" | "rows";
 type Sort = "recent" | "title";
 
+/* minimal SVG icons — no emoji (design decision) */
+const IconDoc = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <path d="M7 3h7l4 4v14H7z" strokeLinejoin="round" />
+    <path d="M14 3v4h4" strokeLinejoin="round" />
+    <path d="M9.5 12h5M9.5 15.5h5" strokeLinecap="round" />
+  </svg>
+);
+const IconBook = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <path d="M5 4h9a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3z" strokeLinejoin="round" />
+    <path d="M17 20h2V7a3 3 0 0 0-3-3" strokeLinejoin="round" />
+    <path d="M8 8h5M8 11.5h5" strokeLinecap="round" />
+  </svg>
+);
+const IconDownload = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <path d="M12 4v10m0 0 4-4m-4 4-4-4" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M5 19h14" strokeLinecap="round" />
+  </svg>
+);
+const IconPlus = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <path d="M12 5v14M5 12h14" strokeLinecap="round" />
+  </svg>
+);
+const IconSearch = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <circle cx="11" cy="11" r="6.5" />
+    <path d="m16 16 4.5 4.5" strokeLinecap="round" />
+  </svg>
+);
+const IconGrid = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <rect x="4" y="4" width="7" height="7" rx="1.5" />
+    <rect x="13" y="4" width="7" height="7" rx="1.5" />
+    <rect x="4" y="13" width="7" height="7" rx="1.5" />
+    <rect x="13" y="13" width="7" height="7" rx="1.5" />
+  </svg>
+);
+const IconRows = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" />
+  </svg>
+);
+
+function NotebookIcon({ origin }: { origin: string }) {
+  if (origin === "template") return <IconBook />;
+  if (origin === "import") return <IconDownload />;
+  return <IconDoc />;
+}
+
+function formatDate(iso?: string) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("ro-MD", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 export default function HomePage() {
   const [notebooks, setNotebooks] = useState<Notebook[] | null>(null);
   const [catalog, setCatalog] = useState<CatalogTemplate[] | null>(null);
@@ -16,6 +79,7 @@ export default function HomePage() {
   const [view, setView] = useState<View>("tiles");
   const [sort, setSort] = useState<Sort>("recent");
   const [search, setSearch] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [importToken, setImportToken] = useState("");
   const [importing, setImporting] = useState(false);
@@ -25,7 +89,9 @@ export default function HomePage() {
       try {
         const res = await fetch("/guguta-api/api/v1/catalog/templates");
         setCatalog(res.ok ? await res.json() : []);
-      } catch { setCatalog([]); }
+      } catch {
+        setCatalog([]);
+      }
       const user = await me();
       setAuthed(user !== null);
       if (!user) return;
@@ -47,7 +113,10 @@ export default function HomePage() {
         title: "Carnet nou",
       });
       window.location.href = `/notebook/${nb.id}`;
-    } catch (err) { setError((err as Error).message); setCreating(false); }
+    } catch (err) {
+      setError((err as Error).message);
+      setCreating(false);
+    }
   }
 
   async function instantiate(templateId: string) {
@@ -60,7 +129,10 @@ export default function HomePage() {
       setTab("mine");
       const list = await api<{ items: Notebook[] }>("GET", "/api/v1/notebooks");
       setNotebooks(list.items);
-    } catch (err) { setError((err as Error).message); setImporting(false); }
+    } catch (err) {
+      setError((err as Error).message);
+      setImporting(false);
+    }
   }
 
   async function importPackage() {
@@ -69,69 +141,118 @@ export default function HomePage() {
     setError(null);
     try {
       await api("POST", "/api/v1/imports", {
-        token: importToken.trim(), idempotency_key: crypto.randomUUID(),
+        token: importToken.trim(),
+        idempotency_key: crypto.randomUUID(),
       });
       setImportToken("");
       setTab("mine");
       const list = await api<{ items: Notebook[] }>("GET", "/api/v1/notebooks");
       setNotebooks(list.items);
-    } catch (err) { setError((err as Error).message); setImporting(false); }
+    } catch (err) {
+      setError((err as Error).message);
+      setImporting(false);
+    }
   }
 
   const filtered = useMemo(() => {
-    if (tab === "school") return null;
-    if (!notebooks) return null;
-    const query = search.trim().toLowerCase();
+    if (tab === "school" || !notebooks) return null;
+    const q = search.trim().toLowerCase();
     const sorted = [...notebooks].sort((a, b) => {
       if (sort === "title") return a.title.localeCompare(b.title, "ro");
       return (b.created_at ?? "").localeCompare(a.created_at ?? "");
     });
-    return query ? sorted.filter((n) => n.title.toLowerCase().includes(query)) : sorted;
+    return q ? sorted.filter((n) => n.title.toLowerCase().includes(q)) : sorted;
   }, [notebooks, tab, search, sort]);
 
   const catalogFiltered = useMemo(() => {
     if (tab !== "school" || !catalog) return null;
-    const query = search.trim().toLowerCase();
+    const q = search.trim().toLowerCase();
     const sorted = [...catalog].sort((a, b) => {
       if (sort === "title") return a.title.localeCompare(b.title, "ro");
       return 0;
     });
-    return query ? sorted.filter((t) => t.title.toLowerCase().includes(query)) : sorted;
+    return q ? sorted.filter((t) => t.title.toLowerCase().includes(q)) : sorted;
   }, [catalog, tab, search, sort]);
 
   return (
     <>
-      {/* Toolbar: filter chips + search + view controls + create */}
+      {/* Toolbar — chips stânga; căutare, vedere, sortare, creare dreapta */}
       <div className="toolbar">
-        <button className={`chip ${tab === "mine" ? "active" : ""}`}
-          onClick={() => setTab("mine")} disabled={!authed}>
+        <button
+          className={`chip ${tab === "mine" ? "active" : ""}`}
+          onClick={() => setTab("mine")}
+          disabled={!authed}
+        >
           Carnetele mele
         </button>
-        <button className={`chip ${tab === "school" ? "active" : ""}`}
-          onClick={() => setTab("school")}>
+        <button
+          className={`chip ${tab === "school" ? "active" : ""}`}
+          onClick={() => setTab("school")}
+        >
           Carnete școlare
         </button>
         <div className="toolbar-spacer" />
-        <input className="search-input" placeholder="Caută carnet după titlu"
-          value={search} onChange={(e) => setSearch(e.target.value)} />
-        <button className={`icon-btn ${view === "tiles" ? "active" : ""}`}
-          onClick={() => setView("tiles")} title="Afișare în rânduri">▦</button>
-        <button className={`icon-btn ${view === "rows" ? "active" : ""}`}
-          onClick={() => setView("rows")} title="Afișare în listă">☰</button>
-        <select className="select" value={sort}
-          onChange={(e) => setSort(e.target.value as Sort)}>
+        <div className="search-wrap">
+          {searchOpen && (
+            <input
+              className="search-pop"
+              placeholder="Caută carnet după titlu"
+              value={search}
+              autoFocus
+              onChange={(e) => setSearch(e.target.value)}
+              onBlur={() => {
+                if (!search.trim()) setSearchOpen(false);
+              }}
+            />
+          )}
+          <button
+            className={`search-circle ${searchOpen ? "active" : ""}`}
+            onClick={() => setSearchOpen((v) => !v)}
+            title="Caută carnet după titlu"
+            aria-label="Caută carnet după titlu"
+          >
+            <IconSearch />
+          </button>
+        </div>
+        <div className="segmented" role="group" aria-label="Mod de afișare">
+          <button
+            className={view === "tiles" ? "active" : ""}
+            onClick={() => setView("tiles")}
+            title="Afișare în rânduri"
+            aria-label="Afișare în rânduri"
+          >
+            <IconGrid />
+          </button>
+          <button
+            className={view === "rows" ? "active" : ""}
+            onClick={() => setView("rows")}
+            title="Afișare în listă"
+            aria-label="Afișare în listă"
+          >
+            <IconRows />
+          </button>
+        </div>
+        <select
+          className="select-pill"
+          value={sort}
+          onChange={(e) => setSort(e.target.value as Sort)}
+          aria-label="Sortare"
+        >
           <option value="recent">Cele mai recente</option>
           <option value="title">După titlu</option>
         </select>
-        <button className="create-btn" onClick={createNotebook}
-          disabled={creating || !authed}>
+        <button
+          className="create-btn"
+          onClick={createNotebook}
+          disabled={creating || !authed}
+        >
           + Carnet nou
         </button>
       </div>
 
       {error && <p className="error-text" style={{ padding: "0 24px" }}>{error}</p>}
 
-      {/* My notebooks tab */}
+      {/* Carnetele mele */}
       {tab === "mine" && (
         <>
           <h2 className="section-title">Carnetele mele</h2>
@@ -154,22 +275,51 @@ export default function HomePage() {
               </button>
             </div>
           ) : (
-            <div className="grid-cards" style={view === "rows" ? { gridTemplateColumns: "1fr" } : undefined}>
+            <div
+              className="grid-cards"
+              style={view === "rows" ? { gridTemplateColumns: "1fr" } : undefined}
+            >
               <button className="create-card" onClick={createNotebook} disabled={creating}>
-                <span className="plus-circle">+</span>
+                <span className="plus-circle"><IconPlus /></span>
                 <span>Creează carnet nou</span>
               </button>
               {filtered.map((nb) => (
-                <div className="nb-card" key={nb.id}
-                  onClick={() => { window.location.href = `/notebook/${nb.id}`; }}>
-                  <span className="nb-icon">
-                    {nb.origin === "template" ? "📗" : nb.origin === "import" ? "📥" : "📝"}
-                  </span>
-                  <h3 className="nb-title">{nb.title}</h3>
-                  <p className="nb-meta">
-                    {nb.origin === "template" ? "Din catalog" : nb.origin === "import" ? "Importat" : "Personal"}
-                  </p>
-                  <div className="nb-menu"><button title="Meniu">⋮</button></div>
+                <div
+                  className="nb-card"
+                  key={nb.id}
+                  role="link"
+                  tabIndex={0}
+                  onClick={() => {
+                    window.location.href = `/notebook/${nb.id}`;
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") window.location.href = `/notebook/${nb.id}`;
+                  }}
+                >
+                  <div className="nb-top">
+                    <span className="nb-icon"><NotebookIcon origin={nb.origin} /></span>
+                    <div className="nb-menu">
+                      <button
+                        aria-label="Meniu carnet"
+                        title="Meniu carnet"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        ⋮
+                      </button>
+                    </div>
+                  </div>
+                  <div className="nb-body">
+                    <h3 className="nb-title">{nb.title}</h3>
+                    <p className="nb-meta">
+                      {formatDate(nb.created_at)}
+                      {nb.created_at ? " · " : ""}
+                      {nb.origin === "template"
+                        ? "Din catalogul școlar"
+                        : nb.origin === "import"
+                          ? "Importat"
+                          : "Personal"}
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -177,7 +327,7 @@ export default function HomePage() {
         </>
       )}
 
-      {/* School catalog tab */}
+      {/* Carnete școlare */}
       {tab === "school" && (
         <>
           <h2 className="section-title">Carnete școlare</h2>
@@ -197,17 +347,37 @@ export default function HomePage() {
               <p>Catalogul școlar nu are încă carnete publicate.</p>
             </div>
           ) : (
-            <div className="grid-cards" style={view === "rows" ? { gridTemplateColumns: "1fr" } : undefined}>
+            <div
+              className="grid-cards"
+              style={view === "rows" ? { gridTemplateColumns: "1fr" } : undefined}
+            >
               {catalogFiltered.map((t) => (
-                <div className="nb-card" key={t.id}
+                <div
+                  className="nb-card"
+                  key={t.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => instantiate(t.id)}
-                  title={t.description ?? t.title}>
-                  <span className="nb-icon">📚</span>
-                  <h3 className="nb-title">{t.title}</h3>
-                  <p className="nb-meta">
-                    Clasa {t.class_level ?? "—"} · {t.discipline ?? "—"} · {t.material_count} materiale
-                  </p>
-                  <div className="nb-menu"><button title="Meniu">⋮</button></div>
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void instantiate(t.id);
+                  }}
+                  title={t.description ?? t.title}
+                >
+                  <div className="nb-top">
+                    <span className="nb-icon"><IconBook /></span>
+                    <div className="nb-menu">
+                      <button aria-label="Meniu șablon" onClick={(e) => e.stopPropagation()}>
+                        ⋮
+                      </button>
+                    </div>
+                  </div>
+                  <div className="nb-body">
+                    <h3 className="nb-title">{t.title}</h3>
+                    <p className="nb-meta">
+                      Clasa {t.class_level ?? "—"} · {t.discipline ?? "—"} ·{" "}
+                      {t.material_count} materiale
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -215,14 +385,25 @@ export default function HomePage() {
         </>
       )}
 
-      {/* Import — secondary section at bottom */}
+      {/* Import secundar */}
       <section style={{ padding: "var(--space-8) var(--space-6) 0" }}>
-        <h2 className="section-title" style={{ padding: 0 }}>Importă prin link sau cod</h2>
+        <h2 className="section-title" style={{ padding: 0 }}>
+          Importă prin link sau cod
+        </h2>
         {authed ? (
-          <form onSubmit={(e) => { e.preventDefault(); void importPackage(); }}
-            style={{ display: "flex", gap: 12, padding: "0 24px", alignItems: "center" }}>
-            <input style={{ flex: 1, maxWidth: 480 }} placeholder="Lipește linkul sau codul"
-              value={importToken} onChange={(e) => setImportToken(e.target.value)} />
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              void importPackage();
+            }}
+            style={{ display: "flex", gap: 12, padding: "0 24px", alignItems: "center" }}
+          >
+            <input
+              style={{ flex: 1, maxWidth: 480 }}
+              placeholder="Lipește linkul sau codul"
+              value={importToken}
+              onChange={(e) => setImportToken(e.target.value)}
+            />
             <button className="create-btn" disabled={importing || !importToken.trim()}>
               {importing ? "Se importă…" : "Importă"}
             </button>
