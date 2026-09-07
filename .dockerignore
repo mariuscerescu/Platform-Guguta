@@ -38,6 +38,7 @@ surreal_single_data
 *.log
 docker.env
 .env
+.env.*
 docker-compose*
 
 # Documentation & CI (not needed in image)

@@ -158,3 +158,5 @@ history.txt
 # Guguță local test/dev storage
 .guguta-test-storage/
 guguta_storage/
+.env.guguta.local
+.env.guguta

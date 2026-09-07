@@ -10,6 +10,7 @@ Every domain write runs under the target owner's actor context (RLS).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from typing import Any, Optional
@@ -17,6 +18,7 @@ from typing import Any, Optional
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from open_notebook.ai.guguta.openrouter import invoke
 from open_notebook.database.guguta.engine import actor_connection, system_connection
 from open_notebook.exceptions import OpenNotebookError
 from open_notebook.jobs.guguta import parsing
@@ -126,13 +128,13 @@ async def process_material_version(
             data = (target["text_content"] or "").encode("utf-8")
         else:
             data = storage.read_bytes(target["storage_key"])
-        units, page_count = parsing.extract_units(detected_kind, data)
+        units, page_count = await asyncio.to_thread(parsing.extract_units, detected_kind, data)
         chunks = parsing.segment(
             units, chunk_size_chars=chunk_size_chars, overlap_chars=overlap_chars
         )
         if not chunks:
             raise parsing.ExtractionError("Nu a rezultat niciun fragment din material.")
-        vectors = provider.embed([c.text for c in chunks])
+        vectors = await invoke(provider.embed, [c.text for c in chunks])
         # B09: validate the embedding output before publishing
         if len(vectors) != len(chunks):
             raise parsing.ExtractionError(

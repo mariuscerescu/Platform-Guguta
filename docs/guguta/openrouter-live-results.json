@@ -1,0 +1,40 @@
+{
+  "date": "2026-09-07",
+  "passed": true,
+  "calls": [
+    [
+      "embeddings",
+      "nvidia/nemotron-3-embed-1b:free"
+    ],
+    [
+      "embeddings",
+      "nvidia/nemotron-3-embed-1b:free"
+    ],
+    [
+      "embeddings",
+      "nvidia/nemotron-3-embed-1b:free"
+    ],
+    [
+      "embeddings",
+      "nvidia/nemotron-3-embed-1b:free"
+    ],
+    [
+      "rerank",
+      "nvidia/llama-nemotron-rerank-vl-1b-v2:free"
+    ],
+    [
+      "chat/completions",
+      "minimax/minimax-m3:free"
+    ]
+  ],
+  "embedding_dimension": 2048,
+  "answer": "Plantele au nevoie de lumină pentru a realiza fotosinteza, prin care transformă apa și dioxidul de carbon în substanțe organice, eliberând oxigen [1].",
+  "citations": 1,
+  "usage": {
+    "model": "minimax/minimax-m3:free",
+    "prompt_tokens": 457,
+    "completion_tokens": 53,
+    "prompt_version": "guguta-openrouter-1"
+  },
+  "no_sql_connection_during_ai": true
+}

@@ -14,6 +14,7 @@ source changes plus retrieval over CURRENT selected sources.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import uuid
@@ -25,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from api.services.guguta.search import RetrievedChunk
 from open_notebook.ai.guguta.chat import ChatProvider
+from open_notebook.ai.guguta.openrouter import invoke
 from open_notebook.auth.guguta.actor import ActorContext
 from open_notebook.database.guguta.engine import actor_connection
 from open_notebook.exceptions import NotFoundError, OpenNotebookError
@@ -62,7 +64,9 @@ class ChatService:
         self, engine: AsyncEngine, search: Any, provider: ChatProvider, *,
         max_context_chars: int = MAX_CONTEXT_CHARS,
         max_history_messages: int = MAX_HISTORY_MESSAGES,
+        total_timeout_seconds: float = 120,
     ) -> None:
+        self._total_timeout = total_timeout_seconds
         self._engine = engine
         self._search = search
         self._provider = provider
@@ -231,6 +235,23 @@ class ChatService:
                 else:
                     return existing
 
+        deadline = asyncio.get_running_loop().time() + self._total_timeout
+        # Authenticate the session before any outbound provider request.
+        async with actor_connection(self._engine, actor.actor_id) as conn:
+            revision = (await conn.execute(text(
+                "SELECT dn.context_revision FROM chat_sessions s JOIN digital_notebooks dn"
+                " ON dn.id=s.notebook_id WHERE s.id=:sid AND dn.id=:nb"
+            ), {"sid": session_id, "nb": notebook_id})).scalar_one_or_none()
+            if revision is None:
+                raise ChatSessionNotFound()
+        try:
+            retrieval = await asyncio.wait_for(self._search.search_notebook(
+                actor.actor_id, notebook_id, content, mode="both", limit=6
+            ), timeout=max(0.001, deadline - asyncio.get_running_loop().time()))
+        except TimeoutError:
+            raise ChatProviderUnavailable("Căutarea AI a depășit timpul de așteptare.") from None
+        context = self._budget(retrieval)
+
         # Phase 1 (one transaction): lock session, validate, build context,
         # insert the user message + idempotency record. No AI call inside.
         async with actor_connection(self._engine, actor.actor_id) as conn:
@@ -255,11 +276,8 @@ class ChatService:
                 raise ChatSessionNotFound()
             context_revision = int(session[1])
 
-            retrieval = await self._search.search_notebook(
-                actor.actor_id, notebook_id, content, mode="both", limit=6,
-                conn=conn,
-            )
-            context = self._budget(retrieval)
+            if context_revision != revision:
+                raise IdempotencyConflict("Materialele s-au schimbat în timpul căutării; repetă întrebarea.")
             selected = (
                 await conn.execute(
                     text(
@@ -341,7 +359,8 @@ class ChatService:
 
         # Phase 2: generation OUTSIDE any DB transaction (GHID §4.5/§7).
         try:
-            answer = self._provider.generate(content, context, history)
+            answer = await asyncio.wait_for(invoke(self._provider.generate, content, context, history),
+                                            timeout=max(0.001, deadline - asyncio.get_running_loop().time()))
         except Exception as exc:
             # A26 + F09: controlled provider failure. The user message remains
             # as history; the idempotency record becomes 'failed' so a retry
@@ -393,8 +412,8 @@ class ChatService:
                 )
             ).scalar_one()
             assistant_id = uuid.uuid4()
-            prompt_tokens = (len(content) + sum(len(c.text) for c in context)) // 4
-            completion_tokens = len(answer.content) // 4
+            prompt_tokens = answer.prompt_tokens if answer.prompt_tokens is not None else (len(content) + sum(len(c.text) for c in context)) // 4
+            completion_tokens = answer.completion_tokens if answer.completion_tokens is not None else len(answer.content) // 4
             await conn.execute(
                 text(
                     "INSERT INTO chat_messages (id, session_id, seq, role, content,"
@@ -407,10 +426,10 @@ class ChatService:
                  "c": answer.content,
                  "st": "cancelled" if cancelled else "complete",
                  "rev": context_revision,
-                 "model": answer.model, "pv": "guguta-mock-1",
+                 "model": answer.model, "pv": answer.prompt_version,
                  "pt": prompt_tokens, "ct": completion_tokens,
                  "tt": prompt_tokens + completion_tokens,
-                 "cost": 0.0},
+                 "cost": answer.estimated_cost if answer.estimated_cost is not None else 0.0},
             )
             if not cancelled:
                 for idx in answer.cited:

@@ -1,0 +1,10 @@
+# Explicit opt-in. No secrets in this file; base compose stays mock by default.
+# docker compose -f docker-compose.guguta.yml -f docker-compose.guguta.openrouter.yml up -d --build api worker
+# Existing hash-indexed databases require scripts/guguta_reindex_openrouter.py first.
+services:
+  api:
+    env_file:
+      - .env.guguta.local
+  worker:
+    env_file:
+      - .env.guguta.local

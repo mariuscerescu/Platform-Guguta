@@ -8,7 +8,7 @@ closes; prompt versioning is recorded per message.
 
 from __future__ import annotations
 
-from typing import Any, NamedTuple, Protocol, Sequence
+from typing import Any, Awaitable, NamedTuple, Protocol, Sequence
 
 PROMPT_VERSION = "guguta-mock-1"
 
@@ -25,6 +25,10 @@ class ChatAnswer(NamedTuple):
     content: str
     cited: list[int]  # indexes into the provided context chunk list
     model: str
+    prompt_tokens: int | None = None
+    completion_tokens: int | None = None
+    estimated_cost: float | None = None
+    prompt_version: str = PROMPT_VERSION
 
 
 class ChatProvider(Protocol):
@@ -34,7 +38,7 @@ class ChatProvider(Protocol):
         self, question: str,
         context_chunks: Sequence[Any],  # list[RetrievedChunk]
         history: Sequence[dict[str, str]],
-    ) -> ChatAnswer: ...
+    ) -> ChatAnswer | Awaitable[ChatAnswer]: ...
 
 
 class MockChatProvider:
@@ -78,7 +82,10 @@ class MockChatProvider:
         return ChatAnswer(content="\n".join(lines), cited=cited, model=self.model_name)
 
 
-def get_chat_provider(name: str) -> ChatProvider:
+def get_chat_provider(name: str, config: Any = None) -> ChatProvider:
     if name == "mock":
         return MockChatProvider()
+    if name == "openrouter" and config is not None:
+        from open_notebook.ai.guguta.openrouter import OpenRouterChatProvider
+        return OpenRouterChatProvider(config)
     raise ValueError(f"provider de chat necunoscut: {name}")

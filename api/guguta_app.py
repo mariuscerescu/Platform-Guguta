@@ -132,7 +132,7 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
     from open_notebook.storage.guguta.filesystem import FilesystemStorage
 
     embedding_provider = get_embedding_provider(
-        config.embedding_provider, config.embedding_dimension
+        config.embedding_provider, config.embedding_dimension, config
     )
     app.state.guguta_sources = SourcesService(
         engine,
@@ -142,13 +142,17 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
         max_sources_per_notebook=config.max_sources_per_notebook,
         quota_mib_per_user=config.quota_mib_per_user,
     )
+    from open_notebook.ai.guguta.openrouter import OpenRouterReranker
+    reranker = OpenRouterReranker(config) if config.rerank_provider == "openrouter" else None
     app.state.guguta_search = SearchService(
         engine, embedding_provider, max_vector_distance=config.vector_max_distance,
+        reranker=reranker, candidate_limit=config.retrieval_candidates,
     )
     app.state.guguta_chat = ChatService(
         engine,
         app.state.guguta_search,
-        get_chat_provider(config.chat_provider),
+        get_chat_provider(config.chat_provider, config),
+        total_timeout_seconds=config.chat_total_timeout_seconds,
     )
     app.state.guguta_notes = NotesService(engine)
     app.state.guguta_catalog = CatalogService(
@@ -283,6 +287,12 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
     async def not_found_error(request: Request, exc: NotFoundError) -> JSONResponse:
         return _error("not_found", "Resursa nu există.", 404,
                       request.headers.get("x-request-id", "-"))
+
+    from open_notebook.ai.guguta.openrouter import OpenRouterError
+
+    @app.exception_handler(OpenRouterError)
+    async def openrouter_error(request: Request, exc: OpenRouterError) -> JSONResponse:
+        return _error("ai_provider", str(exc), 502, request.headers.get("x-request-id", "-"))
 
     @app.exception_handler(OpenNotebookError)
     async def domain_error(request: Request, exc: OpenNotebookError) -> JSONResponse:

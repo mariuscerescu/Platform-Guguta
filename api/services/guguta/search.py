@@ -17,6 +17,7 @@ from typing import Any, Optional
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from open_notebook.ai.guguta.openrouter import invoke
 from open_notebook.database.guguta.engine import actor_connection
 from open_notebook.exceptions import OpenNotebookError
 
@@ -50,61 +51,53 @@ class SearchService:
     def __init__(
         self, engine: AsyncEngine, vector_provider: Any, *,
         max_vector_distance: float = 0.9,
+        reranker: Any = None, candidate_limit: int = 24,
     ) -> None:
+        self._reranker = reranker
+        self._candidate_limit = candidate_limit
         self._engine = engine
         self._provider = vector_provider
         self._max_vector_distance = max_vector_distance
 
-    async def _embed_query(self, conn: Any, query: str) -> Optional[list[float]]:
-        row = (
-            await conn.execute(
-                text(
-                    "SELECT model_name, model_revision, dimension FROM embedding_spaces"
-                    " WHERE is_active"
-                )
-            )
-        ).mappings().first()
-        if row is None:
-            return None
-        if (
-            row["model_name"] != self._provider.model_name
-            or row["model_revision"] != self._provider.model_revision
-            or int(row["dimension"]) != self._provider.dimension
-        ):
-            raise OpenNotebookError(
-                "Providerul de embedding nu corespunde spațiului vectorial activ."
-            )
-        return self._provider.embed([query])[0]
-
     async def search_notebook(
         self, actor_id: uuid.UUID, notebook_id: uuid.UUID, query: str, *,
         mode: str = "both", limit: int = 8,
-        conn: Any = None,
     ) -> list[RetrievedChunk]:
-        """Search only the authorized notebook scope; results feed the model.
-        When ``conn`` is provided, reuse the caller's connection/transaction
-        (B12: avoids nested checkout with pool_size=1)."""
+        """Authorize first; all embedding/reranking HTTP runs outside SQL transactions."""
         if not query or not query.strip():
             return []
         limit = max(1, min(limit, 50))
-        results: dict[uuid.UUID, RetrievedChunk] = {}
-
-        if conn is not None:
-            return await self._search_on_conn(
-                conn, actor_id, notebook_id, query, mode=mode, limit=limit,
-                results=results,
-            )
-
-        async with actor_connection(self._engine, actor_id) as owned_conn:
-            return await self._search_on_conn(
-                owned_conn, actor_id, notebook_id, query, mode=mode, limit=limit,
-                results=results,
-            )
+        candidate_limit = max(limit, self._candidate_limit) if self._reranker else limit
+        async with actor_connection(self._engine, actor_id) as conn:
+            nb = (await conn.execute(text("SELECT id FROM digital_notebooks WHERE id=:id"),
+                                     {"id": notebook_id})).first()
+            if nb is None:
+                from open_notebook.exceptions import NotFoundError
+                raise NotFoundError()
+            space = (await conn.execute(text(
+                "SELECT id, model_name, model_revision, dimension FROM embedding_spaces WHERE is_active"
+            ))).mappings().first()
+        qvec = None
+        space_id = None
+        if mode in ("vector", "both") and space is not None:
+            if (space["model_name"] != self._provider.model_name
+                or space["model_revision"] != self._provider.model_revision
+                or int(space["dimension"]) != self._provider.dimension):
+                raise OpenNotebookError("Providerul de embedding nu corespunde spațiului vectorial activ; reindexare necesară.")
+            space_id = space["id"]
+            qvec = (await invoke(self._provider.embed, [query.strip()]))[0]
+        async with actor_connection(self._engine, actor_id) as conn:
+            found = await self._search_on_conn(conn, actor_id, notebook_id, query,
+                mode=mode, limit=candidate_limit, results={}, qvec=qvec, space_id=space_id)
+        if self._reranker is not None:
+            return await self._reranker.rank(query, found, limit)
+        return found[:limit]
 
     async def _search_on_conn(
         self, conn: Any, actor_id: uuid.UUID, notebook_id: uuid.UUID,
         query: str, *, mode: str, limit: int,
         results: dict[uuid.UUID, RetrievedChunk],
+        qvec: Optional[list[float]] = None, space_id: Any = None,
     ) -> list[RetrievedChunk]:
         # Foreign notebooks return 404 rather than an empty result set.
         nb = (
@@ -154,7 +147,6 @@ class SearchService:
                 )
 
         if mode in ("vector", "both"):
-            qvec = await self._embed_query(conn, query.strip())
             if qvec is not None:
                 vrows = (
                     await conn.execute(
@@ -169,14 +161,14 @@ class SearchService:
                             " JOIN material_versions mv ON mv.id = pa.material_version_id"
                             " JOIN notebook_sources ns ON ns.material_version_id = mv.id"
                             " JOIN digital_notebooks dn ON dn.id = ns.notebook_id"
-                            " WHERE dn.id = :nb AND ns.selected_for_chat AND ns.status = 'ready' AND es.is_active"
+                            " WHERE dn.id = :nb AND ns.selected_for_chat AND ns.status = 'ready' AND es.is_active AND es.id = :space_id"
                             "   AND e.embedding <=> CAST(:qv AS vector)"
                             "       <= CAST(:maxd AS float8)"
                             " ORDER BY e.embedding <=> CAST(:qv AS vector)"
                             " LIMIT :lim"
                         ),
                         {"qv": str(qvec), "nb": notebook_id, "lim": limit,
-                         "maxd": self._max_vector_distance},
+                         "maxd": self._max_vector_distance, "space_id": space_id},
                     )
                 ).mappings().all()
                 for r in vrows:

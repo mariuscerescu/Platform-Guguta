@@ -1,0 +1,11 @@
+{
+  "date": "2026-09-07",
+  "ready": {
+    "status": "ok",
+    "schema": "0011"
+  },
+  "separate_api_worker": true,
+  "real_openrouter": true,
+  "answer": "Plantele au nevoie de lumină pentru a realiza fotosinteza. Conform materialului, fotosinteza folosește energia luminii pentru a transforma apa și dioxidul de carbon în substanțe organice, eliberându-se în acest proces oxigen [1]. Astfel, lumina este esențială pentru hrănirea plantei și pentru producerea oxigenului.",
+  "citations": 1
+}

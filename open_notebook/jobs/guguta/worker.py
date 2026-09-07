@@ -26,7 +26,7 @@ class Worker:
         self._config = config
         self._engine = create_engine_for_role(config, "worker")
         self._storage = FilesystemStorage(config.storage_root)
-        self._provider = get_provider(config.embedding_provider, config.embedding_dimension)
+        self._provider = get_provider(config.embedding_provider, config.embedding_dimension, config)
         self._stopping = asyncio.Event()
 
     async def process_one(self) -> bool:

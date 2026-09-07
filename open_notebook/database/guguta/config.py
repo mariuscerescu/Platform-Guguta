@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import model_validator
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["development", "ci", "staging", "production"]
@@ -90,12 +90,30 @@ class GugutaConfig(BaseSettings):
     embedding_dimension: int = 8
     vector_max_distance: float = 0.9  # cosine-distance cutoff for retrieval
     chat_provider: str = "mock"  # mock until D-02 closes
+    openrouter_api_key: SecretStr = SecretStr("")
+    openrouter_embedding_model: str = "nvidia/nemotron-3-embed-1b:free"
+    openrouter_embedding_revision: str = "openrouter-2026-09-07"
+    openrouter_rerank_model: str = "nvidia/llama-nemotron-rerank-vl-1b-v2:free"
+    openrouter_chat_model: str = "minimax/minimax-m3:free"
+    rerank_provider: Literal["none", "openrouter"] = "none"
+    retrieval_candidates: int = Field(default=24, ge=6, le=50)
+    openrouter_timeout_seconds: float = Field(default=60, gt=0, le=300)
+    openrouter_max_retries: int = Field(default=1, ge=0, le=3)
+    openrouter_embedding_batch_size: int = Field(default=16, ge=1, le=32)
+    openrouter_max_output_tokens: int = Field(default=1500, ge=128, le=8192)
     job_lease_seconds: int = 300
     job_poll_seconds: float = 2.0
     job_worker_name: str = "worker-1"
 
     @model_validator(mode="after")
     def _refuse_unsafe_production_config(self) -> "GugutaConfig":
+        if self.chat_provider not in ("mock", "openrouter") or self.embedding_provider not in ("hash", "openrouter"):
+            raise ValueError("unknown Guguță AI provider")
+        if "openrouter" in (self.chat_provider, self.embedding_provider, self.rerank_provider):
+            if not self.openrouter_api_key.get_secret_value():
+                raise ValueError("GUGUTA_OPENROUTER_API_KEY is required")
+            if self.embedding_provider == "openrouter" and self.embedding_dimension != 2048:
+                raise ValueError("Nemotron embeddings require GUGUTA_EMBEDDING_DIMENSION=2048")
         if self.environment in _DEV_ENVIRONMENTS:
             return self
         problems: list[str] = []
