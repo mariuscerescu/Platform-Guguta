@@ -101,7 +101,7 @@ services:
     environment:
       GUGUTA_API_URL: http://api:5055
     ports:
-      - "127.0.0.1:3001:3001"
+      - "127.0.0.1:3101:3001"
     depends_on:
       - api
     restart: unless-stopped
