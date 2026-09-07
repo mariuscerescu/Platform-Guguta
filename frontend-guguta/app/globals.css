@@ -338,6 +338,7 @@ input:focus {
   font-size: 14px;
   padding: 0 var(--space-5);
   height: 44px;
+  min-width: 170px;
   cursor: pointer;
 }
 
@@ -383,6 +384,54 @@ input:focus {
   justify-content: flex-end;
   gap: var(--space-2);
 }
+
+/* --- List view: tabel NotebookLM (Titlu | Materiale | Creat | Rol) --- */
+.nb-table {
+  width: calc(100% - 48px);
+  margin: 0 var(--space-6);
+  border-collapse: collapse;
+  font-size: 0.9375rem;
+}
+.nb-table th {
+  text-align: left;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.nb-table td {
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text);
+  vertical-align: middle;
+}
+.nb-table tbody tr { cursor: pointer; }
+.nb-table tbody tr:hover { background: var(--surface-hover); }
+.nb-table tbody tr:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.nb-table .col-title { width: 46%; }
+.nb-table .col-title .nb-icon-sm {
+  width: 26px;
+  height: 26px;
+  color: var(--text-secondary);
+  display: inline-flex;
+  margin-right: var(--space-3);
+  vertical-align: middle;
+}
+.nb-table .col-title .nb-icon-sm svg { width: 100%; height: 100%; }
+.nb-table .table-title { vertical-align: middle; display: inline-block; max-width: 92%; }
+.nb-table .col-menu { width: 56px; text-align: right; }
+.nb-table .col-menu button {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  color: var(--text-secondary);
+  font-size: 18px;
+  letter-spacing: 1px;
+  line-height: 1;
+}
+.nb-table .col-menu button:hover { background: rgba(0, 0, 0, 0.06); }
 
 /* --- Legacy compatibility --- */
 .error-text {

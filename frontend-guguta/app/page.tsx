@@ -283,11 +283,57 @@ export default function HomePage() {
                 Vezi Carnetele școlare
               </button>
             </div>
+          ) : view === "rows" ? (
+            /* list view: table ca în NotebookLM (Titlu | Materiale | Creat | Rol) */
+            <table className="nb-table">
+              <thead>
+                <tr>
+                  <th className="col-title">Titlu</th>
+                  <th>Materiale</th>
+                  <th>Creat</th>
+                  <th>Rol</th>
+                  <th className="col-menu" aria-label="Meniu" />
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((nb) => (
+                  <tr
+                    key={nb.id}
+                    onClick={() => {
+                      window.location.href = `/notebook/${nb.id}`;
+                    }}
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter")
+                        window.location.href = `/notebook/${nb.id}`;
+                    }}
+                  >
+                    <td className="col-title">
+                      <span className="nb-icon-sm">
+                        <NotebookIcon origin={nb.origin} />
+                      </span>
+                      <span className="table-title">{nb.title}</span>
+                    </td>
+                    <td>
+                      {nb.source_count ?? 0}{" "}
+                      {(nb.source_count ?? 0) === 1 ? "material" : "materiale"}
+                    </td>
+                    <td>{formatDate(nb.created_at)}</td>
+                    <td>Deținător</td>
+                    <td className="col-menu">
+                      <button
+                        aria-label="Meniu carnet"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        ⋮
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           ) : (
-            <div
-              className="grid-cards"
-              style={view === "rows" ? { gridTemplateColumns: "1fr" } : undefined}
-            >
+            <div className="grid-cards">
               <button className="create-card" onClick={createNotebook} disabled={creating}>
                 <span className="plus-circle"><IconPlus /></span>
                 <span>Creează carnet nou</span>

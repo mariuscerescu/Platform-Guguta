@@ -118,10 +118,29 @@ class NotebookService:
                     params,
                 )
             ).scalar_one()
+            # source counts for the list view (one grouped query, RLS-scoped);
+            # must run INSIDE the actor transaction (conn closes with the block)
+            counts: dict[uuid.UUID, int] = {}
+            if rows:
+                count_rows = (
+                    await conn.execute(
+                        text(
+                            "SELECT ns.notebook_id AS nb, count(*) AS n"
+                            " FROM notebook_sources ns"
+                            " JOIN digital_notebooks dn ON dn.id = ns.notebook_id"
+                            " WHERE ns.notebook_id = ANY(:ids)"
+                            " GROUP BY ns.notebook_id"
+                        ),
+                        {"ids": [r["id"] for r in rows[:page_size]]},
+                    )
+                ).mappings().all()
+                counts = {r["nb"]: int(r["n"]) for r in count_rows}
         has_next = len(rows) > page_size
         rows = rows[:page_size]
         return {
-            "items": [dict(r) for r in rows],
+            "items": [
+                {**dict(r), "source_count": counts.get(r["id"], 0)} for r in rows
+            ],
             "page": page,
             "page_size": page_size,
             "total": total,
