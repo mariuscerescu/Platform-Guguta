@@ -115,6 +115,7 @@ export interface Notebook {
   status: string;
   origin: string;
   context_revision: number;
+  created_at?: string;
 }
 
 export interface Source {
