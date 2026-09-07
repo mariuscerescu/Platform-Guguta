@@ -44,6 +44,12 @@ export default function NotebookPage() {
   const [noteContent, setNoteContent] = useState("");
   const [tab, setTab] = useState<"sources" | "chat" | "notes">("chat");
   const bottomRef = useRef<HTMLDivElement>(null);
+  // mirror for loadMessages without adding `citations` to its deps —
+  // otherwise setCitations recreates loadMessages → infinite re-render loop
+  const citationsRef = useRef<Record<string, Citation[]>>({});
+  useEffect(() => {
+    citationsRef.current = citations;
+  }, [citations]);
 
   const loadAll = useCallback(async () => {
     try {
@@ -83,8 +89,9 @@ export default function NotebookPage() {
         `/api/v1/notebooks/${nbId}/sessions/${sessionId}/messages`,
       );
       setMessages(msgs);
+      const known = citationsRef.current;
       for (const m of msgs) {
-        if (m.role !== "assistant" || citations[m.id]) continue;
+        if (m.role !== "assistant" || known[m.id]) continue;
         try {
           const cites = await api<Citation[]>(
             "GET",
@@ -98,11 +105,22 @@ export default function NotebookPage() {
     } catch (err) {
       setError((err as Error).message);
     }
-  }, [nbId, sessionId, citations]);
+  }, [nbId, sessionId]);
 
   useEffect(() => {
     void loadMessages();
   }, [loadMessages]);
+
+  // poll while any source is still processing (E2E bug: text sources never
+  // refreshed their status — only file uploads polled)
+  const hasProcessing = sources?.some((s) => s.status === "processing") ?? false;
+  useEffect(() => {
+    if (!hasProcessing) return;
+    const t = setInterval(() => {
+      void loadAll();
+    }, 2000);
+    return () => clearInterval(t);
+  }, [hasProcessing, loadAll]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
