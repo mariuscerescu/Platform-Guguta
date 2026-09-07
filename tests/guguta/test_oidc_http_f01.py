@@ -212,8 +212,11 @@ def _base_production() -> dict[str, Any]:
         "oidc_client_id": "guguta",
         "oidc_client_secret": "oidc-secret",
         "oidc_redirect_uri": "https://guguta.md/api/v1/auth/oidc/callback",
-        "chat_provider": "openai",
-        "embedding_provider": "openai",
+        "chat_provider": "openrouter",
+        "embedding_provider": "openrouter",
+        "embedding_dimension": 2048,
+        "openrouter_api_key": "sk-or-test-key-for-production-config",
+        "rerank_provider": "openrouter",
         "api_mode": "guguta",
     }
 

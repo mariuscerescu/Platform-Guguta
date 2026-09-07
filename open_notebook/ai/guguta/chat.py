@@ -8,6 +8,7 @@ closes; prompt versioning is recorded per message.
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any, Awaitable, NamedTuple, Protocol, Sequence
 
 PROMPT_VERSION = "guguta-mock-1"
@@ -39,6 +40,13 @@ class ChatProvider(Protocol):
         context_chunks: Sequence[Any],  # list[RetrievedChunk]
         history: Sequence[dict[str, str]],
     ) -> ChatAnswer | Awaitable[ChatAnswer]: ...
+
+    def generate_stream(
+        self, question: str,
+        context_chunks: Sequence[Any],
+        history: Sequence[dict[str, str]],
+    ) -> Any:  # async generator yielding str tokens
+        ...
 
 
 class MockChatProvider:
@@ -80,6 +88,21 @@ class MockChatProvider:
             )
             cited.append(1)
         return ChatAnswer(content="\n".join(lines), cited=cited, model=self.model_name)
+
+    def generate_stream(
+        self, question: str,
+        context_chunks: Sequence[Any],
+        history: Sequence[dict[str, str]],
+    ) -> Any:
+        """Async generator yielding word-by-word tokens from the full answer."""
+        answer = self.generate(question, context_chunks, history)
+        return self._token_iter(answer.content)
+
+    @staticmethod
+    async def _token_iter(content: str):
+        for word in content.split(" "):
+            yield word + " "
+            await asyncio.sleep(0.01)  # simulate token-by-token arrival
 
 
 def get_chat_provider(name: str, config: Any = None) -> ChatProvider:

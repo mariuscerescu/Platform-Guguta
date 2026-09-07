@@ -511,6 +511,34 @@ async def send_message(
     )
 
 
+@chat_router.post("/{session_id}/messages/stream")
+async def send_message_stream(
+    notebook_id: uuid.UUID, session_id: uuid.UUID, body: MessageCreate,
+    request: Request,
+) -> Any:
+    """SSE endpoint: streams chat response token by token."""
+    import json as _json
+
+    from fastapi.responses import StreamingResponse
+
+    actor = get_actor(request)
+    service = request.app.state.guguta_chat
+    gen = await service.send_message_stream(
+        actor, notebook_id, session_id,
+        content=body.content, idempotency_key=body.idempotency_key,
+    )
+
+    async def _sse(gen):
+        async for event in gen:
+            yield f"data: {_json(event)}\n\n"
+
+    return StreamingResponse(
+        _sse(gen),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 @chat_router.get("/{session_id}/messages/{message_id}/citations")
 async def get_citations(
     notebook_id: uuid.UUID, session_id: uuid.UUID, message_id: uuid.UUID,

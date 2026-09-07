@@ -75,6 +75,146 @@ class ChatService:
         # F09: a 'pending' generation older than this is recovered on retry
         self._pending_recovery_seconds = 300
 
+    # -- streaming (SSE) -------------------------------------------------------
+
+    async def send_message_stream(
+        self, actor: ActorContext, notebook_id: uuid.UUID,
+        session_id: uuid.UUID, *, content: str,
+        idempotency_key: Optional[str] = None,
+    ):
+        """SSE generator: yields Server-Sent Events for a chat response.
+
+        Events (SSE `data:` field, one JSON object per event):
+        - {"event": "user_saved", "user_message_id": ..., "assistant_message_id": ...}
+        - {"event": "token", "text": "..."}
+        - {"event": "done", "assistant_message_id": ..., "cited": N}
+        - {"event": "error", "code": ..., "message": ...}
+        """
+        import json as _json
+
+        content = (content or "").strip()
+        if not content:
+            raise ChatValidation("Mesajul este vid.")
+
+        payload_hash = hashlib.sha256(
+            f"{notebook_id}:{session_id}:{content}".encode("utf-8")
+        ).hexdigest()
+
+        # Phase 1 (same tx as non-streaming): validate, build context, save user msg
+        async with actor_connection(self._engine, actor.actor_id) as conn:
+            await conn.execute(
+                text("SELECT id FROM chat_sessions WHERE id = :sid AND notebook_id = :nb FOR UPDATE"),
+                {"sid": session_id, "nb": notebook_id},
+            )
+            session = (
+                await conn.execute(
+                    text(
+                        "SELECT s.id, dn.context_revision FROM chat_sessions s"
+                        " JOIN digital_notebooks dn ON dn.id = s.notebook_id"
+                        " WHERE s.id = :sid AND s.notebook_id = :nb"
+                    ),
+                    {"sid": session_id, "nb": notebook_id},
+                )
+            ).first()
+            if session is None:
+                raise ChatSessionNotFound()
+            context_revision = int(session[1])
+
+            retrieval = await self._search.search_notebook(
+                actor.actor_id, notebook_id, content, mode="both", limit=6,
+                conn=conn,
+            )
+            context = self._budget(retrieval)
+            selected = (
+                await conn.execute(
+                    text(
+                        "SELECT count(*) FROM notebook_sources"
+                        " WHERE notebook_id = :nb AND selected_for_chat AND status = 'ready'"
+                    ),
+                    {"nb": notebook_id},
+                )
+            ).scalar_one()
+            if int(selected) == 0:
+                raise SourcesRequired(
+                    "Niciun fragment găsit în materialele selectate."
+                )
+
+            seq = (
+                await conn.execute(
+                    text("SELECT coalesce(max(seq), 0) + 1 FROM chat_messages WHERE session_id = :sid"),
+                    {"sid": session_id},
+                )
+            ).scalar_one()
+            user_msg_id = uuid.uuid4()
+            await conn.execute(
+                text(
+                    "INSERT INTO chat_messages (id, session_id, seq, role, content,"
+                    " status, context_revision) VALUES (:id, :sid, :seq, 'user', :c,"
+                    " 'complete', :rev)"
+                ),
+                {"id": user_msg_id, "sid": session_id, "seq": seq, "c": content,
+                 "rev": context_revision},
+            )
+
+        # Phase 2: stream tokens from the provider
+        async def _generate():
+            full_content = []
+            try:
+                yield _json({"event": "user_saved", "user_message_id": str(user_msg_id)})
+                stream = self._provider.generate_stream(content, context, [])
+                async for token in stream:
+                    full_content.append(token)
+                    yield _json({"event": "token", "text": token})
+                full_text = "".join(full_content).strip()
+                if not full_text:
+                    raise ChatValidation("Răspunsul gol al modelului.")
+
+                # Phase 3: save assistant message + citations (one tx)
+                async with actor_connection(self._engine, actor.actor_id) as conn:
+                    await conn.execute(
+                        text("SELECT id FROM chat_sessions WHERE id = :sid FOR UPDATE"),
+                        {"sid": session_id},
+                    )
+                    assistant_seq = (
+                        await conn.execute(
+                            text("SELECT coalesce(max(seq), 0) + 1 FROM chat_messages WHERE session_id = :sid"),
+                            {"sid": session_id},
+                        )
+                    ).scalar_one()
+                    assistant_id = uuid.uuid4()
+                    await conn.execute(
+                        text(
+                            "INSERT INTO chat_messages (id, session_id, seq, role, content,"
+                            " status, context_revision, model, prompt_version)"
+                            " VALUES (:id, :sid, :seq, 'assistant', :c, 'complete', :rev,"
+                            " :model, :pv)"
+                        ),
+                        {"id": assistant_id, "sid": session_id, "seq": assistant_seq,
+                         "c": full_text, "rev": context_revision,
+                         "model": self._provider.model_name, "pv": "guguta-stream-1"},
+                    )
+                    for idx in getattr(self._provider, "last_cited", []):
+                        if idx < 0 or idx >= len(context):
+                            continue
+                        chunk = context[idx]
+                        await conn.execute(
+                            text(
+                                "INSERT INTO citations (id, message_id, notebook_source_id,"
+                                " material_version_id, chunk_id, display_name, locator)"
+                                " VALUES (:id, :mid, :ns, :mv, :c, :name, CAST(:loc AS jsonb))"
+                            ),
+                            {"id": uuid.uuid4(), "mid": assistant_id,
+                             "ns": chunk.notebook_source_id, "mv": chunk.material_version_id,
+                             "c": chunk.chunk_id, "name": chunk.local_name,
+                             "loc": _json(chunk.locator)},
+                        )
+                yield _json({"event": "done", "assistant_message_id": str(assistant_id),
+                             "cited": len(getattr(self._provider, "last_cited", []))})
+            except Exception as exc:
+                yield _json({"event": "error", "message": str(exc)})
+
+        return _generate()
+
     # -- sessions -----------------------------------------------------------
 
     async def create_session(
