@@ -51,7 +51,8 @@ COPY api/guguta_app.py api/guguta_app.py
 ARG GUGUTA_COMMIT=unknown
 ENV GUGUTA_COMMIT=${GUGUTA_COMMIT}
 
-RUN mkdir -p /app/.guguta_storage && chown -R guguta:guguta /app
+RUN mkdir -p /app/.guguta_storage /data/guguta_storage \
+    && chown -R guguta:guguta /app /data
 USER guguta
 
 EXPOSE 5055
