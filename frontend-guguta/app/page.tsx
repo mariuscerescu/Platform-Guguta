@@ -81,6 +81,7 @@ export default function HomePage() {
   const [search, setSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [importToken, setImportToken] = useState("");
   const [importing, setImporting] = useState(false);
 
@@ -190,6 +191,14 @@ export default function HomePage() {
           onClick={() => setTab("school")}
         >
           Carnete școlare
+        </button>
+        <button
+          className="chip"
+          onClick={() => setImportOpen(true)}
+          disabled={!authed}
+          title="Importă un carnet primit prin link sau cod"
+        >
+          Importă carnet
         </button>
         <div className="toolbar-spacer" />
         <div className="search-wrap">
@@ -385,35 +394,59 @@ export default function HomePage() {
         </>
       )}
 
-      {/* Import secundar */}
-      <section style={{ padding: "var(--space-8) var(--space-6) 0" }}>
-        <h2 className="section-title" style={{ padding: 0 }}>
-          Importă prin link sau cod
-        </h2>
-        {authed ? (
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              void importPackage();
-            }}
-            style={{ display: "flex", gap: 12, padding: "0 24px", alignItems: "center" }}
+      {/* Dialog: import prin link sau cod */}
+      {importOpen && (
+        <div
+          className="modal-overlay"
+          onClick={() => !importing && setImportOpen(false)}
+          role="presentation"
+        >
+          <div
+            className="modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="import-title"
+            onClick={(e) => e.stopPropagation()}
           >
-            <input
-              style={{ flex: 1, maxWidth: 480 }}
-              placeholder="Lipește linkul sau codul"
-              value={importToken}
-              onChange={(e) => setImportToken(e.target.value)}
-            />
-            <button className="create-btn" disabled={importing || !importToken.trim()}>
-              {importing ? "Se importă…" : "Importă"}
-            </button>
-          </form>
-        ) : (
-          <p className="muted" style={{ padding: "0 24px" }}>
-            <a href="/login">Autentifică-te</a> ca să poți importa materiale.
-          </p>
-        )}
-      </section>
+            <h2 id="import-title">Importă carnet</h2>
+            <p className="muted">
+              Lipește linkul sau codul primit de la autor. Se transferă numai
+              materialele — conversațiile și notițele autorului nu sunt incluse.
+            </p>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                void importPackage();
+              }}
+            >
+              <input
+                style={{ width: "100%" }}
+                placeholder="Linkul sau codul primit"
+                value={importToken}
+                autoFocus
+                onChange={(e) => setImportToken(e.target.value)}
+              />
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="chip"
+                  onClick={() => setImportOpen(false)}
+                  disabled={importing}
+                >
+                  Anulează
+                </button>
+                <button
+                  type="submit"
+                  className="create-btn"
+                  disabled={importing || !importToken.trim()}
+                >
+                  {importing ? "Se importă…" : "Importă"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </>
   );
 }
