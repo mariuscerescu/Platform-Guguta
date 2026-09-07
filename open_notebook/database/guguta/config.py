@@ -49,8 +49,14 @@ class GugutaConfig(BaseSettings):
     storage_root: str = "./guguta_storage"
 
     # Public origin of the deployment; no wildcard with credentials.
+    # Dev loopback accepts both localhost and 127.0.0.1 on ports 3001/3000.
     public_origin: str = "http://localhost:3001"
-    cors_origins: list[str] = ["http://localhost:3001", "http://localhost:3000"]
+    cors_origins: list[str] = [
+        "http://localhost:3001",
+        "http://localhost:3000",
+        "http://127.0.0.1:3001",
+        "http://127.0.0.1:3000",
+    ]
 
     # Working limits (GHID §10.2, calibrate before staging).
     max_upload_mib: int = 25
