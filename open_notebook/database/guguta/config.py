@@ -100,7 +100,7 @@ class GugutaConfig(BaseSettings):
     openrouter_embedding_model: str = "nvidia/nemotron-3-embed-1b:free"
     openrouter_embedding_revision: str = "openrouter-2026-09-07"
     openrouter_rerank_model: str = "nvidia/llama-nemotron-rerank-vl-1b-v2:free"
-    openrouter_chat_model: str = "minimax/minimax-m3:free"
+    openrouter_chat_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
     rerank_provider: Literal["none", "openrouter"] = "none"
     retrieval_candidates: int = Field(default=24, ge=6, le=50)
     openrouter_timeout_seconds: float = Field(default=60, gt=0, le=300)

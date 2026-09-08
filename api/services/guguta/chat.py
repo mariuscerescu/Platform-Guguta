@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
@@ -30,6 +31,8 @@ from open_notebook.ai.guguta.openrouter import invoke
 from open_notebook.auth.guguta.actor import ActorContext
 from open_notebook.database.guguta.engine import actor_connection
 from open_notebook.exceptions import NotFoundError, OpenNotebookError
+
+logger = logging.getLogger(__name__)
 
 MAX_CONTEXT_CHARS = 8000
 MAX_HISTORY_MESSAGES = 10
@@ -96,9 +99,7 @@ class ChatService:
         if not content:
             raise ChatValidation("Mesajul este vid.")
 
-        payload_hash = hashlib.sha256(
-            f"{notebook_id}:{session_id}:{content}".encode("utf-8")
-        ).hexdigest()
+        # streaming nu folosește idempotency (faza 2 e incompletă până la done)
 
         # Phase 1 (same tx as non-streaming): validate, build context, save user msg
         async with actor_connection(self._engine, actor.actor_id) as conn:
@@ -505,6 +506,10 @@ class ChatService:
             # A26 + F09: controlled provider failure. The user message remains
             # as history; the idempotency record becomes 'failed' so a retry
             # with the same key can complete the operation (after cleanup).
+            logger.warning(
+                "chat provider a eșuat (notebook=%s, sesiune=%s): %s: %s",
+                notebook_id, session_id, type(exc).__name__, exc,
+            )
             if idempotency_key:
                 async with actor_connection(self._engine, actor.actor_id) as conn:
                     await conn.execute(
