@@ -385,6 +385,54 @@ input:focus {
   gap: var(--space-2);
 }
 
+/* --- Hero (landing NotebookLM-style) --- */
+.hero {
+  min-height: calc(100vh - 88px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: var(--space-8) var(--space-4);
+  background: var(--bg);
+}
+.hero h1 {
+  font-size: clamp(2.5rem, 7vw, 5rem);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  margin: 0 0 var(--space-6);
+  line-height: 1.15;
+}
+.hero .gradient-word {
+  background: linear-gradient(90deg, #34a853 0%, #24c1a0 45%, #4285f4 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+.hero p {
+  font-size: 1.25rem;
+  color: var(--text-secondary);
+  max-width: 620px;
+  margin: 0 0 var(--space-8);
+  line-height: 1.5;
+}
+.hero .hero-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 56px;
+  padding: 0 var(--space-8);
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 1.0625rem;
+  font-weight: 600;
+  transition: box-shadow 0.15s, background 0.15s;
+}
+.hero .hero-cta:hover { background: #333; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25); }
+
 /* --- List view: tabel NotebookLM (Titlu | Materiale | Creat | Rol) --- */
 .nb-table {
   width: calc(100% - 48px);

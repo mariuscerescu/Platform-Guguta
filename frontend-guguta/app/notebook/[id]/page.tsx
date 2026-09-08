@@ -218,7 +218,7 @@ export default function NotebookPage() {
     if (!confirm(`Ștergi definitiv carnetul „${nb?.title}"?`)) return;
     try {
       await api("DELETE", `/api/v1/notebooks/${nbId}`);
-      window.location.href = "/";
+      window.location.href = "/app";
     } catch (err) {
       setError((err as Error).message);
     }
@@ -309,7 +309,7 @@ export default function NotebookPage() {
     return (
       <>
         <p className="error-text">{error}</p>
-        <a href="/">← Înapoi la carnetele mele</a>
+        <a href="/app">← Înapoi la carnetele mele</a>
       </>
     );
   }

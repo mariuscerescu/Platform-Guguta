@@ -20,7 +20,7 @@ export default function LoginPage() {
     setError(null);
     try {
       await loginDev(name.trim());
-      window.location.href = "/";
+      window.location.href = "/app";
     } catch (err) {
       setError((err as Error).message);
       setBusy(false);

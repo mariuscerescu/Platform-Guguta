@@ -28,7 +28,7 @@ async function login(page: Page, name: string) {
   if (!resp.ok()) {
     throw new Error(`dev-login a eșuat: ${resp.status()} ${resp.url()}`);
   }
-  await page.waitForURL("**/");
+  await page.waitForURL("**/app");
   // session must actually work before the test proceeds — the homepage
   // renders the "Carnetele mele" heading even when NOT authenticated
   await page.waitForFunction(
@@ -259,7 +259,7 @@ test.describe.serial("Fluxuri Guguță E2E", () => {
     await page.goto(notebookUrl);
     page.once("dialog", (d) => void d.accept());
     await page.getByRole("button", { name: "Șterge" }).click();
-    await page.waitForURL("**/");
+    await page.waitForURL("**/app");
     await expect(page.getByRole("heading", { name: "Carnetele mele" })).toBeVisible();
   });
 
