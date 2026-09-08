@@ -517,7 +517,6 @@ async def send_message_stream(
     request: Request,
 ) -> Any:
     """SSE endpoint: streams chat response token by token."""
-    import json as _json
 
     from fastapi.responses import StreamingResponse
 
@@ -529,8 +528,9 @@ async def send_message_stream(
     )
 
     async def _sse(gen):
+        # serviciul yield-uiește deja linii JSON complete — fără re-dump
         async for event in gen:
-            yield f"data: {_json(event)}\n\n"
+            yield f"data: {event}\n\n"
 
     return StreamingResponse(
         _sse(gen),

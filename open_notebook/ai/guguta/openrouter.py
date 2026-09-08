@@ -41,6 +41,7 @@ class OpenRouterClient:
 
     async def post(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
         # Fixed trusted destination; never follow a redirect carrying the key.
+        retriable_codes = (429, 502, 503, 504, 529)
         try:
             async with asyncio.timeout(self._timeout):
                 async with httpx.AsyncClient(
@@ -52,23 +53,48 @@ class OpenRouterClient:
                 ) as client:
                     for attempt in range(self._retries + 1):
                         response = await client.post(endpoint, json=payload)
-                        if response.status_code in (429, 502, 503, 504, 529) and attempt < self._retries:
+                        retriable = response.status_code in retriable_codes
+                        data: Any = None
+                        if not retriable:
                             try:
-                                delay = float(response.headers.get("Retry-After", 2 ** attempt))
+                                data = response.json()
+                            except ValueError:
+                                raise OpenRouterError(
+                                    "OpenRouter a returnat JSON invalid."
+                                ) from None
+                            # OpenRouter semnalează supraîncărcarea upstream
+                            # cu HTTP 200 + error.code 502 în body (variante
+                            # :free) — retriable exact ca un HTTP 502.
+                            if isinstance(data, dict) and isinstance(
+                                data.get("error"), dict
+                            ):
+                                err = data["error"]
+                                code = err.get("code")
+                                if isinstance(code, int) and code in retriable_codes:
+                                    retriable = True
+                                else:
+                                    raise OpenRouterError(
+                                        "OpenRouter: "
+                                        + str(err.get("message", "eroare de procesare"))
+                                    ) from None
+                        if retriable and attempt < self._retries:
+                            try:
+                                delay = float(
+                                    response.headers.get("Retry-After", 2 ** attempt)
+                                )
                             except ValueError:
                                 delay = float(2 ** attempt)
                             if not math.isfinite(delay) or delay > 10:
-                                raise OpenRouterError("OpenRouter ocupat; reîncercați mai târziu.")
-                            await asyncio.sleep(max(0, delay))
+                                delay = float(2 ** attempt)
+                            await asyncio.sleep(max(1.0, delay))
                             continue
-                        if not response.is_success:
-                            raise OpenRouterError(f"OpenRouter indisponibil (HTTP {response.status_code}).")
-                        try:
-                            data = response.json()
-                        except ValueError:
-                            raise OpenRouterError("OpenRouter a returnat JSON invalid.") from None
-                        if not isinstance(data, dict) or "error" in data:
-                            raise OpenRouterError("OpenRouter a returnat o eroare de procesare.")
+                        if retriable:
+                            raise OpenRouterError(
+                                "OpenRouter ocupat (upstream suprasolicitat); "
+                                "reîncercați în câteva momente."
+                            ) from None
+                        if not isinstance(data, dict):
+                            raise OpenRouterError("OpenRouter a returnat JSON invalid.")
                         return data
         except (httpx.HTTPError, TimeoutError):
             raise OpenRouterError("OpenRouter: conexiune eșuată sau timp de așteptare depășit.") from None
@@ -201,3 +227,18 @@ class OpenRouterChatProvider:
             return ChatAnswer(answer.strip(), cited, self.model_name, pt, ct, cost, PROMPT_VERSION)
         except (KeyError, IndexError, TypeError, ValueError, AttributeError):
             raise OpenRouterError("Răspuns AI invalid sau incomplet; răspunsul nu a fost publicat.") from None
+
+    def generate_stream(self, question: str, context_chunks: Sequence[Any],
+                        history: Sequence[dict[str, str]]) -> Any:
+        """SSE: răspunsul complet vine din generate() (validat), apoi tokenii
+        se emit cuvânt cu cuvânt. Latența e dominată de unica completare;
+        streaming la nivel de token OpenRouter = upgrade viitor."""
+        return self._tokens(self.generate(question, context_chunks, history))
+
+    @staticmethod
+    async def _tokens(result: Any) -> Any:
+        import inspect
+
+        answer = await result if inspect.isawaitable(result) else result
+        for word in str(answer.content).split(" "):
+            yield word + " "

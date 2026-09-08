@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Chatul pe modelele gratuite poate dura 1–4 minute; proxy-ul Next taie
+  // implicit la 30s („Eroare neașteptată." în UI). Aliniat cu timeoutul
+  // chat total (300s) + marjă.
+  proxyTimeout: 320_000,
   // Same-origin proxy: the browser talks only to the frontend origin, so the
   // session cookie (SameSite=Lax) flows without CORS. The API base is the
   // Guguță API service (compose) or localhost for dev.

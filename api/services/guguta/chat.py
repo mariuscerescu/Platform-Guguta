@@ -93,7 +93,6 @@ class ChatService:
         - {"event": "done", "assistant_message_id": ..., "cited": N}
         - {"event": "error", "code": ..., "message": ...}
         """
-        import json as _json
 
         content = (content or "").strip()
         if not content:
@@ -101,7 +100,14 @@ class ChatService:
 
         # streaming nu folosește idempotency (faza 2 e incompletă până la done)
 
-        # Phase 1 (same tx as non-streaming): validate, build context, save user msg
+        # Retrieval ÎN AFARA tranzacției (embed/rerank = HTTP extern, ca în
+        # send_message); autorizarea sesiunii se face imediat după, în tx.
+        retrieval = await self._search.search_notebook(
+            actor.actor_id, notebook_id, content, mode="both", limit=6,
+        )
+        context = self._budget(retrieval)
+
+        # Phase 1 (single tx): validate session, save user message
         async with actor_connection(self._engine, actor.actor_id) as conn:
             await conn.execute(
                 text("SELECT id FROM chat_sessions WHERE id = :sid AND notebook_id = :nb FOR UPDATE"),
@@ -121,11 +127,6 @@ class ChatService:
                 raise ChatSessionNotFound()
             context_revision = int(session[1])
 
-            retrieval = await self._search.search_notebook(
-                actor.actor_id, notebook_id, content, mode="both", limit=6,
-                conn=conn,
-            )
-            context = self._budget(retrieval)
             selected = (
                 await conn.execute(
                     text(
@@ -157,15 +158,42 @@ class ChatService:
                  "rev": context_revision},
             )
 
-        # Phase 2: stream tokens from the provider
+        # Phase 2: stream tokens from the provider, cu heartbeat la 15s —
+        # proxyele taie conexiunile idle (next proxyTimeout 30s implicit)
         async def _generate():
             full_content = []
             try:
-                yield _json({"event": "user_saved", "user_message_id": str(user_msg_id)})
-                stream = self._provider.generate_stream(content, context, [])
-                async for token in stream:
-                    full_content.append(token)
-                    yield _json({"event": "token", "text": token})
+                yield json.dumps({"event": "user_saved", "user_message_id": str(user_msg_id)})
+                queue: asyncio.Queue[Any] = asyncio.Queue()
+                _STOP: dict[str, Any] = {"stop": True}
+
+                async def _pump() -> None:
+                    try:
+                        stream = self._provider.generate_stream(content, context, [])
+                        async for token in stream:
+                            await queue.put(token)
+                    except Exception as exc:  # propagate to the consumer
+                        await queue.put(exc)
+                    finally:
+                        await queue.put(_STOP)
+
+                pump_task = asyncio.create_task(_pump())
+                try:
+                    while True:
+                        try:
+                            item = await asyncio.wait_for(queue.get(), timeout=15)
+                        except asyncio.TimeoutError:
+                            # keep-alive: orice bytes reșetează timerul proxyului
+                            yield json.dumps({"event": "ping"})
+                            continue
+                        if isinstance(item, dict) and item.get("stop"):
+                            break
+                        if isinstance(item, BaseException):
+                            raise item
+                        full_content.append(item)
+                        yield json.dumps({"event": "token", "text": item})
+                finally:
+                    pump_task.cancel()
                 full_text = "".join(full_content).strip()
                 if not full_text:
                     raise ChatValidation("Răspunsul gol al modelului.")
@@ -207,12 +235,12 @@ class ChatService:
                             {"id": uuid.uuid4(), "mid": assistant_id,
                              "ns": chunk.notebook_source_id, "mv": chunk.material_version_id,
                              "c": chunk.chunk_id, "name": chunk.local_name,
-                             "loc": _json(chunk.locator)},
+                             "loc": json.dumps(chunk.locator)},
                         )
-                yield _json({"event": "done", "assistant_message_id": str(assistant_id),
+                yield json.dumps({"event": "done", "assistant_message_id": str(assistant_id),
                              "cited": len(getattr(self._provider, "last_cited", []))})
             except Exception as exc:
-                yield _json({"event": "error", "message": str(exc)})
+                yield json.dumps({"event": "error", "message": str(exc)})
 
         return _generate()
 
@@ -590,7 +618,7 @@ class ChatService:
                         {"id": uuid.uuid4(), "mid": assistant_id,
                          "ns": chunk.notebook_source_id, "mv": chunk.material_version_id,
                          "c": chunk.chunk_id, "name": chunk.local_name,
-                         "loc": _json(chunk.locator)},
+                         "loc": json.dumps(chunk.locator)},
                     )
             if idempotency_key:
                 await conn.execute(

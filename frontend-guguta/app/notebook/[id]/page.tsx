@@ -46,6 +46,16 @@ export default function NotebookPage() {
   const [studioCollapsed, setStudioCollapsed] = useState(false);
   const [addSrcOpen, setAddSrcOpen] = useState(false);
   const [noteFormOpen, setNoteFormOpen] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+  const [streaming, setStreaming] = useState<string | null>(null);
+  useEffect(() => {
+    if (!sending) {
+      setElapsed(0);
+      return;
+    }
+    const t = setInterval(() => setElapsed((s) => s + 1), 1000);
+    return () => clearInterval(t);
+  }, [sending]);
   const bottomRef = useRef<HTMLDivElement>(null);
   // mirror for loadMessages without adding `citations` to its deps —
   // otherwise setCitations recreates loadMessages → infinite re-render loop
@@ -130,19 +140,90 @@ export default function NotebookPage() {
   }, [messages.length]);
 
   async function send() {
-    if (!draft.trim() || sessionId === null) return;
+    if (sending) return;
+    const content = draft.trim();
+    if (!content || sessionId === null) return;
     setSending(true);
     setError(null);
+    // optimist: mesajul utilizatorului apare instant; serverul îl salvează
+    // oricum în faza 1, deci rămâne vizibil și pe eșec (A26)
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: `tmp-u-${crypto.randomUUID()}`,
+        seq: 0,
+        role: "user",
+        content,
+        context_revision: 0,
+      },
+    ]);
+    setDraft("");
+    // assistant live: textul se construiește token cu token (SSE)
+    setStreaming("");
     try {
-      await api("POST", `/api/v1/notebooks/${nbId}/sessions/${sessionId}/messages`, {
-        content: draft.trim(),
-        idempotency_key: crypto.randomUUID(),
-      });
-      setDraft("");
+      const csrf = getCsrf();
+      const res = await fetch(
+        `/guguta-api/api/v1/notebooks/${nbId}/sessions/${sessionId}/messages/stream`,
+        {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            ...(csrf ? { "X-Guguta-CSRF": csrf } : {}),
+          },
+          body: JSON.stringify({ content }),
+        },
+      );
+      if (!res.ok || !res.body) {
+        const d = (await res.json().catch(() => ({}))) as {
+          code?: string;
+          message?: string;
+        };
+        throw new ApiError(
+          res.status,
+          d.code ?? "error",
+          d.message ?? "Generarea a eșuat.",
+        );
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let done = false;
+      while (!done) {
+        const { value, done: rDone } = await reader.read();
+        if (rDone) break;
+        buf += decoder.decode(value, { stream: true });
+        const parts = buf.split("\n\n");
+        buf = parts.pop() ?? "";
+        for (const part of parts) {
+          const line = part.split("\n").find((l) => l.startsWith("data: "));
+          if (!line) continue;
+          try {
+            const ev = JSON.parse(line.slice(6)) as {
+              event: string;
+              text?: string;
+              message?: string;
+            };
+            if (ev.event === "token" && ev.text) {
+              setStreaming((prev) => (prev ?? "") + ev.text);
+            } else if (ev.event === "done") {
+              done = true;
+            } else if (ev.event === "error") {
+              throw new ApiError(502, "provider", ev.message ?? "Eroare AI.");
+            }
+            // „ping" și „user_saved" sunt ignorate (optimist deja afișat)
+          } catch (e) {
+            if (e instanceof ApiError) throw e;
+            // JSON parțial între chunkuri — ignorat, bufferul continuă
+          }
+        }
+      }
       await loadMessages();
     } catch (err) {
       setError((err as Error).message);
+      await loadMessages().catch(() => undefined);
     } finally {
+      setStreaming(null);
       setSending(false);
     }
   }
@@ -505,6 +586,12 @@ export default function NotebookPage() {
                       ))}
                     </div>
                   ))}
+                  {streaming !== null && (
+                    <div className="msg assistant streaming">
+                      {streaming}
+                      {streaming === "" && <span className="muted">Se generează…</span>}
+                    </div>
+                  )}
                   <div ref={bottomRef} />
                 </div>
                 <div className="composer">
@@ -525,10 +612,15 @@ export default function NotebookPage() {
                     onClick={() => void send()}
                     disabled={sending || !draft.trim()}
                     aria-label="Trimite"
+                    title={sending ? `Se generează… ${elapsed}s` : "Trimite"}
                   >
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M5 12h13M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
+                    {sending ? (
+                      <span style={{ fontSize: 11, fontWeight: 600 }}>{elapsed}s</span>
+                    ) : (
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M5 12h13M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
                   </button>
                 </div>
               </>
