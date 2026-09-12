@@ -91,9 +91,11 @@ textarea { resize: vertical; }
   border-radius: 16px 16px 0 0;
 }
 
-/* Pe pagina de start header-ul e alb și se lipește de cardul alb de dedesubt. */
-.header-landing {
-  border-color: rgba(217, 229, 244, 0.72);
+/* Pe rutele cu card alb dedesubt (pagina de start, logare, înregistrare)
+   header-ul e alb și are exact chenarul cardului, ca să se citească drept o
+   singură suprafață: altfel rămâne o dungă de culoarea paginii între ele. */
+.header-card {
+  border-color: rgba(217, 229, 244, 0.78);
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(16px);
 }

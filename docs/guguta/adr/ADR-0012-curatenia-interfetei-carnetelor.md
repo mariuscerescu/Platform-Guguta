@@ -24,13 +24,16 @@ Trei nepotriviri vizuale făceau cele două pagini principale să pară neîngri
 ## Decizie
 
 1. **Header-ul își ia culoarea după rută.** `SiteHeader` (componentă de client)
-   citește `usePathname()`: pe pagina de start păstrează aspectul alb, lipit de
-   cardul landing-ului (`.header-landing`); pe celelalte pagini folosește
-   `background: var(--bg)`, adică exact nuanța paginii (`.header-inner`), fără
-   chenar vizibil. Potrivirea rutei acceptă și forma cu `basePath`, altfel ambele
-   particularități ar dispărea exact în producție, unde platforma e servită sub
-   `/edu-platform`. Tot în `SiteHeader` a intrat și butonul „Intră în cont", care
-   apare doar pe landing; `HeaderAuthLink` a fost șters, rămânând fără consumatori.
+   citește `usePathname()`: pe rutele al căror prim bloc e un card alb lipit de
+   header — pagina de start, logarea și înregistrarea — folosește fundal alb cu
+   exact chenarul cardului (`.header-card`, `rgba(217, 229, 244, 0.78)`), ca
+   header-ul și cardul să se citească drept o singură suprafață; pe celelalte
+   pagini folosește `background: var(--bg)`, adică exact nuanța paginii
+   (`.header-inner`), fără chenar vizibil. Potrivirea rutei acceptă și forma cu
+   `basePath`, altfel ambele particularități ar dispărea exact în producție, unde
+   platforma e servită sub `/edu-platform`. Tot în `SiteHeader` a intrat și
+   butonul „Intră în cont", care apare doar pe landing; `HeaderAuthLink` a fost
+   șters, rămânând fără consumatori.
 2. **Iconița se centrează cu flex**, iar simbolul crește la 24px (regula comună de
    20px rămâne pentru celelalte iconițe mici). `.nb-icon-sm` din vizualizarea listă
    primește același tratament.
@@ -43,6 +46,16 @@ Trei nepotriviri vizuale făceau cele două pagini principale să pară neîngri
 
 - `border` rămâne declarat (transparent) pe toate paginile, ca înălțimea header-ului
   să nu difere între landing și restul aplicației.
+- Rutele cu card alb dedesubt sunt enumerate explicit (`CARD_ROUTES` în
+  `SiteHeader`). La prima versiune lista avea doar pagina de start, iar pe
+  logare și înregistrare header-ul lua `--bg`: măsurat, header
+  `rgb(247, 250, 255)` peste card `rgb(255, 255, 255)`, lipite la y=90 — o dungă
+  albastră între două suprafețe care ar trebui să pară una singură. O pagină nouă
+  care începe cu un card alb trebuie adăugată în listă, altfel revine dunga.
+- Chenarul header-ului are exact culoarea chenarului cardurilor
+  (`rgba(217, 229, 244, 0.78)`) și laturile se continuă; cardul nu are chenar de
+  sus, deci verificarea compară laturile, nu muchia de sus (care, lipsind,
+  preia culoarea textului).
 - Centrarea iconiței depinde de `display: flex` pe `.nb-icon`; o regulă viitoare care
   îl readuce la `inline` strică centrarea — de aceea e verificată automat, cu
   toleranță de 1px.
