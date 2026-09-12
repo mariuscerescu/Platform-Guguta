@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { api, me, CatalogTemplate, Notebook } from "../../lib/api";
+import { withBase, API_BASE } from "../../lib/paths";
 
 type Tab = "mine" | "school";
 type View = "tiles" | "rows";
@@ -88,7 +89,7 @@ export default function HomePage() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("/guguta-api/api/v1/catalog/templates");
+        const res = await fetch(`${API_BASE}/api/v1/catalog/templates`);
         setCatalog(res.ok ? await res.json() : []);
       } catch {
         setCatalog([]);
@@ -113,7 +114,7 @@ export default function HomePage() {
       const nb = await api<Notebook>("POST", "/api/v1/notebooks", {
         title: "Carnet nou",
       });
-      window.location.href = `/notebook/${nb.id}`;
+      window.location.href = withBase(`/notebook/${nb.id}`);
     } catch (err) {
       setError((err as Error).message);
       setCreating(false);
@@ -132,6 +133,7 @@ export default function HomePage() {
       setNotebooks(list.items);
     } catch (err) {
       setError((err as Error).message);
+    } finally {
       setImporting(false);
     }
   }
@@ -151,6 +153,7 @@ export default function HomePage() {
       setNotebooks(list.items);
     } catch (err) {
       setError((err as Error).message);
+    } finally {
       setImporting(false);
     }
   }
@@ -174,6 +177,8 @@ export default function HomePage() {
     });
     return q ? sorted.filter((t) => t.title.toLowerCase().includes(q)) : sorted;
   }, [catalog, tab, search, sort]);
+
+  const loadingCards = Array.from({ length: 4 }, (_, i) => i);
 
   return (
     <>
@@ -255,7 +260,7 @@ export default function HomePage() {
           onClick={createNotebook}
           disabled={creating || !authed}
         >
-          + Carnet nou
+          Carnet nou
         </button>
       </div>
 
@@ -266,16 +271,32 @@ export default function HomePage() {
         <>
           <h2 className="section-title">Carnetele mele</h2>
           {authed === null ? (
-            <p className="muted" style={{ padding: "0 24px" }}>Se încarcă…</p>
+            <div className="grid-cards" aria-label="Se încarcă lista de carnete">
+              {loadingCards.map((i) => (
+                <div className="nb-card skeleton-card" key={i}>
+                  <span className="skeleton-icon" />
+                  <span className="skeleton-line wide" />
+                  <span className="skeleton-line" />
+                </div>
+              ))}
+            </div>
           ) : !authed ? (
             <div className="empty-state">
               <p>Nu ești autentificat. Intră în Guguță ca să îți vezi carnetele.</p>
-              <a href="/login" className="create-btn" style={{ display: "inline-flex" }}>
+              <a href={withBase("/login")} className="create-btn" style={{ display: "inline-flex" }}>
                 Autentificare
               </a>
             </div>
           ) : filtered === null ? (
-            <p className="muted" style={{ padding: "0 24px" }}>Se încarcă…</p>
+            <div className="grid-cards" aria-label="Se încarcă lista de carnete">
+              {loadingCards.map((i) => (
+                <div className="nb-card skeleton-card" key={i}>
+                  <span className="skeleton-icon" />
+                  <span className="skeleton-line wide" />
+                  <span className="skeleton-line" />
+                </div>
+              ))}
+            </div>
           ) : filtered.length === 0 ? (
             <div className="empty-state">
               <p>Nu ai încă carnete. Creează unul sau alege din Carnetele școlare.</p>
@@ -300,12 +321,12 @@ export default function HomePage() {
                   <tr
                     key={nb.id}
                     onClick={() => {
-                      window.location.href = `/notebook/${nb.id}`;
+                      window.location.href = withBase(`/notebook/${nb.id}`);
                     }}
                     tabIndex={0}
                     onKeyDown={(e) => {
                       if (e.key === "Enter")
-                        window.location.href = `/notebook/${nb.id}`;
+                        window.location.href = withBase(`/notebook/${nb.id}`);
                     }}
                   >
                     <td className="col-title">
@@ -336,7 +357,7 @@ export default function HomePage() {
             <div className="grid-cards">
               <button className="create-card" onClick={createNotebook} disabled={creating}>
                 <span className="plus-circle"><IconPlus /></span>
-                <span>Creează carnet nou</span>
+                <span>Creează un Carnet digital</span>
               </button>
               {filtered.map((nb) => (
                 <div
@@ -345,10 +366,10 @@ export default function HomePage() {
                   role="link"
                   tabIndex={0}
                   onClick={() => {
-                    window.location.href = `/notebook/${nb.id}`;
+                    window.location.href = withBase(`/notebook/${nb.id}`);
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") window.location.href = `/notebook/${nb.id}`;
+                    if (e.key === "Enter") window.location.href = withBase(`/notebook/${nb.id}`);
                   }}
                 >
                   <div className="nb-top">
@@ -387,16 +408,32 @@ export default function HomePage() {
         <>
           <h2 className="section-title">Carnete școlare</h2>
           {authed === null ? (
-            <p className="muted" style={{ padding: "0 24px" }}>Se încarcă…</p>
+            <div className="grid-cards" aria-label="Se încarcă catalogul școlar">
+              {loadingCards.map((i) => (
+                <div className="nb-card skeleton-card" key={i}>
+                  <span className="skeleton-icon" />
+                  <span className="skeleton-line wide" />
+                  <span className="skeleton-line" />
+                </div>
+              ))}
+            </div>
           ) : !authed ? (
             <div className="empty-state">
               <p>Autentifică-te ca să poți începe un carnet din catalogul școlar.</p>
-              <a href="/login" className="create-btn" style={{ display: "inline-flex" }}>
+              <a href={withBase("/login")} className="create-btn" style={{ display: "inline-flex" }}>
                 Autentificare
               </a>
             </div>
           ) : catalogFiltered === null ? (
-            <p className="muted" style={{ padding: "0 24px" }}>Se încarcă…</p>
+            <div className="grid-cards" aria-label="Se încarcă catalogul școlar">
+              {loadingCards.map((i) => (
+                <div className="nb-card skeleton-card" key={i}>
+                  <span className="skeleton-icon" />
+                  <span className="skeleton-line wide" />
+                  <span className="skeleton-line" />
+                </div>
+              ))}
+            </div>
           ) : catalogFiltered.length === 0 ? (
             <div className="empty-state">
               <p>Catalogul școlar nu are încă carnete publicate.</p>
@@ -412,9 +449,9 @@ export default function HomePage() {
                   key={t.id}
                   role="button"
                   tabIndex={0}
-                  onClick={() => instantiate(t.id)}
+                  onClick={() => !importing && instantiate(t.id)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") void instantiate(t.id);
+                    if (e.key === "Enter" && !importing) void instantiate(t.id);
                   }}
                   title={t.description ?? t.title}
                 >
@@ -431,6 +468,9 @@ export default function HomePage() {
                     <p className="nb-meta">
                       Clasa {t.class_level ?? "—"} · {t.discipline ?? "—"} ·{" "}
                       {t.material_count} materiale
+                    </p>
+                    <p className="nb-meta" style={{ marginTop: 8 }}>
+                      Se creează o copie personală, editabilă independent.
                     </p>
                   </div>
                 </div>

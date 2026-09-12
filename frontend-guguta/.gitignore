@@ -1,5 +1,12 @@
-﻿node_modules/
+node_modules/
 .next/
 *.tsbuildinfo
-*.png
-*.png
+
+# Artefacte de test: capturi, fixture-uri, scripturi temporare, loguri.
+# ATENȚIE: nu pune `*.png` aici — ar exclude și activele aplicației din
+# `public/assets/`, care trebuie să ajungă în repo (altfel un deployment din
+# git pornește fără imaginile din pagina publică).
+.qa-shots/
+.tmp/
+*.log
+.*.log

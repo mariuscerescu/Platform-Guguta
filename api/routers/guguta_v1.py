@@ -6,10 +6,14 @@ exceptions mapped by the app factory to contract status codes (GHID §5.1).
 
 from __future__ import annotations
 
+import base64
+import hashlib
+import hmac
+import secrets
 import uuid
 from typing import Any, Optional
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, Query, Request, Response
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
@@ -52,6 +56,16 @@ class DevLoginRequest(BaseModel):
     display_name: str = Field(min_length=1, max_length=255)
 
 
+class PasswordLoginRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=320)
+    password: str = Field(min_length=8, max_length=256)
+
+
+class PasswordRegisterRequest(PasswordLoginRequest):
+    first_name: str = Field(min_length=1, max_length=120)
+    last_name: str = Field(min_length=1, max_length=120)
+
+
 class MeResponse(BaseModel):
     id: str
     display_name: str
@@ -59,6 +73,64 @@ class MeResponse(BaseModel):
 
 
 auth_router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+
+
+def _normalize_email(value: str) -> str:
+    email = value.strip().lower()
+    if len(email) > 320 or "@" not in email or email.startswith("@") or email.endswith("@"):
+        raise InvalidInputError("Adresa de email nu este validă.")
+    local, _, domain = email.partition("@")
+    if not local or "." not in domain or any(ch.isspace() for ch in email):
+        raise InvalidInputError("Adresa de email nu este validă.")
+    return email
+
+
+def _normalize_name(value: str, label: str) -> str:
+    name = " ".join(value.strip().split())
+    if not name:
+        raise InvalidInputError(f"{label} este obligatoriu.")
+    return name[:120]
+
+
+def _hash_password(password: str) -> str:
+    salt = secrets.token_bytes(16)
+    iterations = 210_000
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
+    return (
+        "pbkdf2_sha256"
+        f"${iterations}"
+        f"${base64.urlsafe_b64encode(salt).decode('ascii').rstrip('=')}"
+        f"${base64.urlsafe_b64encode(digest).decode('ascii').rstrip('=')}"
+    )
+
+
+def _verify_password(password: str, encoded: str) -> bool:
+    try:
+        algorithm, iterations_raw, salt_raw, digest_raw = encoded.split("$", 3)
+        if algorithm != "pbkdf2_sha256":
+            return False
+        iterations = int(iterations_raw)
+        salt = base64.urlsafe_b64decode(salt_raw + "=" * (-len(salt_raw) % 4))
+        expected = base64.urlsafe_b64decode(digest_raw + "=" * (-len(digest_raw) % 4))
+    except (ValueError, TypeError):
+        return False
+    actual = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
+    return hmac.compare_digest(actual, expected)
+
+
+def _ensure_password_auth(request: Request) -> None:
+    if request.app.state.guguta_config.auth_mode != "password":
+        raise ActorDenied("Autentificarea cu email și parolă este dezactivată.")
+
+
+async def _open_session_for_user(
+    user_id: uuid.UUID, display_name: str, request: Request, response: Response
+) -> MeResponse:
+    sessions: SessionService = get_session_service(request)
+    token, csrf = await sessions.create_session(user_id)
+    set_session_cookie(response, request, token)
+    response.headers[CSRF_HEADER] = csrf
+    return MeResponse(id=str(user_id), display_name=display_name, roles=["user"])
 
 
 @auth_router.post("/dev-login")
@@ -93,11 +165,87 @@ async def dev_login(body: DevLoginRequest, request: Request, response: Response)
     return MeResponse(id=str(user_id), display_name=name, roles=["user"])
 
 
+@auth_router.post("/register")
+async def password_register(
+    body: PasswordRegisterRequest, request: Request, response: Response
+) -> MeResponse:
+    _ensure_password_auth(request)
+    email = _normalize_email(body.email)
+    first_name = _normalize_name(body.first_name, "Prenumele")
+    last_name = _normalize_name(body.last_name, "Numele")
+    display_name = f"{first_name} {last_name}"
+    password_hash = _hash_password(body.password)
+    engine = request.app.state.guguta_engine
+    from sqlalchemy import text
+
+    async with engine.begin() as conn:
+        existing = (
+            await conn.execute(
+                text("SELECT 1 FROM password_credentials WHERE email = :email"),
+                {"email": email},
+            )
+        ).scalar_one_or_none()
+        if existing is not None:
+            raise InvalidInputError("Există deja un cont cu acest email.")
+        user_id = (
+            await conn.execute(
+                text("SELECT guguta_provision_user(:issuer, :subject, :name, :email)"),
+                {
+                    "issuer": "password",
+                    "subject": email,
+                    "name": display_name,
+                    "email": email,
+                },
+            )
+        ).scalar_one()
+        await conn.execute(
+            text(
+                "INSERT INTO password_credentials (user_id, email, password_hash) "
+                "VALUES (:user_id, :email, :password_hash)"
+            ),
+            {"user_id": user_id, "email": email, "password_hash": password_hash},
+        )
+    return await _open_session_for_user(user_id, display_name, request, response)
+
+
+@auth_router.post("/login")
+async def password_login(
+    body: PasswordLoginRequest, request: Request, response: Response
+) -> MeResponse:
+    _ensure_password_auth(request)
+    email = _normalize_email(body.email)
+    engine = request.app.state.guguta_engine
+    from sqlalchemy import text
+
+    async with engine.begin() as conn:
+        row = (
+            await conn.execute(
+                text("SELECT user_id, password_hash, display_name, roles FROM guguta_password_auth_lookup(:email)"),
+                {"email": email},
+            )
+        ).mappings().first()
+    if row is None or not _verify_password(body.password, str(row["password_hash"])):
+        raise AuthenticationError("Email sau parolă incorectă.")
+    return await _open_session_for_user(
+        row["user_id"], str(row["display_name"]), request, response
+    )
+
+
 _STATE_COOKIE = "guguta_oidc_state"
 
 
+def _safe_return_to(value: str | None) -> str:
+    if not value or not value.startswith("/") or value.startswith("//"):
+        return "/app"
+    if "\r" in value or "\n" in value:
+        return "/app"
+    return value
+
+
 @auth_router.get("/oidc/login", status_code=307)
-async def oidc_login(request: Request, response: Response):
+async def oidc_login(
+    request: Request, response: Response, next_path: str = Query("/app", alias="next")
+):
     """Start the OIDC Authorization Code + PKCE flow (ADR-0003).
 
     Only available when auth_mode=oidc and an OIDC client is configured on
@@ -108,7 +256,9 @@ async def oidc_login(request: Request, response: Response):
     if config.auth_mode != "oidc":
         raise ActorDenied("OIDC nu este activat.")
     client = request.app.state.guguta_oidc
-    url, cookie_value = await client.begin_login(request.app.state.guguta_state_codec)
+    url, cookie_value = await client.begin_login(
+        request.app.state.guguta_state_codec, return_to=_safe_return_to(next_path)
+    )
     redirect = RedirectResponse(url, status_code=307)
     redirect.set_cookie(
         _STATE_COOKIE, cookie_value,
@@ -147,7 +297,7 @@ async def oidc_callback(request: Request, response: Response, code: str = "",
         ).scalar_one()
     sessions: SessionService = get_session_service(request)
     token, csrf = await sessions.create_session(user_id)
-    redirect = RedirectResponse("/", status_code=303)
+    redirect = RedirectResponse(_safe_return_to(result.return_to), status_code=303)
     redirect.set_cookie(
         SESSION_COOKIE, token,
         httponly=True, samesite="lax",
@@ -897,3 +1047,6 @@ async def import_snapshot(body: ImportRequest, request: Request) -> dict[str, An
     return await request.app.state.guguta_sharing.import_snapshot(
         actor, body.token, idempotency_key=body.idempotency_key
     )
+
+
+

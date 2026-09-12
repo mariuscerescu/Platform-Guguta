@@ -197,8 +197,12 @@ class OpenRouterChatProvider:
                                             for i, c in enumerate(context_chunks)],
         }, ensure_ascii=False)})
         data = await self._client.post("chat/completions", {
-            "model": self.model_name, "messages": messages,
-            "max_tokens": self._max_tokens, "temperature": 0,
+            "model": self.model_name,
+            "messages": messages,
+            "max_tokens": self._max_tokens,
+            "temperature": 0,
+            "response_format": {"type": "json_object"},
+            "reasoning": {"enabled": False},
         })
         try:
             choice = data["choices"][0]
@@ -207,6 +211,13 @@ class OpenRouterChatProvider:
             raw = choice["message"]["content"].strip()
             if raw.startswith("```json") and raw.endswith("```"):
                 raw = raw[7:-3].strip()
+            elif raw.startswith("```") and raw.endswith("```"):
+                raw = raw[3:-3].strip()
+            if not raw.startswith("{"):
+                start = raw.find("{")
+                end = raw.rfind("}")
+                if start >= 0 and end > start:
+                    raw = raw[start:end + 1]
             obj = json.loads(raw)
             answer, cited = obj["answer"], obj["cited"]
             if not isinstance(answer, str) or not answer.strip() or not isinstance(cited, list):
@@ -214,9 +225,27 @@ class OpenRouterChatProvider:
             if any(type(i) is not int or not 0 <= i < len(context_chunks) for i in cited):
                 raise ValueError()
             cited = list(dict.fromkeys(cited))
-            markers = {int(i) - 1 for i in re.findall(r"\[(\d+)\]", answer)}
+            marker_numbers = [int(i) for i in re.findall(r"\[(\d+)\]", answer)]
+            markers = {i - 1 for i in marker_numbers}
             if markers != set(cited):
-                raise ValueError()
+                # Some reasoning models emit zero-based markers ([0]) even when
+                # instructed to show human-facing one-based citations. Accept
+                # only when the marker set exactly matches cited indexes, then
+                # normalize the visible answer to [1], [2], ... .
+                if set(marker_numbers) == set(cited):
+                    for idx in sorted(set(cited), reverse=True):
+                        answer = answer.replace(f"[{idx}]", f"[{idx + 1}]")
+                    markers = {idx for idx in cited}
+                # Some models provide cited=[...] in JSON but omit inline
+                # markers. Preserve the validated citation list and append
+                # the visible markers for the user and citation validator.
+                elif not marker_numbers and cited:
+                    answer = answer.rstrip() + " " + " ".join(
+                        f"[{idx + 1}]" for idx in cited
+                    )
+                    markers = set(cited)
+                if markers != set(cited):
+                    raise ValueError()
             usage = data.get("usage", {})
             pt, ct = usage.get("prompt_tokens"), usage.get("completion_tokens")
             cost = usage.get("cost")
@@ -235,10 +264,11 @@ class OpenRouterChatProvider:
         streaming la nivel de token OpenRouter = upgrade viitor."""
         return self._tokens(self.generate(question, context_chunks, history))
 
-    @staticmethod
-    async def _tokens(result: Any) -> Any:
+    async def _tokens(self, result: Any) -> Any:
         import inspect
 
         answer = await result if inspect.isawaitable(result) else result
+        self.last_cited = list(answer.cited)
         for word in str(answer.content).split(" "):
             yield word + " "
+

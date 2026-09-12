@@ -1,6 +1,8 @@
 /** Guguță API client — same-origin proxy, cookie session + CSRF header. */
 
-const API = "/guguta-api";
+import { API_BASE } from "./paths";
+
+const API = API_BASE;
 const CSRF_KEY = "guguta_csrf";
 
 export function setCsrf(token: string) {
@@ -58,6 +60,63 @@ export async function api<T = Json>(
   return data;
 }
 
+
+
+function serverAuthErrorMessage(status: number, fallback: string): string {
+  if (status >= 500) {
+    return "Serverul de autentificare nu răspunde. Pornește backend-ul și aplică migrarea bazei de date.";
+  }
+  return fallback;
+}
+
+export async function loginPassword(email: string, password: string): Promise<void> {
+  const res = await fetch(`${API}/api/v1/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { message?: string; detail?: string };
+    throw new ApiError(
+      res.status,
+      "auth_failed",
+      data.message ?? data.detail ?? serverAuthErrorMessage(res.status, "Autentificare eșuată."),
+    );
+  }
+  const csrf = res.headers.get("X-Guguta-CSRF");
+  if (csrf) setCsrf(csrf);
+}
+
+export async function registerPassword(
+  firstName: string,
+  lastName: string,
+  email: string,
+  password: string,
+): Promise<void> {
+  const res = await fetch(`${API}/api/v1/auth/register`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({
+      first_name: firstName,
+      last_name: lastName,
+      email,
+      password,
+    }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { message?: string; detail?: string };
+    throw new ApiError(
+      res.status,
+      "registration_failed",
+      data.message ?? data.detail ?? serverAuthErrorMessage(res.status, "Înregistrarea a eșuat."),
+    );
+  }
+  const csrf = res.headers.get("X-Guguta-CSRF");
+  if (csrf) setCsrf(csrf);
+}
+
 export async function loginDev(displayName: string): Promise<void> {
   const res = await fetch(`${API}/api/v1/auth/dev-login`, {
     method: "POST",
@@ -101,11 +160,16 @@ export async function bootstrapCsrf(): Promise<void> {
 }
 
 export async function authMode(): Promise<string> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 1800);
   try {
-    const r = await fetch(`${API}/api/v1/auth/config`);
+    const r = await fetch(`${API}/api/v1/auth/config`, { signal: controller.signal });
     if (r.ok) return ((await r.json()) as { auth_mode: string }).auth_mode;
   } catch { }
-  return "test";
+  finally {
+    window.clearTimeout(timeout);
+  }
+  return "password";
 }
 
 export interface Notebook {

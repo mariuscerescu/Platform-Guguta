@@ -1,0 +1,25 @@
+# Suprascrieri pentru TEST LOCAL, peste .env-ul de producție.
+#
+# De ce e nevoie: în `production` configurația API-ului cere obligatoriu origini
+# https (open_notebook/database/guguta/config.py). Local nu avem certificat, deci
+# coborâm doar mediul la `development` și mutăm originile pe http://localhost:8300.
+# Restul valorilor (furnizori, modele, cheie API) rămân exact cele de producție,
+# ca testul să exercite același drum real.
+#
+# Utilizare (din acest director):
+#   docker compose -f docker-compose.yml -f docker-compose.preview.yml up -d --build
+#   # apoi: http://localhost:8300/edu-platform
+#   docker compose -f docker-compose.yml -f docker-compose.preview.yml down
+#
+# ATENȚIE: nu folosi acest fișier pe server.
+
+services:
+  api:
+    environment:
+      GUGUTA_ENVIRONMENT: development
+      GUGUTA_PUBLIC_ORIGIN: http://localhost:8300
+      GUGUTA_CORS_ORIGINS: '["http://localhost:8300", "http://127.0.0.1:8300"]'
+
+  worker:
+    environment:
+      GUGUTA_ENVIRONMENT: development

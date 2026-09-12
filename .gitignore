@@ -160,3 +160,8 @@ history.txt
 guguta_storage/
 .env.guguta.local
 .env.guguta
+
+# Artefacte de lucru locale: scripturi one-off, capturi, audituri temporare.
+# Nu fac parte din aplicație (efectul lor e deja în cod).
+.tmp/
+.audit-*/

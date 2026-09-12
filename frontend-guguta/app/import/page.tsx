@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api, me } from "../../lib/api";
+import { withBase, API_BASE } from "../../lib/paths";
 
 interface PreviewData {
   snapshot_id: string;
@@ -33,7 +34,7 @@ export default function ImportPage() {
     setError(null);
     setPreview(null);
     try {
-      const res = await fetch("/guguta-api/api/v1/imports/preview", {
+      const res = await fetch(`${API_BASE}/api/v1/imports/preview`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token: token.trim() }),
@@ -78,7 +79,7 @@ export default function ImportPage() {
         <p className="muted">
           Trebuie să te autentifici ca să poți importa materialele.
         </p>
-        <a href="/login" className="btn">Autentificare</a>
+        <a href={withBase("/login")} className="btn">Autentificare</a>
         <p className="muted" style={{ marginTop: 12 }}>
           După autentificare, revino pe această pagină și lipește din nou linkul.
         </p>
@@ -98,7 +99,7 @@ export default function ImportPage() {
         <div className="card">
           <h3>Import reușit!</h3>
           <p>
-            Carnetul a fost creat. <a href={`/notebook/${done}`}>Deschide carnetul</a>
+            Carnetul a fost creat. <a href={withBase(`/notebook/${done}`)}>Deschide carnetul</a>
           </p>
         </div>
       )}

@@ -129,7 +129,7 @@ Revizia 1.1 aliniază ordinea cu livrările L0–L10. Testele, identitatea și C
 - [x] Aplicăm wordmark, tokens, tipografie și spațiere din ghid. — CSS variables: #F8FAFC/#FFFFFF/#0F172A/#475569/#0F766E/#B91C1C/#CBD5E1, radius 12px, spațiere 4/8, touch 44px, focus vizibil (§9.1).
 - [x] Implementăm pagina principală și carduri distincte oficial/personal. — „Carnetele mele" + „Catalogul oficial Guguță" (badge „Din catalogul oficial"/„Personal"/„Importat" + „Publicat de Guguță") + „Importă prin link sau cod" vizibil secundar.
 - [x] Implementăm trei panouri desktop și taburi mobile, conform ghidului. — grid 280px/1fr/300px desktop; taburi Materiale/Conversație/Notițe sub 1024px.
-- [x] Implementăm citarea în panou și toate stările loading/empty/error/success. — citările afișate în mesaj (incl. „Sursă eliminată"); stări loading/empty/error în toate listele; disabled pe butoane.
+- [x] Implementăm citarea în panou și toate stările loading/empty/error/success. — citările afișate în mesaj (incl. „Sursă eliminată"); stări loading/empty/error în toate listele; disabled pe butoane. **11 septembrie 2026: afișarea referințelor în răspuns este dezactivată deliberat** din `frontend-guguta/lib/features.ts` (`SHOW_ANSWER_REFERENCES = false`); validarea, stocarea citărilor și endpointul rămân active (A12/A13) — vezi [ADR-0009](adr/ADR-0009-referinte-dezactivate-in-raspuns.md).
 - [x] Verificăm 360/768/1440px, zoom 200%, focus, tastatură și contrast. — **parțial testat**: responsive prin taburi CSS, focus vizibil, contrast din tokens; revizia umană completă rămâne la pilot.
 - [x] Ascundem setările tehnice elevilor și le protejăm în API. — UI nu expune provideri/chei/infrastructură; admin-only pe /api/v1/admin/*.
 - [x] Portăm configurarea centrală chat/embedding și criptarea cheilor cu posibilitate de rotație. — `admin_credentials` criptate Fernet cu key_id + MultiFernet; rotație și decriptare auditate în DB; funcții SECURITY DEFINER cu rol admin verificat în DB; metadata-only în răspunsuri (testate).
@@ -199,7 +199,7 @@ Aceste verificări completează testele executate continuu în L0–L8.
 - [ ] Executăm toate scenariile A01–A28 și matricea permisiunilor.
 - [ ] Testăm migrații, RLS cu rol runtime, joburi și concurență în PostgreSQL real.
 - [ ] Executăm E2E CLI și revizia design/accesibilitate.
-- [ ] Verificăm transportul, secretele, configurarea containerelor și rate limiting.
+- [ ] Verificăm transportul, secretele, configurarea containerelor și rate limiting. **12 septembrie 2026: stack de producție pregătit și verificat local** — publicare sub subcale (`https://tineri.math.md/edu-platform`) prin `basePath` (F26), un singur punct public pe loopback (frontend-ul; API/worker/bază de date fără port pe gazdă), `.env` cu modelele LLM și cheia API, migrări aplicate de serviciul `migrator`. Verificat pe stack-ul containerizat: active și linkuri sub prefix, API prin proxy same-origin, cookie + verificare de origine, material urcat și procesat de worker, răspuns real al modelului afișat în interfață. Vezi [ADR-0010](adr/ADR-0010-publicare-sub-sucala.md) și `deploy/edu-platform/README.md`. Rămâne pe server: blocul `location` din nginx-ul gazdă și GO-ul de la L10.
 - [ ] Executăm scanările de vulnerabilități și licențe pentru imaginile release.
 - [ ] Configurăm loguri, metrici, alerte și responsabilul de intervenție.
 - [ ] Restaurăm un backup și reconciliem fișiere/date/citări/revocări.

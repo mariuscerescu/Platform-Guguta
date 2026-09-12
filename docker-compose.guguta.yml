@@ -46,6 +46,8 @@ services:
     restart: "no"
 
   api:
+    env_file:
+      - .env.guguta.local
     build:
       context: .
       dockerfile: docker/guguta/api.Dockerfile
@@ -53,7 +55,7 @@ services:
         GUGUTA_COMMIT: ${GUGUTA_COMMIT:-dev}
     environment:
       GUGUTA_ENVIRONMENT: development
-      GUGUTA_AUTH_MODE: ${GUGUTA_AUTH_MODE:-test}
+      GUGUTA_AUTH_MODE: ${GUGUTA_AUTH_MODE:-password}
       GUGUTA_COMMIT: ${GUGUTA_COMMIT:-dev}
       # F19: the browser origin is the FRONTEND (3001); CORS/public origin
       # must match it, or cookie-authenticated mutations are rejected.
@@ -73,6 +75,8 @@ services:
     restart: unless-stopped
 
   worker:
+    env_file:
+      - .env.guguta.local
     build:
       context: .
       dockerfile: docker/guguta/api.Dockerfile
@@ -80,7 +84,7 @@ services:
         GUGUTA_COMMIT: ${GUGUTA_COMMIT:-dev}
     environment:
       GUGUTA_ENVIRONMENT: development
-      GUGUTA_AUTH_MODE: test
+      GUGUTA_AUTH_MODE: ${GUGUTA_AUTH_MODE:-password}
       GUGUTA_DATABASE_URL_WORKER: postgresql+psycopg://guguta_worker:${GUGUTA_PG_WORKER_PASSWORD:-guguta_dev_worker}@db:5432/guguta
       GUGUTA_STORAGE_ROOT: /data/guguta_storage
       GUGUTA_JOB_WORKER_NAME: guguta-worker-1
@@ -109,3 +113,6 @@ services:
 volumes:
   guguta_pg_data:
   guguta_storage:
+
+
+

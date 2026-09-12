@@ -46,6 +46,7 @@ class OidcResult:
     email: Optional[str]
     email_verified: bool
     display_name: str
+    return_to: str = "/app"
 
 
 def _b64url(data: bytes) -> str:
@@ -98,14 +99,17 @@ class OidcClient:
             )
         return self._discovery_cache
 
-    async def begin_login(self, codec: SignedStateCodec) -> tuple[str, str]:
+    async def begin_login(self, codec: SignedStateCodec, return_to: str = "/app") -> tuple[str, str]:
         """Build the authorize redirect. The authorization endpoint comes from
         discovery — never assumed to be `<issuer>/authorize` (F02)."""
         state = secrets.token_urlsafe(24)
         nonce = secrets.token_urlsafe(24)
         verifier, challenge = _pkce_pair()
         cookie_value = codec.dump(
-            {"state": state, "nonce": nonce, "verifier": verifier, "ts": time.time()}
+            {
+                "state": state, "nonce": nonce, "verifier": verifier,
+                "return_to": return_to, "ts": time.time(),
+            }
         )
         discovery = await self._discovery()
         authorization_endpoint = discovery.get("authorization_endpoint")
@@ -169,6 +173,7 @@ class OidcClient:
             email=email if isinstance(email, str) else None,
             email_verified=bool(claims.get("email_verified", False)),
             display_name=str(name)[:255],
+            return_to=str(cookie.get("return_to") or "/app"),
         )
 
     def _validate_id_token(self, token: str, jwks: dict[str, Any],

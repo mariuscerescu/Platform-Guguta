@@ -16,7 +16,7 @@ from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 Environment = Literal["development", "ci", "staging", "production"]
-AuthMode = Literal["test", "oidc"]
+AuthMode = Literal["test", "oidc", "password"]
 
 _DEV_ENVIRONMENTS: tuple[str, ...] = ("development", "ci")
 

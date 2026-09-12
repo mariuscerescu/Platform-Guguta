@@ -1,26 +1,48 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { authMode, loginDev } from "../../lib/api";
+import { authMode, loginDev, loginPassword } from "../../lib/api";
+import { withBase, API_BASE } from "../../lib/paths";
 
 export default function LoginPage() {
-  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [devName, setDevName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<string | null>(null);
+  const [mode, setMode] = useState<string>("password");
 
   useEffect(() => {
-    void authMode().then(setMode);
+    void authMode().then((value) => {
+      setMode(value);
+      if (value === "oidc") {
+        window.location.href = `${API_BASE}/api/v1/auth/oidc/login?next=${encodeURIComponent(withBase("/app"))}`;
+      }
+    });
   }, []);
 
-  async function submit(e: React.FormEvent) {
+  async function submitPassword(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!email.trim() || !password) return;
     setBusy(true);
     setError(null);
     try {
-      await loginDev(name.trim());
-      window.location.href = "/app";
+      await loginPassword(email.trim(), password);
+      window.location.href = withBase("/app");
+    } catch (err) {
+      setError((err as Error).message);
+      setBusy(false);
+    }
+  }
+
+  async function submitDev(e: React.FormEvent) {
+    e.preventDefault();
+    if (!devName.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await loginDev(devName.trim());
+      window.location.href = withBase("/app");
     } catch (err) {
       setError((err as Error).message);
       setBusy(false);
@@ -28,46 +50,65 @@ export default function LoginPage() {
   }
 
   return (
-    <>
-      <h1>Autentificare</h1>
-      {error && <p className="error-text">{error}</p>}
+    <section className="auth-shell" aria-labelledby="login-title">
+      <div className="auth-visual">
+        <h1 id="login-title">Intră în Guguță</h1>
+        <p>Continuă să lucrezi cu materialele tale, carnetele digitale și răspunsurile cu surse.</p>
+      </div>
 
-      {mode === "test" && (
-        <>
-          <p className="muted">
-            Mod de dezvoltare: cont sintetic local. În producție autentificarea
-            se face prin furnizorul de identitate al școlii (OIDC).
-          </p>
-          <form onSubmit={submit} style={{ maxWidth: 360 }}>
-            <label htmlFor="name" className="muted">
-              Numele tău
+      <div className="auth-card">
+        {error && <p className="error-text">{error}</p>}
+
+        {mode === "password" && (
+          <form onSubmit={submitPassword} className="auth-form">
+            <label>
+              <span>Email</span>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="nume@exemplu.md"
+                autoComplete="email"
+              />
             </label>
-            <input
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="ex. Maria Popescu"
-            />
-            <button
-              className="primary"
-              style={{ marginTop: 12 }}
-              disabled={busy || !name.trim()}
-            >
+            <label>
+              <span>Parolă</span>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Parola ta"
+                autoComplete="current-password"
+              />
+            </label>
+            <button className="primary auth-submit" disabled={busy || !email.trim() || !password}>
+              {busy ? "Se conectează…" : "Intră în cont"}
+            </button>
+            <p className="auth-switch">
+              Nu ai cont? <a href={withBase("/register")}>Creează unul</a>
+            </p>
+          </form>
+        )}
+
+        {mode === "test" && (
+          <form onSubmit={submitDev} className="auth-form">
+            <p className="muted">Mod de dezvoltare: cont sintetic local.</p>
+            <label>
+              <span>Numele tău</span>
+              <input
+                value={devName}
+                onChange={(e) => setDevName(e.target.value)}
+                placeholder="ex. Maria Popescu"
+              />
+            </label>
+            <button className="primary auth-submit" disabled={busy || !devName.trim()}>
               {busy ? "Se conectează…" : "Intră în Guguță"}
             </button>
           </form>
-        </>
-      )}
+        )}
 
-      {mode === "oidc" && (
-        <p>
-          <a className="btn" href="/guguta-api/api/v1/auth/oidc/login">
-            Conectare prin școală (OIDC)
-          </a>
-        </p>
-      )}
-
-      {mode === null && <p className="muted">Se încarcă…</p>}
-    </>
+        {mode === "oidc" && <p className="muted">Te trimitem către autentificare…</p>}
+      </div>
+    </section>
   );
 }

@@ -23,6 +23,19 @@ frontend/out
 frontend/.env*
 frontend/*.log
 
+# Frontend Guguță (build-ul de producție folosește acest director ca sursă).
+# Fără aceste linii, node_modules-ul de pe gazdă (Windows, ~437 MB) intra în
+# context și, prin `COPY frontend-guguta ./`, ajungea PESTE modulele instalate
+# în container — binare de altă platformă într-o imagine Linux.
+frontend-guguta/node_modules
+frontend-guguta/.next
+frontend-guguta/out
+frontend-guguta/.env*
+frontend-guguta/.tmp
+frontend-guguta/.qa-shots
+frontend-guguta/*.log
+frontend-guguta/.*.log
+
 # Local tooling / agent working dirs (can contain full .venv + node_modules)
 .claude
 .antigravity

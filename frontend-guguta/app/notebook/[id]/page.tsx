@@ -3,6 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { api, ApiError, getCsrf, Note, Notebook, Source } from "../../../lib/api";
+import {
+  SHOW_ANSWER_REFERENCES,
+  withoutReferenceMarkers,
+} from "../../../lib/features";
+import SourceUploader from "../../components/SourceUploader";
+import { withBase, API_BASE } from "../../../lib/paths";
 
 interface ChatMessage {
   id: string;
@@ -24,6 +30,15 @@ interface ChatSession {
   created_revision: number;
 }
 
+/**
+ * Răspunsul asistentului așa cum se afișează. Când referințele sunt oprite
+ * (`lib/features.ts`), marcajele `[1]` se scot doar de aici — conținutul salvat
+ * în bază rămâne neatins, iar întrebarea utilizatorului nu se atinge niciodată.
+ */
+function answerText(text: string): string {
+  return SHOW_ANSWER_REFERENCES ? text : withoutReferenceMarkers(text);
+}
+
 export default function NotebookPage() {
   const params = useParams<{ id: string }>();
   const nbId = params.id;
@@ -38,13 +53,10 @@ export default function NotebookPage() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [newSourceTitle, setNewSourceTitle] = useState("");
-  const [newSourceText, setNewSourceText] = useState("");
   const [noteTitle, setNoteTitle] = useState("");
   const [noteContent, setNoteContent] = useState("");
   const [srcCollapsed, setSrcCollapsed] = useState(false);
   const [studioCollapsed, setStudioCollapsed] = useState(false);
-  const [addSrcOpen, setAddSrcOpen] = useState(false);
   const [noteFormOpen, setNoteFormOpen] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [streaming, setStreaming] = useState<string | null>(null);
@@ -94,6 +106,12 @@ export default function NotebookPage() {
     void loadAll();
   }, [loadAll]);
 
+  // Materialul tocmai urcat intră în listă imediat, în același render în care
+  // linia lui temporară dispare — fără dubluri și fără clipire între ele.
+  const addUploadedSource = useCallback((source: Source) => {
+    setSources((prev) => (prev ? [...prev, source] : [source]));
+  }, []);
+
   const loadMessages = useCallback(async () => {
     if (sessionId === null) return;
     try {
@@ -102,6 +120,9 @@ export default function NotebookPage() {
         `/api/v1/notebooks/${nbId}/sessions/${sessionId}/messages`,
       );
       setMessages(msgs);
+      // Referințele oprite: citările rămân în bază, dar nu le mai cerem de N
+      // ori la fiecare încărcare. Codul de mai jos e intact pentru reluare.
+      if (!SHOW_ANSWER_REFERENCES) return;
       const known = citationsRef.current;
       for (const m of msgs) {
         if (m.role !== "assistant" || known[m.id]) continue;
@@ -124,8 +145,8 @@ export default function NotebookPage() {
     void loadMessages();
   }, [loadMessages]);
 
-  // poll while any source is still processing (E2E bug: text sources never
-  // refreshed their status — only file uploads polled)
+  // Materialele în procesare se reîmprospătează singure: cercul de lângă
+  // fișier se oprește fără intervenția utilizatorului când workerul termină.
   const hasProcessing = sources?.some((s) => s.status === "processing") ?? false;
   useEffect(() => {
     if (!hasProcessing) return;
@@ -163,7 +184,7 @@ export default function NotebookPage() {
     try {
       const csrf = getCsrf();
       const res = await fetch(
-        `/guguta-api/api/v1/notebooks/${nbId}/sessions/${sessionId}/messages/stream`,
+        `${API_BASE}/api/v1/notebooks/${nbId}/sessions/${sessionId}/messages/stream`,
         {
           method: "POST",
           credentials: "same-origin",
@@ -243,66 +264,15 @@ export default function NotebookPage() {
     }
   }
 
-  async function addSource(e: React.FormEvent) {
-    e.preventDefault();
-    if (!newSourceText.trim()) return;
-    try {
-      await api("POST", `/api/v1/notebooks/${nbId}/sources/text`, {
-        title: newSourceTitle.trim() || "Text introdus",
-        text: newSourceText.trim(),
-      });
-      setNewSourceTitle("");
-      setNewSourceText("");
-      await loadAll();
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  }
-
-  // F04: file upload (multipart)
-  const [uploadingFile, setUploadingFile] = useState(false);
-  async function uploadFile(file: File) {
-    setUploadingFile(true);
-    setError(null);
-    try {
-      const formData = new FormData();
-      formData.append("file", file);
-      const csrf = getCsrf();
-      const res = await fetch(`/guguta-api/api/v1/notebooks/${nbId}/sources/file`, {
-        method: "POST",
-        headers: { ...(csrf ? { "X-Guguta-CSRF": csrf } : {}), Origin: "http://localhost:3000" },
-        body: formData,
-      });
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { code?: string; message?: string };
-        throw new ApiError(res.status, d.code ?? "error", d.message ?? "Upload eșuat.");
-      }
-      const result = (await res.json()) as { source: Source };
-      await loadAll();
-      // F04: poll source status until ready/error
-      const srcId = result.source.id;
-      const poll = setInterval(async () => {
-        const detail = await api<Source>(
-          "GET", `/api/v1/notebooks/${nbId}/sources/${srcId}`,
-        );
-        if (detail.status === "ready" || detail.status === "error") {
-          clearInterval(poll);
-          await loadAll();
-        }
-      }, 2000);
-      setTimeout(() => clearInterval(poll), 60_000); // max 60s polling
-    } catch (err) {
-      setError((err as Error).message);
-      setUploadingFile(false);
-    }
-  }
+  // Adăugarea materialelor (file manager → upload → procesare) este izolată
+  // în SourceUploader; pagina doar reîncarcă lista când ceva s-a schimbat.
 
   // F04: notebook management (rename/archive/delete)
   async function deleteNotebook() {
     if (!confirm(`Ștergi definitiv carnetul „${nb?.title}"?`)) return;
     try {
       await api("DELETE", `/api/v1/notebooks/${nbId}`);
-      window.location.href = "/app";
+      window.location.href = withBase("/app");
     } catch (err) {
       setError((err as Error).message);
     }
@@ -338,7 +308,7 @@ export default function NotebookPage() {
         `/api/v1/notebooks/${nbId}/shares`,
         { source_ids: ready.map((s) => s.id), title: nb?.title },
       );
-      const link = `${window.location.origin}/import#token=${share.token}`;
+      const link = `${window.location.origin}${withBase("/import")}#token=${share.token}`;
       await navigator.clipboard.writeText(link);
       alert(`Link copiat:\n${link}\n\nCod: ${share.code}`);
       await loadAll();
@@ -393,7 +363,7 @@ export default function NotebookPage() {
     return (
       <>
         <p className="error-text">{error}</p>
-        <a href="/app">← Înapoi la carnetele mele</a>
+        <a href={withBase("/app")}>← Înapoi la carnetele mele</a>
       </>
     );
   }
@@ -402,7 +372,7 @@ export default function NotebookPage() {
   return (
     <div className="nb-shell">
       <header className="nb-header">
-        <a href="/app" className="nb-back" aria-label="Înapoi la carnetele mele">
+        <a href={withBase("/app")} className="nb-back" aria-label="Înapoi la carnetele mele">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="m14 6-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -443,69 +413,28 @@ export default function NotebookPage() {
         {/* -------- Surse (stânga, colapsabil) -------- */}
         <section
           className={`panel src ${srcCollapsed ? "collapsed" : ""}`}
-          aria-label="Surse"
+          aria-label="Materiale"
         >
           <div className="panel-head">
-            <span className="panel-title">Surse</span>
+            <span className="panel-title">Materiale</span>
             <button
               className="icon-btn"
               onClick={() => setSrcCollapsed((v) => !v)}
-              aria-label={srcCollapsed ? "Desfă panoul Surse" : "Strânge panoul Surse"}
+              aria-label={srcCollapsed ? "Desfă panoul Materiale" : "Strânge panoul Materiale"}
               title={srcCollapsed ? "Desfă" : "Strânge"}
             >
               {srcCollapsed ? "»" : "«"}
             </button>
           </div>
           <div className="panel-body">
-            <button className="add-src-btn" onClick={() => setAddSrcOpen((v) => !v)}>
-              + Adaugă sursă
-            </button>
-            {addSrcOpen && (
-              <div className="add-src-box">
-                <form onSubmit={addSource}>
-                  <label htmlFor="src-title" className="muted">Titlu</label>
-                  <input
-                    id="src-title"
-                    value={newSourceTitle}
-                    onChange={(e) => setNewSourceTitle(e.target.value)}
-                  />
-                  <label htmlFor="src-text" className="muted">Text</label>
-                  <textarea
-                    id="src-text"
-                    value={newSourceText}
-                    onChange={(e) => setNewSourceText(e.target.value)}
-                  />
-                  <button
-                    className="primary"
-                    style={{ marginTop: 8, width: "100%" }}
-                    disabled={!newSourceText.trim()}
-                  >
-                    Adaugă textul
-                  </button>
-                </form>
-                <div className="file-box">
-                  <p className="muted">PDF, DOCX, PPTX, TXT sau MD (max 25 MiB)</p>
-                  <input
-                    type="file"
-                    accept=".pdf,.docx,.pptx,.txt,.md"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) void uploadFile(file);
-                      e.target.value = "";
-                    }}
-                    disabled={uploadingFile}
-                  />
-                  {uploadingFile && <p className="muted">Se încarcă și procesează…</p>}
-                </div>
-              </div>
-            )}
+            <SourceUploader
+              notebookId={nbId}
+              onUploaded={addUploadedSource}
+              onChanged={loadAll}
+            />
 
             {sources === null ? (
               <p className="muted">Se încarcă…</p>
-            ) : sources.length === 0 ? (
-              <p className="muted">
-                Nu ai materiale. Adaugă un text sau un fișier ca să poți întreba.
-              </p>
             ) : (
               sources.map((s) => (
                 <div className="src-card" key={s.id}>
@@ -529,9 +458,26 @@ export default function NotebookPage() {
                     </svg>
                   </span>
                   <span className="src-name" title={s.local_name}>{s.local_name}</span>
-                  <span className={`badge ${s.status}`}>
-                    {s.status === "ready" ? "Gata" : s.status === "error" ? "Eroare" : "…"}
-                  </span>
+                  {/* Cât timp workerul procesează, fișierul primește doar
+                      cercul animat; când e gata, nu se scrie nimic pe el. */}
+                  {s.status === "error" ? (
+                    <span
+                      className="badge error"
+                      title={s.status_detail ?? undefined}
+                      role="status"
+                    >
+                      Eroare
+                    </span>
+                  ) : s.status === "ready" ? null : (
+                    <span
+                      className="badge processing"
+                      title="Se procesează"
+                      role="status"
+                      aria-label="Se procesează"
+                    >
+                      <span className="spinner tiny" aria-hidden="true" />
+                    </span>
+                  )}
                   {s.status === "error" && (
                     <button className="src-act" onClick={() => retrySource(s.id)} title="Reîncearcă">↻</button>
                   )}
@@ -576,19 +522,21 @@ export default function NotebookPage() {
                   )}
                   {messages.map((m) => (
                     <div key={m.id} className={`msg ${m.role}`}>
-                      {m.content}
-                      {(citations[m.id] ?? []).map((c, i) => (
-                        <span className="citation" key={i}>
-                          [{i + 1}] {c.source_removed ? "Sursă eliminată" : c.display_name}
-                          {Object.keys(c.locator).length > 0 &&
-                            ` · ${JSON.stringify(c.locator)}`}
-                        </span>
-                      ))}
+                      {m.role === "assistant" ? answerText(m.content) : m.content}
+                      {SHOW_ANSWER_REFERENCES &&
+                        (citations[m.id] ?? []).map((c, i) => (
+                          <span className="citation" key={i}>
+                            [{i + 1}]{" "}
+                            {c.source_removed ? "Sursă eliminată" : c.display_name}
+                            {Object.keys(c.locator).length > 0 &&
+                              ` · ${JSON.stringify(c.locator)}`}
+                          </span>
+                        ))}
                     </div>
                   ))}
                   {streaming !== null && (
                     <div className="msg assistant streaming">
-                      {streaming}
+                      {answerText(streaming)}
                       {streaming === "" && <span className="muted">Se generează…</span>}
                     </div>
                   )}
@@ -654,8 +602,7 @@ export default function NotebookPage() {
                 </svg>
                 <p className="studio-strong">Rezultatul Studio va fi salvat aici.</p>
                 <p className="muted">
-                  După ce adaugi materiale, aici vor apărea rezumatele, ghidurile
-                  de studiu, hărțile mentale și multe altele!
+                  Salvează idei și explicații utile pentru acest Carnet digital.
                 </p>
               </div>
             ) : (
@@ -669,6 +616,20 @@ export default function NotebookPage() {
                 </div>
               ))
             )}
+            <div className="future-tools" aria-label="Instrumente planificate">
+              <div className="future-tool">
+                <strong>Flashcards</strong>
+                <span>Va genera cartonașe de recapitulare din materiale.</span>
+              </div>
+              <div className="future-tool">
+                <strong>Quiz</strong>
+                <span>Va crea întrebări pentru verificarea cunoștințelor.</span>
+              </div>
+              <div className="future-tool">
+                <strong>Audio overview</strong>
+                <span>Va transforma materialele într-un rezumat audio.</span>
+              </div>
+            </div>
             <div style={{ marginTop: "auto", paddingTop: 16 }}>
               {noteFormOpen && (
                 <form onSubmit={addNote} className="note-form">
@@ -698,7 +659,7 @@ export default function NotebookPage() {
                 style={{ width: "100%", justifyContent: "center" }}
                 onClick={() => setNoteFormOpen((v) => !v)}
               >
-                + Adaugă notiță
+                Adaugă notiță
               </button>
             </div>
           </div>

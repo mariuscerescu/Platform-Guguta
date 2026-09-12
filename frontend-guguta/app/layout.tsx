@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
+import type { ReactNode } from "react";
 import "./globals.css";
+import AuthEntryLink from "./components/AuthEntryLink";
+import { withBase } from "../lib/paths";
 
 export const metadata: Metadata = {
   title: "Guguță — Carnete digitale",
@@ -10,13 +13,65 @@ export const metadata: Metadata = {
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <html lang="ro-MD">
       <body>
+        {/*
+          Curăță marcajele pe care le injectează extensiile de browser în DOM
+          înainte ca React să hidrateze (`bis_skin_checked`, `bis_register`,
+          `__processed_<uuid>__` — semnătura Bitdefender și a altora).
+
+          De ce e nevoie: React compară HTML-ul de pe server cu randarea din
+          browser. Atributele străine apar doar în DOM, deci React raportează o
+          nepotrivire de hidratare deși aplicația nu are niciun defect.
+          `suppressHydrationWarning` nu ajută aici — a fost măsurat: extensia
+          marchează și elemente imbricate, inclusiv noduri interne Next.js.
+
+          Se pot șterge în siguranță: sunt simple marcaje de evidență ale
+          extensiei, nu influențează protecția ei și nu au legătură cu datele
+          aplicației. Dacă vrei să scapi de tot de script, dezactivează extensia
+          pentru localhost — atunci nu mai e nimic de curățat.
+        */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){
+  var PREFIXES = ["bis_", "__processed_"];
+  function matches(name){
+    for (var i = 0; i < PREFIXES.length; i++) {
+      if (name.indexOf(PREFIXES[i]) === 0) return true;
+    }
+    return false;
+  }
+  function clean(){
+    var els = document.getElementsByTagName("*");
+    for (var i = 0; i < els.length; i++) {
+      var attrs = els[i].attributes;
+      for (var j = attrs.length - 1; j >= 0; j--) {
+        if (matches(attrs[j].name)) els[i].removeAttribute(attrs[j].name);
+      }
+    }
+  }
+  document.addEventListener("DOMContentLoaded", function(){
+    clean();
+    setTimeout(clean, 250);
+  });
+})();`,
+          }}
+        />
         <header className="header">
-          <span className="wordmark">Guguță</span>
+          <a href={withBase("/")} className="wordmark" aria-label="Guguță">
+            <span>Guguță</span>
+          </a>
+          <nav className="top-nav" aria-label="Navigare principală">
+            <a href={withBase("/")}>Despre noi</a>
+            <a href={withBase("/")}>Resurse</a>
+            <a href={withBase("/import")}>Importă</a>
+          </nav>
+          <div className="header-actions">
+            <AuthEntryLink className="header-login">Intră în cont</AuthEntryLink>
+          </div>
         </header>
         <main className="container">{children}</main>
       </body>

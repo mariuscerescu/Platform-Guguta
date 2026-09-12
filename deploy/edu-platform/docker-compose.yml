@@ -1,0 +1,143 @@
+# Platforma Guguță — stack de PRODUCȚIE pentru https://tineri.math.md/edu-platform
+#
+# Diferențe față de docker-compose.guguta.yml (dezvoltare):
+#   - GUGUTA_ENVIRONMENT=production: configurația refuză secretele de dev,
+#     originile http și furnizorii simulați (open_notebook/database/guguta/config.py).
+#   - Doar frontend-ul este publicat, pe 127.0.0.1:${GUGUTA_HTTP_PORT}.
+#     API-ul, worker-ul și baza de date rămân în rețeaua internă a stack-ului:
+#     browserul vorbește doar cu frontend-ul, care proxează /guguta-api către API.
+#   - Frontend-ul este construit cu basePath (GUGUTA_BASE_PATH=/edu-platform),
+#     deci nginx-ul gazdă NU taie prefixul: trimite calea întreagă mai departe.
+#   - Fără nginx intern: nu avem ce prefix să tăiem (spre deosebire de stack-ul
+#     ttsdatasetbuilder, care are două aplicații în spatele unui singur port).
+#
+# Utilizare (din acest director):
+#   docker compose up -d --build
+#   docker compose ps
+#   curl -s http://127.0.0.1:8300/edu-platform/guguta-api/healthz
+
+name: guguta-edu
+
+# DSN-urile de runtime, compuse o singură dată aici (în .env nu stau DSN-uri cu
+# nume de gazdă Docker). Toate trei se dau și API-ului și worker-ului: în afara
+# mediului de dezvoltare configurația cere explicit ca AMBELE roluri de runtime
+# să fie declarate (open_notebook/database/guguta/config.py), iar fiecare proces
+# se conectează oricum doar cu rolul lui (API → guguta_api, worker → guguta_worker).
+x-db-dsns: &db-dsns
+  GUGUTA_DATABASE_URL_MIGRATOR: postgresql+psycopg://guguta_migrator:${GUGUTA_PG_MIGRATOR_PASSWORD}@db:5432/guguta
+  GUGUTA_DATABASE_URL_API: postgresql+psycopg://guguta_api:${GUGUTA_PG_API_PASSWORD}@db:5432/guguta
+  GUGUTA_DATABASE_URL_WORKER: postgresql+psycopg://guguta_worker:${GUGUTA_PG_WORKER_PASSWORD}@db:5432/guguta
+
+services:
+  # --- PostgreSQL 17 + pgvector (imagine fixată prin digest, R02/R03) ---
+  db:
+    image: pgvector/pgvector:0.8.0-pg17@sha256:40b404964359299eefdd5f8518facf1886c562848cf4de13b6eaf91cb70c2b87
+    environment:
+      POSTGRES_DB: guguta
+      POSTGRES_USER: guguta_migrator
+      POSTGRES_PASSWORD: ${GUGUTA_PG_MIGRATOR_PASSWORD:?setează GUGUTA_PG_MIGRATOR_PASSWORD în .env}
+      # Citite o singură dată, la prima pornire cu volum gol, de bootstrap-roles.sh.
+      GUGUTA_PG_API_PASSWORD: ${GUGUTA_PG_API_PASSWORD:?setează GUGUTA_PG_API_PASSWORD în .env}
+      GUGUTA_PG_WORKER_PASSWORD: ${GUGUTA_PG_WORKER_PASSWORD:?setează GUGUTA_PG_WORKER_PASSWORD în .env}
+    volumes:
+      - guguta_pg_data:/var/lib/postgresql/data
+      - ../../docker/guguta/bootstrap-roles.sh:/docker-entrypoint-initdb.d/01-bootstrap-roles.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U guguta_migrator -d guguta"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+    restart: unless-stopped
+
+  # --- Migrarea schemei: un singur punct de intrare per release (ADR-0007) ---
+  # API-ul și worker-ul nu rulează niciodată migrări la pornire.
+  migrator:
+    build:
+      context: ../..
+      dockerfile: docker/guguta/migrator.Dockerfile
+    environment:
+      GUGUTA_DATABASE_URL_MIGRATOR: postgresql+psycopg://guguta_migrator:${GUGUTA_PG_MIGRATOR_PASSWORD}@db:5432/guguta
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+
+  # --- API (FastAPI, doar /api/v1 + /healthz, /readyz, /versionz) ---
+  api:
+    build:
+      context: ../..
+      dockerfile: docker/guguta/api.Dockerfile
+      args:
+        GUGUTA_COMMIT: ${GUGUTA_COMMIT:-unknown}
+    env_file:
+      - .env
+    environment:
+      <<: *db-dsns
+      GUGUTA_STORAGE_ROOT: /data/guguta_storage
+    volumes:
+      - guguta_storage:/data/guguta_storage
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5055/healthz').read()"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      db:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # --- Worker pentru procesarea materialelor (embedding, extragere text) ---
+  worker:
+    build:
+      context: ../..
+      dockerfile: docker/guguta/api.Dockerfile
+      args:
+        GUGUTA_COMMIT: ${GUGUTA_COMMIT:-unknown}
+    env_file:
+      - .env
+    environment:
+      <<: *db-dsns
+      GUGUTA_STORAGE_ROOT: /data/guguta_storage
+      GUGUTA_JOB_WORKER_NAME: guguta-worker-1
+    volumes:
+      - guguta_storage:/data/guguta_storage
+    command: ["python", "-m", "open_notebook.jobs.guguta.worker"]
+    depends_on:
+      db:
+        condition: service_healthy
+      migrator:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # --- Frontend Next.js, construit cu basePath=/edu-platform ---
+  frontend:
+    build:
+      context: ../..
+      dockerfile: docker/guguta/frontend.Dockerfile
+      args:
+        # Intră în bundle-ul de client: schimbarea lui cere REBUILD, nu doar restart.
+        GUGUTA_BASE_PATH: ${GUGUTA_BASE_PATH:-/edu-platform}
+    environment:
+      # Folosit de rewrites() pentru proxy-ul same-origin; e copt la build.
+      GUGUTA_API_URL: http://api:5055
+      PORT: "3001"
+    ports:
+      # Doar pe loopback: nginx-ul gazdă este singurul care ajunge aici.
+      - "127.0.0.1:${GUGUTA_HTTP_PORT:-8300}:3001"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  guguta_pg_data:
+  guguta_storage:
