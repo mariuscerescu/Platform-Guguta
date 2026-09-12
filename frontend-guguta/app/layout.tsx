@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
+import HeaderAuthLink from "./components/HeaderAuthLink";
 import { withBase } from "../lib/paths";
 
 export const metadata: Metadata = {
@@ -67,10 +68,11 @@ export default function RootLayout({
             <a href={withBase("/import")}>Importă</a>
           </nav>
           {/*
-            Header-ul nu are buton de cont: intrarea în cont stă doar pe pagina
-            de start (app/page.tsx), ca să nu urmărească utilizatorul pe fiecare
-            pagină. Cine vrea să intre în cont ajunge acolo prin sigla „Guguță".
+            Buton de cont doar pe pagina de start: „Intră în cont" pentru
+            vizitatori, carnetele pentru cine e autentificat. Pe celelalte
+            pagini header-ul rămâne fără buton (vezi HeaderAuthLink).
           */}
+          <HeaderAuthLink />
         </header>
         <main className="container">{children}</main>
       </body>
