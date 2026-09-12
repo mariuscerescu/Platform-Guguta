@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
-import AuthEntryLink from "./components/AuthEntryLink";
 import { withBase } from "../lib/paths";
 
 export const metadata: Metadata = {
@@ -67,16 +66,11 @@ export default function RootLayout({
           <nav className="top-nav" aria-label="Navigare principală">
             <a href={withBase("/import")}>Importă</a>
           </nav>
-          <div className="header-actions">
-            {/*
-              Vizitator neautentificat: „Intră în cont".
-              După autentificare locul rămâne gol — fără buton și fără numele
-              utilizatorului (vezi AuthEntryLink).
-            */}
-            <AuthEntryLink className="header-login" hideWhenSignedIn>
-              Intră în cont
-            </AuthEntryLink>
-          </div>
+          {/*
+            Header-ul nu are buton de cont: intrarea în cont stă doar pe pagina
+            de start (app/page.tsx), ca să nu urmărească utilizatorul pe fiecare
+            pagină. Cine vrea să intre în cont ajunge acolo prin sigla „Guguță".
+          */}
         </header>
         <main className="container">{children}</main>
       </body>

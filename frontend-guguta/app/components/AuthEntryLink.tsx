@@ -9,18 +9,10 @@ type AuthUser = { display_name: string };
 
 type AuthEntryLinkProps = {
   className?: string;
-  /** Eticheta afișată când vizitatorul NU este autentificat. */
+  /** Eticheta butonului (ex. „Deschide Guguță"). */
   children: ReactNode;
+  /** Unde ajunge utilizatorul autentificat. */
   next?: string;
-  /**
-   * Randat doar pentru vizitatori: după autentificare componenta nu mai
-   * afișează nimic. Header-ul o cere așa — locul butonului „Intră în cont"
-   * rămâne gol după login (fără buton și fără numele utilizatorului).
-   *
-   * Cât timp starea de autentificare nu e cunoscută, nu se randează nimic:
-   * altfel „Intră în cont" ar apărea o clipă și pentru cine e deja autentificat.
-   */
-  hideWhenSignedIn?: boolean;
 };
 
 function safeNext(value: string): string {
@@ -31,38 +23,37 @@ function oidcLoginHref(next: string): string {
   return `${API_BASE}/api/v1/auth/oidc/login?next=${encodeURIComponent(withBase(safeNext(next)))}`;
 }
 
+/**
+ * Intrarea în cont. Se folosește **doar pe pagina de start** — header-ul nu are
+ * buton de cont, ca să nu urmărească utilizatorul pe fiecare pagină.
+ *
+ * Vizitator: duce la autentificare (parolă sau OIDC, după cum e configurat
+ * serverul). Autentificat: duce direct la carnetele lui.
+ */
 export default function AuthEntryLink({
   className,
   children,
   next = "/app",
-  hideWhenSignedIn = false,
 }: AuthEntryLinkProps) {
   const [href, setHref] = useState(withBase("/login"));
-  const [user, setUser] = useState<AuthUser | null>(null);
-  const [resolved, setResolved] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const found = await me();
+      const user: AuthUser | null = await me();
       if (cancelled) return;
-      if (found) {
-        setUser(found);
+      if (user) {
         setHref(withBase(safeNext(next)));
-        setResolved(true);
         return;
       }
       const mode = await authMode();
       if (cancelled) return;
       setHref(mode === "oidc" ? oidcLoginHref(next) : withBase("/login"));
-      setResolved(true);
     })();
     return () => {
       cancelled = true;
     };
   }, [next]);
-
-  if (hideWhenSignedIn && (!resolved || user)) return null;
 
   return (
     <a href={href} className={className}>
