@@ -65,12 +65,16 @@ export default function RootLayout({
             <span>Guguță</span>
           </a>
           <nav className="top-nav" aria-label="Navigare principală">
-            <a href={withBase("/")}>Despre noi</a>
-            <a href={withBase("/")}>Resurse</a>
             <a href={withBase("/import")}>Importă</a>
           </nav>
           <div className="header-actions">
-            <AuthEntryLink className="header-login">Intră în cont</AuthEntryLink>
+            {/*
+              Autentificat: numele utilizatorului, care duce la carnetele lui.
+              Neautentificat: „Intră în cont".
+            */}
+            <AuthEntryLink className="header-login" signedIn="display_name">
+              Intră în cont
+            </AuthEntryLink>
           </div>
         </header>
         <main className="container">{children}</main>

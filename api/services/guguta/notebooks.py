@@ -44,6 +44,28 @@ def _clamp_page(page: int, page_size: int) -> tuple[int, int]:
     return page, page_size
 
 
+# Coloanele returnate către API. `pinned_at` este momentul fixării sus
+# (NULL = nefixat); clientul primește și `pinned`, ca să nu compare date.
+_NOTEBOOK_COLUMNS = (
+    "id, owner_id, title, description, status, origin, context_revision, "
+    "created_at, updated_at, pinned_at"
+)
+_LIST_COLUMNS = (
+    "id, title, description, status, origin, context_revision, "
+    "created_at, updated_at, pinned_at"
+)
+# Fixate primele, apoi sortarea cerută. `NULLS LAST` este obligatoriu: în
+# PostgreSQL, `DESC` pune valorile NULL primele, deci fără el carnetele
+# nefixate ar ajunge deasupra celor fixate.
+_PINNED_FIRST = "pinned_at DESC NULLS LAST"
+
+
+def _serialize(row: Any) -> dict[str, Any]:
+    data = dict(row)
+    data["pinned"] = data.get("pinned_at") is not None
+    return data
+
+
 class NotebookService:
     def __init__(self, engine: AsyncEngine) -> None:
         self._engine = engine
@@ -75,14 +97,13 @@ class NotebookService:
             row = (
                 await conn.execute(
                     text(
-                        "SELECT id, owner_id, title, description, status, origin, "
-                        "context_revision, created_at, updated_at "
+                        f"SELECT {_NOTEBOOK_COLUMNS} "
                         "FROM digital_notebooks WHERE id = :id"
                     ),
                     {"id": nb_id},
                 )
             ).mappings().one()
-        return dict(row)
+        return _serialize(row)
 
     async def list_for_actor(
         self, actor: ActorContext, *, page: int = 1, page_size: int = PAGE_SIZE_DEFAULT,
@@ -101,10 +122,9 @@ class NotebookService:
             rows = (
                 await conn.execute(
                     text(
-                        "SELECT id, title, description, status, origin, context_revision, "
-                        "created_at, updated_at FROM digital_notebooks "
+                        f"SELECT {_LIST_COLUMNS} FROM digital_notebooks "
                         f"WHERE status <> 'deleted' {status_filter} "
-                        f"ORDER BY {order} LIMIT :limit OFFSET :offset"
+                        f"ORDER BY {_PINNED_FIRST}, {order} LIMIT :limit OFFSET :offset"
                     ),
                     params,
                 )
@@ -139,7 +159,7 @@ class NotebookService:
         rows = rows[:page_size]
         return {
             "items": [
-                {**dict(r), "source_count": counts.get(r["id"], 0)} for r in rows
+                {**_serialize(r), "source_count": counts.get(r["id"], 0)} for r in rows
             ],
             "page": page,
             "page_size": page_size,
@@ -152,8 +172,7 @@ class NotebookService:
             row = (
                 await conn.execute(
                     text(
-                        "SELECT id, owner_id, title, description, status, origin, "
-                        "context_revision, created_at, updated_at "
+                        f"SELECT {_NOTEBOOK_COLUMNS} "
                         "FROM digital_notebooks WHERE id = :id"
                     ),
                     {"id": notebook_id},
@@ -161,12 +180,12 @@ class NotebookService:
             ).mappings().first()
         if row is None:
             raise NotebookNotFound()
-        return dict(row)
+        return _serialize(row)
 
     async def update(
         self, actor: ActorContext, notebook_id: uuid.UUID, *,
         title: Optional[str] = None, description: Optional[str] = None,
-        archive: Optional[bool] = None,
+        archive: Optional[bool] = None, pinned: Optional[bool] = None,
     ) -> dict[str, Any]:
         sets: list[str] = []
         params: dict[str, Any] = {"id": notebook_id}
@@ -185,6 +204,10 @@ class NotebookService:
             sets.extend(["status = 'archived'", "archived_at = now()"])
         elif archive is False:
             sets.extend(["status = 'active'", "archived_at = NULL"])
+        if pinned is True:
+            sets.append("pinned_at = now()")
+        elif pinned is False:
+            sets.append("pinned_at = NULL")
         if not sets:
             raise NotebookValidation("Nimic de actualizat.")
         async with actor_connection(self._engine, actor.actor_id) as conn:
@@ -201,14 +224,13 @@ class NotebookService:
             row = (
                 await conn.execute(
                     text(
-                        "SELECT id, owner_id, title, description, status, origin, "
-                        "context_revision, created_at, updated_at "
+                        f"SELECT {_NOTEBOOK_COLUMNS} "
                         "FROM digital_notebooks WHERE id = :id"
                     ),
                     {"id": notebook_id},
                 )
             ).mappings().one()
-        return dict(row)
+        return _serialize(row)
 
     async def delete(self, actor: ActorContext, notebook_id: uuid.UUID) -> int:
         """Delete the notebook; its active share packages are revoked first

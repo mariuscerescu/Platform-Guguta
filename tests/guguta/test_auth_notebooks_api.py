@@ -227,6 +227,95 @@ async def test_pagination_and_sort_allowlist(client: AsyncClient) -> None:
     assert resp.json()["page_size"] == 100  # clamped
 
 
+async def test_notebook_pinning_orders_first(client: AsyncClient) -> None:
+    """Fixarea sus: carnetul fixat urcă primul în listă, iar sortarea cerută
+    rămâne în spatele lui; anularea fixării îl readuce la locul lui."""
+    auth = await _login(client, "Fixare probe")
+    ids: dict[str, str] = {}
+    for title in ("Carnet A", "Carnet B", "Carnet C"):
+        resp = await client.post(
+            "/api/v1/notebooks",
+            json={"title": title},
+            cookies=_cookies(auth),
+            headers=_auth_headers(auth),
+        )
+        assert resp.status_code == 201, resp.text
+        created = resp.json()
+        ids[title] = created["id"]
+        # un carnet nou nu este fixat
+        assert created["pinned"] is False
+        assert created["pinned_at"] is None
+
+    async def titles(**params: Any) -> list[str]:
+        resp = await client.get(
+            "/api/v1/notebooks", params=params, cookies=_cookies(auth)
+        )
+        assert resp.status_code == 200, resp.text
+        return [n["title"] for n in resp.json()["items"]]
+
+    assert await titles(sort="title_asc") == ["Carnet A", "Carnet B", "Carnet C"]
+
+    # fixăm C: urcă primul, restul păstrează ordinea cerută
+    resp = await client.patch(
+        f"/api/v1/notebooks/{ids['Carnet C']}",
+        json={"pinned": True},
+        cookies=_cookies(auth),
+        headers=_auth_headers(auth),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["pinned"] is True
+    assert resp.json()["pinned_at"]
+    assert await titles(sort="title_asc") == ["Carnet C", "Carnet A", "Carnet B"]
+    # fixarea învinge și sortarea implicită (cea mai recentă creată)
+    assert (await titles())[0] == "Carnet C"
+
+    # fixăm și A: ambele fixate stau primele, cea mai recent fixată deasupra
+    await client.patch(
+        f"/api/v1/notebooks/{ids['Carnet A']}",
+        json={"pinned": True},
+        cookies=_cookies(auth),
+        headers=_auth_headers(auth),
+    )
+    assert await titles(sort="title_asc") == ["Carnet A", "Carnet C", "Carnet B"]
+
+    # anularea fixării readuce carnetul la locul lui din sortare
+    resp = await client.patch(
+        f"/api/v1/notebooks/{ids['Carnet C']}",
+        json={"pinned": False},
+        cookies=_cookies(auth),
+        headers=_auth_headers(auth),
+    )
+    assert resp.status_code == 200
+    assert resp.json()["pinned"] is False
+    assert resp.json()["pinned_at"] is None
+    assert await titles(sort="title_asc") == ["Carnet A", "Carnet B", "Carnet C"]
+
+    # fixarea altcuiva nu se vede în lista mea
+    other = await _login(client, "Fixare vecin")
+    resp = await client.get("/api/v1/notebooks", cookies=_cookies(other))
+    assert resp.json()["items"] == []
+
+
+async def test_notebook_pin_requires_csrf(client: AsyncClient) -> None:
+    """Fixarea e o mutație: fără CSRF, serverul o refuză (ca orice PATCH)."""
+    auth = await _login(client, "Fixare CSRF")
+    created = await client.post(
+        "/api/v1/notebooks",
+        json={"title": "Carnet fără CSRF"},
+        cookies=_cookies(auth),
+        headers=_auth_headers(auth),
+    )
+    nb_id = created.json()["id"]
+    resp = await client.patch(
+        f"/api/v1/notebooks/{nb_id}",
+        json={"pinned": True},
+        cookies=_cookies(auth),
+        headers={"Origin": "http://localhost:3000"},
+    )
+    assert resp.status_code == 403
+    assert resp.json()["code"] == "csrf_required"
+
+
 async def test_admin_routes_denied_for_user(client: AsyncClient) -> None:
     """A23 groundwork: the guguta surface exposes no admin routes at all."""
     auth = await _login(client, "Admin probe")

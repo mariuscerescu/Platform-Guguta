@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, me, CatalogTemplate, Notebook } from "../../lib/api";
+import NotebookMenu from "../components/NotebookMenu";
 import { withBase, API_BASE } from "../../lib/paths";
 
 type Tab = "mine" | "school";
@@ -86,6 +87,18 @@ export default function HomePage() {
   const [importToken, setImportToken] = useState("");
   const [importing, setImporting] = useState(false);
 
+  // Reîncărcabilă: meniul fiecărui carnet o cheamă după redenumire, fixare sau
+  // ștergere, ca lista să reflecte imediat schimbarea (inclusiv ordinea).
+  const loadNotebooks = useCallback(async () => {
+    try {
+      const list = await api<{ items: Notebook[] }>("GET", "/api/v1/notebooks");
+      setNotebooks(list.items);
+    } catch (err) {
+      if ((err as { status?: number }).status === 401) setAuthed(false);
+      else setError((err as Error).message);
+    }
+  }, []);
+
   useEffect(() => {
     (async () => {
       try {
@@ -97,15 +110,9 @@ export default function HomePage() {
       const user = await me();
       setAuthed(user !== null);
       if (!user) return;
-      try {
-        const list = await api<{ items: Notebook[] }>("GET", "/api/v1/notebooks");
-        setNotebooks(list.items);
-      } catch (err) {
-        if ((err as { status?: number }).status === 401) setAuthed(false);
-        else setError((err as Error).message);
-      }
+      await loadNotebooks();
     })();
-  }, []);
+  }, [loadNotebooks]);
 
   async function createNotebook() {
     setCreating(true);
@@ -162,6 +169,15 @@ export default function HomePage() {
     if (tab === "school" || !notebooks) return null;
     const q = search.trim().toLowerCase();
     const sorted = [...notebooks].sort((a, b) => {
+      // Fixate sus: ordinea de fixare (cea mai recent fixată deasupra) are
+      // prioritate față de sortarea aleasă; restul rămân sortate ca înainte.
+      if (a.pinned && b.pinned) {
+        const pa = a.pinned_at ?? "";
+        const pb = b.pinned_at ?? "";
+        if (pa !== pb) return pb.localeCompare(pa);
+      } else if (a.pinned !== b.pinned) {
+        return a.pinned ? -1 : 1;
+      }
       if (sort === "title") return a.title.localeCompare(b.title, "ro");
       return (b.created_at ?? "").localeCompare(a.created_at ?? "");
     });
@@ -342,12 +358,11 @@ export default function HomePage() {
                     <td>{formatDate(nb.created_at)}</td>
                     <td>Deținător</td>
                     <td className="col-menu">
-                      <button
-                        aria-label="Meniu carnet"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        ⋮
-                      </button>
+                      <NotebookMenu
+                        notebook={nb}
+                        onChanged={loadNotebooks}
+                        onError={setError}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -374,15 +389,11 @@ export default function HomePage() {
                 >
                   <div className="nb-top">
                     <span className="nb-icon"><NotebookIcon origin={nb.origin} /></span>
-                    <div className="nb-menu">
-                      <button
-                        aria-label="Meniu carnet"
-                        title="Meniu carnet"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        ⋮
-                      </button>
-                    </div>
+                    <NotebookMenu
+                      notebook={nb}
+                      onChanged={loadNotebooks}
+                      onError={setError}
+                    />
                   </div>
                   <div className="nb-body">
                     <h3 className="nb-title">{nb.title}</h3>
@@ -457,11 +468,6 @@ export default function HomePage() {
                 >
                   <div className="nb-top">
                     <span className="nb-icon"><IconBook /></span>
-                    <div className="nb-menu">
-                      <button aria-label="Meniu șablon" onClick={(e) => e.stopPropagation()}>
-                        ⋮
-                      </button>
-                    </div>
                   </div>
                   <div className="nb-body">
                     <h3 className="nb-title">{t.title}</h3>

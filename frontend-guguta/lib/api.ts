@@ -181,6 +181,9 @@ export interface Notebook {
   context_revision: number;
   created_at?: string;
   source_count?: number;
+  /** Fixat sus de proprietar; lista îl pune înaintea celorlalte. */
+  pinned?: boolean;
+  pinned_at?: string | null;
 }
 
 export interface Source {

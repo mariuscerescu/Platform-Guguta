@@ -53,11 +53,8 @@ export default function NotebookPage() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [noteTitle, setNoteTitle] = useState("");
-  const [noteContent, setNoteContent] = useState("");
   const [srcCollapsed, setSrcCollapsed] = useState(false);
   const [studioCollapsed, setStudioCollapsed] = useState(false);
-  const [noteFormOpen, setNoteFormOpen] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [streaming, setStreaming] = useState<string | null>(null);
   useEffect(() => {
@@ -69,6 +66,9 @@ export default function NotebookPage() {
     return () => clearInterval(t);
   }, [sending]);
   const bottomRef = useRef<HTMLDivElement>(null);
+  // Oprește a doua creare de sesiune dacă efectul de încărcare rulează de două
+  // ori (remontare în dezvoltare): un carnet nou primește o singură conversație.
+  const sessionCreationRef = useRef(false);
   // mirror for loadMessages without adding `citations` to its deps —
   // otherwise setCitations recreates loadMessages → infinite re-render loop
   const citationsRef = useRef<Record<string, Citation[]>>({});
@@ -92,7 +92,20 @@ export default function NotebookPage() {
         `/api/v1/notebooks/${nbId}/sessions`,
       );
       setSessions(sess);
-      if (sess.length > 0 && sessionId === null) setSessionId(sess[0].id);
+      if (sess.length > 0) {
+        if (sessionId === null) setSessionId(sess[0].id);
+      } else if (!sessionCreationRef.current) {
+        // Conversația există întotdeauna: un carnet nou primește automat una,
+        // ca panoul din centru să nu rămână gol până apasă cineva un buton.
+        sessionCreationRef.current = true;
+        const created = await api<ChatSession>(
+          "POST",
+          `/api/v1/notebooks/${nbId}/sessions`,
+          {},
+        );
+        setSessions([created]);
+        setSessionId(created.id);
+      }
     } catch (err) {
       if (err instanceof ApiError && err.status === 404) {
         setError("Carnetul nu există sau nu îți aparține.");
@@ -267,36 +280,8 @@ export default function NotebookPage() {
   // Adăugarea materialelor (file manager → upload → procesare) este izolată
   // în SourceUploader; pagina doar reîncarcă lista când ceva s-a schimbat.
 
-  // F04: notebook management (rename/archive/delete)
-  async function deleteNotebook() {
-    if (!confirm(`Ștergi definitiv carnetul „${nb?.title}"?`)) return;
-    try {
-      await api("DELETE", `/api/v1/notebooks/${nbId}`);
-      window.location.href = withBase("/app");
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  }
-
-  async function renameNotebook() {
-    const newTitle = prompt("Titlul nou:", nb?.title ?? "");
-    if (!newTitle?.trim()) return;
-    try {
-      await api("PATCH", `/api/v1/notebooks/${nbId}`, { title: newTitle.trim() });
-      await loadAll();
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  }
-
-  async function archiveNotebook(archive: boolean) {
-    try {
-      await api("PATCH", `/api/v1/notebooks/${nbId}`, { archive });
-      await loadAll();
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  }
+  // Redenumirea, arhivarea și ștergerea carnetului se fac din meniul cardului
+  // (app/components/NotebookMenu.tsx), în lista de carnete.
 
   async function createShare() {
     if (!sources?.length) return;
@@ -335,21 +320,8 @@ export default function NotebookPage() {
     }
   }
 
-  async function addNote(e: React.FormEvent) {
-    e.preventDefault();
-    try {
-      await api("POST", `/api/v1/notebooks/${nbId}/notes`, {
-        title: noteTitle.trim() || "Notiță",
-        content: noteContent.trim(),
-      });
-      setNoteTitle("");
-      setNoteContent("");
-      await loadAll();
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  }
-
+  // Notițele nu se mai adaugă din Studio (decizie de produs); cele existente
+  // rămân vizibile și pot fi șterse. Ruta POST /notes din API rămâne intactă.
   async function removeNote(id: string) {
     try {
       await api("DELETE", `/api/v1/notebooks/${nbId}/notes/${id}`);
@@ -379,6 +351,11 @@ export default function NotebookPage() {
         </a>
         <h1>{nb?.title ?? "Carnet"}</h1>
         <div className="nb-actions">
+          {/*
+            Redenumirea, fixarea sus și ștergerea se fac din meniul cardului,
+            în lista de carnete (app/components/NotebookMenu.tsx) — aici rămâne
+            doar partajarea, care ține de conținutul carnetului deschis.
+          */}
           <button
             className="pill"
             onClick={createShare}
@@ -386,18 +363,6 @@ export default function NotebookPage() {
             title="Creează un pachet de partajare"
           >
             Partajează
-          </button>
-          <button className="pill" onClick={renameNotebook}>Redenumește</button>
-          <button className="pill" onClick={() => archiveNotebook(nb?.status !== "archived")}>
-            {nb?.status === "archived" ? "Dezarhivează" : "Arhivează"}
-          </button>
-          <button
-            className="pill danger"
-            onClick={() => {
-              if (confirm(`Ștergi definitiv carnetul „${nb?.title}"?`)) void deleteNotebook();
-            }}
-          >
-            Șterge
           </button>
         </div>
       </header>
@@ -506,73 +471,77 @@ export default function NotebookPage() {
             <button className="pill small" onClick={newSession}>Conversație nouă</button>
           </div>
           <div className="panel-body chat-body">
-            {sessionId === null ? (
-              <div className="chat-empty">
-                <p className="muted">
-                  Creează o conversație ca să întrebi despre materialele selectate.
-                </p>
-              </div>
-            ) : (
-              <>
-                <div className="msgs">
-                  {messages.length === 0 && (
-                    <p className="muted chat-hint">
-                      Întreabă ceva despre materialele selectate ale carnetului.
-                    </p>
-                  )}
-                  {messages.map((m) => (
-                    <div key={m.id} className={`msg ${m.role}`}>
-                      {m.role === "assistant" ? answerText(m.content) : m.content}
-                      {SHOW_ANSWER_REFERENCES &&
-                        (citations[m.id] ?? []).map((c, i) => (
-                          <span className="citation" key={i}>
-                            [{i + 1}]{" "}
-                            {c.source_removed ? "Sursă eliminată" : c.display_name}
-                            {Object.keys(c.locator).length > 0 &&
-                              ` · ${JSON.stringify(c.locator)}`}
-                          </span>
-                        ))}
-                    </div>
-                  ))}
-                  {streaming !== null && (
-                    <div className="msg assistant streaming">
-                      {answerText(streaming)}
-                      {streaming === "" && <span className="muted">Se generează…</span>}
-                    </div>
-                  )}
-                  <div ref={bottomRef} />
+            {/*
+              Conversația există întotdeauna: carnetul primește automat o
+              sesiune la deschidere (vezi loadAll), iar caseta de scriere e
+              randată necondiționat. Panoul nu are stare goală.
+            */}
+            <div className="msgs">
+              {sessionId === null ? (
+                <p className="muted chat-hint">Se pregătește conversația…</p>
+              ) : (
+                messages.length === 0 && (
+                  <p className="muted chat-hint">
+                    Întreabă ceva despre materialele selectate ale carnetului.
+                  </p>
+                )
+              )}
+              {messages.map((m) => (
+                <div key={m.id} className={`msg ${m.role}`}>
+                  {m.role === "assistant" ? answerText(m.content) : m.content}
+                  {SHOW_ANSWER_REFERENCES &&
+                    (citations[m.id] ?? []).map((c, i) => (
+                      <span className="citation" key={i}>
+                        [{i + 1}]{" "}
+                        {c.source_removed ? "Sursă eliminată" : c.display_name}
+                        {Object.keys(c.locator).length > 0 &&
+                          ` · ${JSON.stringify(c.locator)}`}
+                      </span>
+                    ))}
                 </div>
-                <div className="composer">
-                  <textarea
-                    id="draft"
-                    placeholder="Pune o întrebare despre materiale…"
-                    value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.shiftKey) {
-                        e.preventDefault();
-                        void send();
-                      }
-                    }}
-                  />
-                  <button
-                    className="send-btn"
-                    onClick={() => void send()}
-                    disabled={sending || !draft.trim()}
-                    aria-label="Trimite"
-                    title={sending ? `Se generează… ${elapsed}s` : "Trimite"}
-                  >
-                    {sending ? (
-                      <span style={{ fontSize: 11, fontWeight: 600 }}>{elapsed}s</span>
-                    ) : (
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M5 12h13M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                    )}
-                  </button>
+              ))}
+              {streaming !== null && (
+                <div className="msg assistant streaming">
+                  {answerText(streaming)}
+                  {streaming === "" && <span className="muted">Se generează…</span>}
                 </div>
-              </>
-            )}
+              )}
+              <div ref={bottomRef} />
+            </div>
+            <div className="composer">
+              <textarea
+                id="draft"
+                placeholder={
+                  sessionId === null
+                    ? "Se pregătește conversația…"
+                    : "Pune o întrebare despre materiale…"
+                }
+                value={draft}
+                disabled={sessionId === null}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    void send();
+                  }
+                }}
+              />
+              <button
+                className="send-btn"
+                onClick={() => void send()}
+                disabled={sending || sessionId === null || !draft.trim()}
+                aria-label="Trimite"
+                title={sending ? `Se generează… ${elapsed}s` : "Trimite"}
+              >
+                {sending ? (
+                  <span style={{ fontSize: 11, fontWeight: 600 }}>{elapsed}s</span>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M5 12h13M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </button>
+            </div>
           </div>
         </section>
 
@@ -601,9 +570,6 @@ export default function NotebookPage() {
                   <path d="M12 2l1.8 5.6L19 9l-5.2 1.4L12 16l-1.8-5.6L5 9l5.2-1.4L12 2zm7 12l.9 2.6L22.5 18l-2.6.9L19 21.5l-.9-2.6-2.6-.9 2.6-.9L19 14z" />
                 </svg>
                 <p className="studio-strong">Rezultatul Studio va fi salvat aici.</p>
-                <p className="muted">
-                  Salvează idei și explicații utile pentru acest Carnet digital.
-                </p>
               </div>
             ) : (
               notes.map((n) => (
@@ -629,38 +595,6 @@ export default function NotebookPage() {
                 <strong>Audio overview</strong>
                 <span>Va transforma materialele într-un rezumat audio.</span>
               </div>
-            </div>
-            <div style={{ marginTop: "auto", paddingTop: 16 }}>
-              {noteFormOpen && (
-                <form onSubmit={addNote} className="note-form">
-                  <label htmlFor="note-title" className="muted">Titlu</label>
-                  <input
-                    id="note-title"
-                    value={noteTitle}
-                    onChange={(e) => setNoteTitle(e.target.value)}
-                  />
-                  <label htmlFor="note-content" className="muted">Conținut</label>
-                  <textarea
-                    id="note-content"
-                    value={noteContent}
-                    onChange={(e) => setNoteContent(e.target.value)}
-                  />
-                  <button
-                    className="primary"
-                    style={{ marginTop: 8, width: "100%" }}
-                    disabled={!noteContent.trim()}
-                  >
-                    Salvează notița
-                  </button>
-                </form>
-              )}
-              <button
-                className="create-btn"
-                style={{ width: "100%", justifyContent: "center" }}
-                onClick={() => setNoteFormOpen((v) => !v)}
-              >
-                Adaugă notiță
-              </button>
             </div>
           </div>
         </section>

@@ -367,6 +367,8 @@ class NotebookUpdate(BaseModel):
     title: Optional[str] = Field(default=None, min_length=1, max_length=500)
     description: Optional[str] = Field(default=None, max_length=5000)
     archive: Optional[bool] = None
+    # Fixare „sus" în lista proprietarului: true fixează, false anulează.
+    pinned: Optional[bool] = None
 
 
 notebooks_router = APIRouter(prefix="/api/v1/notebooks", tags=["notebooks"])
@@ -413,6 +415,7 @@ async def update_notebook(
     return await service.update(
         actor, notebook_id,
         title=body.title, description=body.description, archive=body.archive,
+        pinned=body.pinned,
     )
 
 

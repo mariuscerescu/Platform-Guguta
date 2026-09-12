@@ -686,6 +686,69 @@ main.container {
 .src-act:hover,
 .icon-btn:hover { background: var(--surface-hover); }
 
+/* Meniul unui carnet din listă (card sau tabel). Butonul „⋮" exista și înainte,
+   dar nu avea nicio acțiune legată; derulantul de mai jos le ține pe toate trei. */
+.nb-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.menu-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  min-width: 194px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  text-align: left;
+}
+
+.menu-pop button {
+  width: auto;
+  height: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  font-size: 0.92rem;
+}
+
+.menu-pop button:hover:not(:disabled) { background: var(--surface-hover); }
+.menu-pop button:disabled { opacity: 0.55; cursor: default; }
+.menu-pop button svg { width: 17px; height: 17px; color: var(--text-secondary); }
+.menu-pop button.danger,
+.menu-pop button.danger svg { color: var(--red); }
+
+.menu-rename {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px;
+}
+
+.menu-rename input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+}
+
+.menu-rename-actions { display: flex; gap: 6px; }
+.menu-rename-actions .pill.small { flex: 1; justify-content: center; }
+
 .nb-body {
   margin-top: auto;
   padding: 18px 16px;

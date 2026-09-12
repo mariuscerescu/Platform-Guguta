@@ -364,6 +364,10 @@ class DigitalNotebook(GugutaBase):
         Integer, nullable=False, default=1, server_default="1"
     )
     archived_at: Mapped[Optional[datetime]] = _ts_opt()
+    # Fixarea „sus" în lista proprietarului: NULL = nefixat. Ordinea din listă
+    # pune carnetele fixate primele, apoi sortarea cerută (vezi
+    # api/services/guguta/notebooks.py).
+    pinned_at: Mapped[Optional[datetime]] = _ts_opt()
     created_at: Mapped[datetime] = _ts()
     updated_at: Mapped[datetime] = _updated_at()
 
