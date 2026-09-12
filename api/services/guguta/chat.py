@@ -51,7 +51,12 @@ class IdempotencyConflict(OpenNotebookError):
 
 
 class SourcesRequired(OpenNotebookError):
-    """No eligible sources selected (maps to 422 with a helpful message)."""
+    """No eligible sources selected (maps to 422 with a helpful message).
+
+    Păstrat pentru contractul de erori al API-ului, dar **nu mai este ridicat**:
+    întrebarea se acceptă și fără materiale selectate, iar răspunsul de atunci
+    este general, fără citări (vezi ADR-0013).
+    """
 
 
 class ChatProviderUnavailable(OpenNotebookError):
@@ -127,20 +132,11 @@ class ChatService:
                 raise ChatSessionNotFound()
             context_revision = int(session[1])
 
-            selected = (
-                await conn.execute(
-                    text(
-                        "SELECT count(*) FROM notebook_sources"
-                        " WHERE notebook_id = :nb AND selected_for_chat AND status = 'ready'"
-                    ),
-                    {"nb": notebook_id},
-                )
-            ).scalar_one()
-            if int(selected) == 0:
-                raise SourcesRequired(
-                    "Niciun fragment găsit în materialele selectate."
-                )
-
+            # Nu cerem materiale selectate: întrebarea se salvează mereu, iar
+            # fără fragmente furnizorul răspunde din cunoștințele generale și
+            # spune clar că răspunsul nu vine din carnet (vezi SYSTEM_PROMPT).
+            # Regula veche oprea conversația cu „Niciun fragment găsit în
+            # materialele selectate."
             seq = (
                 await conn.execute(
                     text("SELECT coalesce(max(seq), 0) + 1 FROM chat_messages WHERE session_id = :sid"),
@@ -447,21 +443,8 @@ class ChatService:
 
             if context_revision != revision:
                 raise IdempotencyConflict("Materialele s-au schimbat în timpul căutării; repetă întrebarea.")
-            selected = (
-                await conn.execute(
-                    text(
-                        "SELECT count(*) FROM notebook_sources"
-                        " WHERE notebook_id = :nb AND selected_for_chat"
-                        "   AND status = 'ready'"
-                    ),
-                    {"nb": notebook_id},
-                )
-            ).scalar_one()
-            if int(selected) == 0:
-                raise SourcesRequired(
-                    "Niciun fragment găsit în materialele selectate. Adaugă sau "
-                    "selectează materiale în carnet înainte de a întreba."
-                )
+            # Ca și pe fluxul cu streaming, întrebarea trece și fără materiale:
+            # răspunsul de atunci e general, fără citări.
 
             # F07: the model context includes only messages generated under the
             # CURRENT revision. Older messages stay visible in UI history but

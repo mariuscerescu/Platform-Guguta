@@ -114,9 +114,9 @@ Revizia 1.1 aliniază ordinea cu livrările L0–L10. Testele, identitatea și C
 - [x] Implementăm context_revision și invalidarea la schimbarea surselor. — bump la ștergere/schimbare selecție (testat); mesajele înregistrează revizia folosită; retrievalul folosește selecția curentă (A17 testat).
 - [x] Implementăm streaming, anulare, retry și ordonarea mesajelor. — **parțial**: ordonare (seq + lock pe rândul sesiunii) și retry prin idempotency (testate); streaming SSE + anulare → L5 (UI). Generarea rulată în afara tranzacțiilor SQL.
 - [x] Validăm ID-urile și locatorii citărilor înainte de afișare. — citările se creează doar din setul trimis modelului; endpoint citări cu `source_removed` (testat).
-- [x] Adăugăm răspunsul pentru lipsa informației și eroarea furnizorului. — A13: mock declară lipsa informației, zero citări inventate (testat); fără materiale selectate → 422 `sources_required` cu mesaj util.
+- [x] Adăugăm răspunsul pentru lipsa informației și eroarea furnizorului. — A13: mock declară lipsa informației, zero citări inventate (testat); fără materiale selectate întrebarea trece — răspuns general, etichetat ca atare, cu zero citări (ADR-0013; regula veche de 422 `sources_required` a fost scoasă).
 - [x] Testăm A/B inclusiv în payloadurile modelului, streamuri și memorie. — izolare pe sesiuni/citări (testat); payload model = fragmente autorizate doar (construcție); probele live cu payload logat rămân L9.
-- [x] Testăm sursa eliminată și răspunsul în curs. — ștergerea sursei → retrieval gol → 422 clar; citările istorice rămân cu sursa marcată eliminată (SET NULL, testat indirect prin `source_removed`).
+- [x] Testăm sursa eliminată și răspunsul în curs. — ștergerea sursei → retrieval gol → răspuns general etichetat, fără citări (ADR-0013); citările istorice rămân cu sursa marcată eliminată (SET NULL, testat indirect prin `source_removed`).
 - [x] Executăm fluxul doi utilizatori → carnet → PDF → căutare → chat/citare → restart. — `test_full_probe_two_users_restart` (2 utilizatori izolați, persistență peste instanță nouă de app).
 
 **Poartă G2/G3:** proba completă și izolarea trec. Catalogul și share-ul nu încep înainte de această probă.

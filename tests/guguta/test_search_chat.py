@@ -240,7 +240,8 @@ async def test_context_revision_changes_retrieval_scope(
     )).json()
     assert after == []
 
-    # asking now refuses clearly: no eligible material
+    # asking still works: without materials the answer is general, marked as
+    # such, with no citations — the question is never refused (ADR-0013)
     session = (await client.post(
         f"/api/v1/notebooks/{nb_id}/sessions", json={},
         cookies=_cookies(a["auth"]), headers=_headers(a["auth"]),
@@ -250,8 +251,16 @@ async def test_context_revision_changes_retrieval_scope(
         json={"content": "Ce spune materialul despre gravitație?"},
         cookies=_cookies(a["auth"]), headers=_headers(a["auth"]),
     )
-    assert resp.status_code == 422
-    assert resp.json()["code"] == "sources_required"
+    assert resp.status_code == 200
+    assert resp.json()["cited"] == 0
+    messages = (await client.get(
+        f"/api/v1/notebooks/{nb_id}/sessions/{session['id']}/messages",
+        cookies=_cookies(a["auth"]),
+    )).json()
+    assert [m["role"] for m in messages] == ["user", "assistant"]
+    assert messages[0]["content"] == "Ce spune materialul despre gravitație?"
+    # răspunsul spune de unde vine: din cunoștințele generale, nu din materiale
+    assert "cunoștințele generale" in messages[1]["content"]
 
 
 async def test_full_probe_two_users_restart(

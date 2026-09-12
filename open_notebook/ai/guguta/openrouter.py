@@ -17,7 +17,15 @@ import httpx
 from open_notebook.ai.guguta.chat import SYSTEM_PROMPT, ChatAnswer
 from open_notebook.exceptions import ExternalServiceError
 
-PROMPT_VERSION = "guguta-openrouter-1"
+PROMPT_VERSION = "guguta-openrouter-2"
+
+# Eticheta de proveniență pentru răspunsurile fără materiale. Modelul o poate
+# uita, așa că o adăugăm noi: elevul trebuie să știe mereu de unde vine
+# răspunsul (ADR-0013).
+FARA_MATERIALE_PREFIX = (
+    "Nu am materiale din carnet care să acopere întrebarea, așa că îți răspund "
+    "din cunoștințele generale:"
+)
 
 
 class OpenRouterError(ExternalServiceError):
@@ -178,15 +186,17 @@ class OpenRouterChatProvider:
 
     async def generate(self, question: str, context_chunks: Sequence[Any],
                        history: Sequence[dict[str, str]]) -> ChatAnswer:
-        if not context_chunks:
-            return ChatAnswer("Nu găsesc informația în materialele selectate ale carnetului.",
-                              [], self.model_name, prompt_version=PROMPT_VERSION)
+        # Fără fragmente nu refuzăm întrebarea: cerem modelului un răspuns din
+        # cunoștințele generale, marcat ca atare, cu citări vide (ADR-0013).
         instruction = (
             SYSTEM_PROMPT + " Returnează numai JSON valid cu câmpurile answer (text) și cited "
             "(lista indicilor întregi, de la 0, ai fragmentelor folosite). În answer citează "
             "fragmentele prin [1], [2] etc., unde [1] corespunde indicelui 0. "
-            "Nu folosi citări din istoricul conversației. Dacă materialele nu oferă "
-            "răspunsul, spune asta și returnează cited: []. Nu divulga raționamentul intern."
+            "Nu folosi citări din istoricul conversației. Dacă lista "
+            "untrusted_source_fragments este vidă, răspunde din cunoștințele generale, spune "
+            "clar că răspunsul nu vine din materialele carnetului, întoarce cited: [] și nu "
+            "pune marcaje [1]. Dacă materialele nu oferă răspunsul, spune asta și returnează "
+            "cited: []. Nu divulga raționamentul intern."
         )
         messages: list[dict[str, str]] = [{"role": "system", "content": instruction}]
         messages.extend({"role": m["role"], "content": m["content"]}
@@ -222,12 +232,21 @@ class OpenRouterChatProvider:
             answer, cited = obj["answer"], obj["cited"]
             if not isinstance(answer, str) or not answer.strip() or not isinstance(cited, list):
                 raise ValueError()
+            if not context_chunks:
+                # Fără fragmente nu există ce cita: scoatem marcajele de citare
+                # (una-două cifre, singurele posibile pentru cel mult 6
+                # fragmente) și nu verificăm coerența lor — într-un răspuns
+                # general, un număr între paranteze poate fi orice.
+                answer = re.sub(r"\s*\[\d{1,2}\]", "", answer).strip()
+                cited = []
+                # eticheta de proveniență nu depinde de bunăvoința modelului
+                answer = f"{FARA_MATERIALE_PREFIX} {answer}"
             if any(type(i) is not int or not 0 <= i < len(context_chunks) for i in cited):
                 raise ValueError()
             cited = list(dict.fromkeys(cited))
             marker_numbers = [int(i) for i in re.findall(r"\[(\d+)\]", answer)]
             markers = {i - 1 for i in marker_numbers}
-            if markers != set(cited):
+            if context_chunks and markers != set(cited):
                 # Some reasoning models emit zero-based markers ([0]) even when
                 # instructed to show human-facing one-based citations. Accept
                 # only when the marker set exactly matches cited indexes, then
