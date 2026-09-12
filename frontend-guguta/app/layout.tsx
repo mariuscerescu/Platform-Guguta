@@ -69,10 +69,11 @@ export default function RootLayout({
           </nav>
           <div className="header-actions">
             {/*
-              Autentificat: numele utilizatorului, care duce la carnetele lui.
-              Neautentificat: „Intră în cont".
+              Vizitator neautentificat: „Intră în cont".
+              După autentificare locul rămâne gol — fără buton și fără numele
+              utilizatorului (vezi AuthEntryLink).
             */}
-            <AuthEntryLink className="header-login" signedIn="display_name">
+            <AuthEntryLink className="header-login" hideWhenSignedIn>
               Intră în cont
             </AuthEntryLink>
           </div>

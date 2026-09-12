@@ -13,12 +13,14 @@ type AuthEntryLinkProps = {
   children: ReactNode;
   next?: string;
   /**
-   * Ce se afișează după autentificare. Proprietate simplă, nu funcție: link-ul
-   * e randat și din layout-ul server, iar o funcție nu poate traversa granița
-   * server → client (Next ar refuza randarea întregii pagini).
-   *   "display_name" — numele utilizatorului; header-ul îl cere așa.
+   * Randat doar pentru vizitatori: după autentificare componenta nu mai
+   * afișează nimic. Header-ul o cere așa — locul butonului „Intră în cont"
+   * rămâne gol după login (fără buton și fără numele utilizatorului).
+   *
+   * Cât timp starea de autentificare nu e cunoscută, nu se randează nimic:
+   * altfel „Intră în cont" ar apărea o clipă și pentru cine e deja autentificat.
    */
-  signedIn?: "display_name";
+  hideWhenSignedIn?: boolean;
 };
 
 function safeNext(value: string): string {
@@ -33,10 +35,11 @@ export default function AuthEntryLink({
   className,
   children,
   next = "/app",
-  signedIn,
+  hideWhenSignedIn = false,
 }: AuthEntryLinkProps) {
   const [href, setHref] = useState(withBase("/login"));
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [resolved, setResolved] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -46,20 +49,24 @@ export default function AuthEntryLink({
       if (found) {
         setUser(found);
         setHref(withBase(safeNext(next)));
+        setResolved(true);
         return;
       }
       const mode = await authMode();
       if (cancelled) return;
       setHref(mode === "oidc" ? oidcLoginHref(next) : withBase("/login"));
+      setResolved(true);
     })();
     return () => {
       cancelled = true;
     };
   }, [next]);
 
+  if (hideWhenSignedIn && (!resolved || user)) return null;
+
   return (
     <a href={href} className={className}>
-      {user && signedIn === "display_name" ? user.display_name : children}
+      {children}
     </a>
   );
 }

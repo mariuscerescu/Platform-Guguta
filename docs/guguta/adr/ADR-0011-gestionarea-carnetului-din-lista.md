@@ -50,11 +50,14 @@ Trei nemulțumiri separate, aceeași zonă:
    necondiționat (dezactivată doar în scurta clipă cât se pregătește sesiunea).
    Panoul nu are stare goală; butonul „Conversație nouă" rămâne pentru sesiuni
    suplimentare.
-6. **Header-ul arată numele după autentificare**, iar linkul duce la carnete.
-   Eticheta se alege printr-o proprietate serializabilă (`signedIn="display_name"`),
-   nu printr-o funcție: `layout.tsx` este componentă de server, iar o funcție
-   trimisă către o componentă de client oprește randarea întregii pagini (500 pe
-   toate rutele).
+6. **Header-ul nu are buton de cont după autentificare.** „Intră în cont" se
+   vede doar pentru vizitatori; după login locul lui rămâne gol — fără buton și
+   fără numele utilizatorului. Cât timp starea sesiunii nu este cunoscută nu se
+   randează nimic: altfel butonul ar apărea o clipă exact pentru cine este deja
+   autentificat. Comutarea se cere printr-o proprietate serializabilă
+   (`hideWhenSignedIn`), nu printr-o funcție: `layout.tsx` este componentă de
+   server, iar o funcție trimisă către o componentă de client oprește randarea
+   întregii pagini (500 pe toate rutele).
 7. **Studio nu mai adaugă notițe manual.** Lista notițelor existente și
    ștergerea lor rămân; ruta `POST /api/v1/notebooks/{id}/notes` rămâne intactă
    în API, pentru revenire ulterioară.
@@ -77,5 +80,9 @@ Trei nemulțumiri separate, aceeași zonă:
   deschidere). Sesiunile goale rămân în bază până când cineva scrie în ele.
 - Ștergerea unui carnet fixat, redenumirea și fixarea cer `X-Guguta-CSRF`, ca
   orice mutație; sunt acoperite de teste (`tests/guguta/test_auth_notebooks_api.py`).
+- **Numele utilizatorului nu se afișează în header.** Varianta cu numele (și
+  link către carnete) a fost încercată și respinsă: locul butonului rămâne gol.
+  Cine este autentificat ajunge la carnete din pagina de start sau direct la
+  adresa aplicației.
 - Meniul este o componentă de client folosită în două locuri (card și tabel);
   orice acțiune nouă se adaugă într-un singur fișier.
