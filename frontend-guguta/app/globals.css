@@ -86,11 +86,22 @@ textarea { resize: vertical; }
   min-height: 78px;
   margin: 12px auto 0;
   padding: 0 40px;
-  border: 1px solid rgba(217, 229, 244, 0.72);
+  border: 1px solid transparent;
   border-bottom: 0;
   border-radius: 16px 16px 0 0;
+}
+
+/* Pe pagina de start header-ul e alb și se lipește de cardul alb de dedesubt. */
+.header-landing {
+  border-color: rgba(217, 229, 244, 0.72);
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(16px);
+}
+
+/* Pe celelalte pagini header-ul ia nuanța de fundal a paginii; o bandă albă
+   deasupra conținutului se citea ca o eroare de randare. */
+.header-inner {
+  background: var(--bg);
 }
 
 .wordmark {
@@ -658,7 +669,13 @@ main.container {
   padding: 18px 16px 0;
 }
 
+/* Iconița din card: pătrat colorat cu simbolul în centru. Fără `display: flex`
+   span-ul își ținea svg-ul lipit în colțul din stânga-sus. */
 .nb-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
   width: 46px;
   height: 46px;
   border-radius: 12px;
@@ -672,6 +689,9 @@ main.container {
   width: 20px;
   height: 20px;
 }
+
+/* Simbolul din cardul de carnet e puțin mai mare: umple pătratul de 46px. */
+.nb-icon svg { width: 24px; height: 24px; }
 
 .nb-menu button,
 .col-menu button {
@@ -866,6 +886,9 @@ main.container {
 .nb-table .col-menu { width: 56px; text-align: right; }
 
 .nb-icon-sm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   width: 28px;
   height: 28px;
   margin-right: 10px;
@@ -1283,27 +1306,34 @@ main.container {
   font-weight: 700;
 }
 
+/* Caseta de scriere: butonul de trimitere stă înăuntrul chenarului, în dreapta
+   jos, ca un cerc. Când era alături, rămânea mai scund decât caseta și se vedea
+   ca un dreptunghi lipit de marginea ei. */
 .composer {
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
+  position: relative;
   padding-top: 4px;
 }
 
 .composer textarea {
-  flex: 1;
+  display: block;
+  width: 100%;
   min-height: 52px;
   max-height: 150px;
+  padding-right: 62px; /* loc pentru buton, ca textul să nu intre sub el */
   border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
 .send-btn {
-  width: 48px;
-  height: 48px;
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
   background: var(--primary);
   color: white;
-  flex-shrink: 0;
+  box-shadow: 0 6px 14px rgba(11, 99, 246, 0.28);
 }
 
 .send-btn:hover { background: var(--primary-strong); }

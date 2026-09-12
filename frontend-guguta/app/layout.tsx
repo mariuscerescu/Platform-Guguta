@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
-import HeaderAuthLink from "./components/HeaderAuthLink";
-import { withBase } from "../lib/paths";
+import SiteHeader from "./components/SiteHeader";
 
 export const metadata: Metadata = {
   title: "Guguță — Carnete digitale",
@@ -60,20 +59,8 @@ export default function RootLayout({
 })();`,
           }}
         />
-        <header className="header">
-          <a href={withBase("/")} className="wordmark" aria-label="Guguță">
-            <span>Guguță</span>
-          </a>
-          <nav className="top-nav" aria-label="Navigare principală">
-            <a href={withBase("/import")}>Importă</a>
-          </nav>
-          {/*
-            Buton de cont doar pe pagina de start: „Intră în cont" pentru
-            vizitatori, carnetele pentru cine e autentificat. Pe celelalte
-            pagini header-ul rămâne fără buton (vezi HeaderAuthLink).
-          */}
-          <HeaderAuthLink />
-        </header>
+        {/* Header-ul își schimbă culoarea și butonul după rută (vezi SiteHeader). */}
+        <SiteHeader />
         <main className="container">{children}</main>
       </body>
     </html>
