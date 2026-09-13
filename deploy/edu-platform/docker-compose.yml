@@ -16,8 +16,6 @@
 #   docker compose ps
 #   curl -s http://127.0.0.1:8300/edu-platform/guguta-api/healthz
 
-name: guguta-edu
-
 # DSN-urile de runtime, compuse o singură dată aici (în .env nu stau DSN-uri cu
 # nume de gazdă Docker). Toate trei se dau și API-ului și worker-ului: în afara
 # mediului de dezvoltare configurația cere explicit ca AMBELE roluri de runtime

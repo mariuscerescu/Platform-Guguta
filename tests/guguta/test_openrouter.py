@@ -7,7 +7,6 @@ import httpx
 import pytest
 
 from open_notebook.ai.guguta.openrouter import (
-    FARA_MATERIALE_PREFIX,
     OpenRouterChatProvider,
     OpenRouterClient,
     OpenRouterEmbeddingProvider,
@@ -110,9 +109,7 @@ async def test_chat_without_materials_asks_the_model_and_strips_markers():
     # marcajul de citare dispare, dar un număr între paranteze rămâne intact
     assert "[1]" not in answer.content and "[1992]" in answer.content
     assert "Răspuns general din [1992]." in answer.content
-    # eticheta de proveniență o pune serverul, nu modelul
-    assert answer.content.startswith(FARA_MATERIALE_PREFIX)
-    assert "cunoștințele generale" in answer.content
+    assert not answer.content.startswith("Nu am materiale din carnet")
 
 
 @pytest.mark.asyncio

@@ -19,14 +19,6 @@ from open_notebook.exceptions import ExternalServiceError
 
 PROMPT_VERSION = "guguta-openrouter-2"
 
-# Eticheta de proveniență pentru răspunsurile fără materiale. Modelul o poate
-# uita, așa că o adăugăm noi: elevul trebuie să știe mereu de unde vine
-# răspunsul (ADR-0013).
-FARA_MATERIALE_PREFIX = (
-    "Nu am materiale din carnet care să acopere întrebarea, așa că îți răspund "
-    "din cunoștințele generale:"
-)
-
 
 class OpenRouterError(ExternalServiceError):
     """Sanitized upstream failure, safe for the job status/API."""
@@ -187,15 +179,15 @@ class OpenRouterChatProvider:
     async def generate(self, question: str, context_chunks: Sequence[Any],
                        history: Sequence[dict[str, str]]) -> ChatAnswer:
         # Fără fragmente nu refuzăm întrebarea: cerem modelului un răspuns din
-        # cunoștințele generale, marcat ca atare, cu citări vide (ADR-0013).
+        # cunoștințele generale, cu cited gol (ADR-0013).
         instruction = (
             SYSTEM_PROMPT + " Returnează numai JSON valid cu câmpurile answer (text) și cited "
             "(lista indicilor întregi, de la 0, ai fragmentelor folosite). În answer citează "
             "fragmentele prin [1], [2] etc., unde [1] corespunde indicelui 0. "
             "Nu folosi citări din istoricul conversației. Dacă lista "
-            "untrusted_source_fragments este vidă, răspunde din cunoștințele generale, spune "
-            "clar că răspunsul nu vine din materialele carnetului, întoarce cited: [] și nu "
-            "pune marcaje [1]. Dacă materialele nu oferă răspunsul, spune asta și returnează "
+            "untrusted_source_fragments este vidă, răspunde direct din cunoștințele generale, "
+            "întoarce cited: [] și nu pune marcaje [1] sau fraze fixe de avertizare. "
+            "Dacă materialele nu oferă răspunsul, spune asta și returnează "
             "cited: []. Nu divulga raționamentul intern."
         )
         messages: list[dict[str, str]] = [{"role": "system", "content": instruction}]
@@ -239,8 +231,6 @@ class OpenRouterChatProvider:
                 # general, un număr între paranteze poate fi orice.
                 answer = re.sub(r"\s*\[\d{1,2}\]", "", answer).strip()
                 cited = []
-                # eticheta de proveniență nu depinde de bunăvoința modelului
-                answer = f"{FARA_MATERIALE_PREFIX} {answer}"
             if any(type(i) is not int or not 0 <= i < len(context_chunks) for i in cited):
                 raise ValueError()
             cited = list(dict.fromkeys(cited))

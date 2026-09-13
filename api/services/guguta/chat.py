@@ -30,7 +30,7 @@ from open_notebook.ai.guguta.chat import ChatProvider
 from open_notebook.ai.guguta.openrouter import invoke
 from open_notebook.auth.guguta.actor import ActorContext
 from open_notebook.database.guguta.engine import actor_connection
-from open_notebook.exceptions import NotFoundError, OpenNotebookError
+from open_notebook.exceptions import ExternalServiceError, NotFoundError, OpenNotebookError
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ class SourcesRequired(OpenNotebookError):
     """
 
 
-class ChatProviderUnavailable(OpenNotebookError):
+class ChatProviderUnavailable(ExternalServiceError):
     """The AI provider failed (maps to 502 — controlled, no partial answer)."""
 
 
@@ -107,9 +107,15 @@ class ChatService:
 
         # Retrieval ÎN AFARA tranzacției (embed/rerank = HTTP extern, ca în
         # send_message); autorizarea sesiunii se face imediat după, în tx.
-        retrieval = await self._search.search_notebook(
-            actor.actor_id, notebook_id, content, mode="both", limit=6,
-        )
+        try:
+            async with asyncio.timeout(self._total_timeout):
+                retrieval = await self._search.search_notebook(
+                    actor.actor_id, notebook_id, content, mode="both", limit=6,
+                )
+        except TimeoutError:
+            raise ChatProviderUnavailable(
+                "Generarea a durat prea mult. Reîncercați peste câteva momente."
+            ) from None
         context = self._budget(retrieval)
 
         # Phase 1 (single tx): validate session, save user message
@@ -158,6 +164,8 @@ class ChatService:
         # proxyele taie conexiunile idle (next proxyTimeout 30s implicit)
         async def _generate():
             full_content = []
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + self._total_timeout
             try:
                 yield json.dumps({"event": "user_saved", "user_message_id": str(user_msg_id)})
                 queue: asyncio.Queue[Any] = asyncio.Queue()
@@ -176,8 +184,15 @@ class ChatService:
                 pump_task = asyncio.create_task(_pump())
                 try:
                     while True:
+                        remaining = deadline - loop.time()
+                        if remaining <= 0:
+                            raise ChatProviderUnavailable(
+                                "Generarea a durat prea mult. Reîncercați peste câteva momente."
+                            )
                         try:
-                            item = await asyncio.wait_for(queue.get(), timeout=15)
+                            item = await asyncio.wait_for(
+                                queue.get(), timeout=min(15, remaining)
+                            )
                         except asyncio.TimeoutError:
                             # keep-alive: orice bytes reșetează timerul proxyului
                             yield json.dumps({"event": "ping"})
@@ -236,7 +251,11 @@ class ChatService:
                 yield json.dumps({"event": "done", "assistant_message_id": str(assistant_id),
                              "cited": len(getattr(self._provider, "last_cited", []))})
             except Exception as exc:
-                yield json.dumps({"event": "error", "message": str(exc)})
+                logger.exception(
+                    "chat streaming failed actor=%s notebook=%s session=%s",
+                    actor.actor_id, notebook_id, session_id,
+                )
+                yield json.dumps({"event": "error", "message": str(exc) or "Generarea a eșuat."})
 
         return _generate()
 

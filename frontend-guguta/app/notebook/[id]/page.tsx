@@ -24,6 +24,8 @@ interface Citation {
   source_removed: boolean;
 }
 
+const CHAT_STREAM_TIMEOUT_MS = 310_000;
+
 interface ChatSession {
   id: string;
   title?: string | null;
@@ -194,6 +196,8 @@ export default function NotebookPage() {
     setDraft("");
     // assistant live: textul se construiește token cu token (SSE)
     setStreaming("");
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), CHAT_STREAM_TIMEOUT_MS);
     try {
       const csrf = getCsrf();
       const res = await fetch(
@@ -206,6 +210,7 @@ export default function NotebookPage() {
             ...(csrf ? { "X-Guguta-CSRF": csrf } : {}),
           },
           body: JSON.stringify({ content }),
+          signal: controller.signal,
         },
       );
       if (!res.ok || !res.body) {
@@ -254,9 +259,14 @@ export default function NotebookPage() {
       }
       await loadMessages();
     } catch (err) {
-      setError((err as Error).message);
+      const message =
+        err instanceof DOMException && err.name === "AbortError"
+          ? "Generarea durează prea mult. Reîncearcă peste câteva momente."
+          : (err as Error).message;
+      setError(message);
       await loadMessages().catch(() => undefined);
     } finally {
+      window.clearTimeout(timeout);
       setStreaming(null);
       setSending(false);
     }
@@ -503,7 +513,11 @@ export default function NotebookPage() {
               {streaming !== null && (
                 <div className="msg assistant streaming">
                   {answerText(streaming)}
-                  {streaming === "" && <span className="muted">Se generează…</span>}
+                  {streaming === "" && (
+                    <span className="muted">
+                      {elapsed < 15 ? "Se generează…" : `Se generează… ${elapsed}s`}
+                    </span>
+                  )}
                 </div>
               )}
               <div ref={bottomRef} />

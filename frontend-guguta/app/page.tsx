@@ -1,5 +1,3 @@
-"use client";
-
 import AuthEntryLink from "./components/AuthEntryLink";
 import { withBase } from "../lib/paths";
 
