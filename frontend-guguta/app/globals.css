@@ -18,6 +18,18 @@
   --radius-lg: 14px;
   --touch: 44px;
   --font: Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Înălțimea header-ului: folosită și la îmbinarea fundalului dintre header și
+     cardul de logare/înregistrare (vezi .header-auth și .auth-shell). */
+  --header-h: 78px;
+  /* Halourile suprafeței de autentificare. Sunt declarate o singură dată, ca
+     header-ul și cardul să picteze aceeași imagine, decupată la înălțimea
+     fiecăruia — altfel gradientul s-ar vedea tăiat la îmbinare. */
+  --auth-glow:
+    radial-gradient(circle at 82% 16%, rgba(11, 99, 246, 0.1), transparent 30%),
+    radial-gradient(circle at 16% 82%, rgba(22, 163, 101, 0.12), transparent 34%);
+  /* Caseta virtuală care cuprinde header-ul și cardul: 12px sus + header +
+     card (100vh - 114px) + 12px jos. */
+  --auth-surface-h: calc(100vh - 36px);
 }
 
 * { box-sizing: border-box; }
@@ -83,7 +95,7 @@ textarea { resize: vertical; }
   align-items: center;
   gap: 46px;
   width: min(calc(100% - 24px), 1410px);
-  min-height: 78px;
+  min-height: var(--header-h);
   margin: 12px auto 0;
   padding: 0 40px;
   border: 1px solid transparent;
@@ -104,6 +116,18 @@ textarea { resize: vertical; }
    deasupra conținutului se citea ca o eroare de randare. */
 .header-inner {
   background: var(--bg);
+}
+
+/* Pe logare și înregistrare header-ul nu e o bandă albă peste card, ci chiar
+   partea de sus a aceleiași suprafețe: pictează primii --header-h pixeli din
+   imaginea pe care cardul o pictează de la pixelul --header-h în jos. Ambele au
+   aceeași lățime, deci se îmbină fără nicio muchie vizibilă. */
+.header-auth {
+  background-color: #ffffff;
+  background-image: var(--auth-glow);
+  background-size: 100% var(--auth-surface-h);
+  background-position: 0 0;
+  background-repeat: no-repeat;
 }
 
 .wordmark {
@@ -1639,10 +1663,14 @@ main.container {
   border: 1px solid rgba(217, 229, 244, 0.78);
   border-top: 0;
   border-radius: 0 0 16px 16px;
-  background:
-    radial-gradient(circle at 82% 16%, rgba(11, 99, 246, 0.1), transparent 30%),
-    radial-gradient(circle at 16% 82%, rgba(22, 163, 101, 0.12), transparent 34%),
-    #ffffff;
+  background-color: #ffffff;
+  /* Aceleași halouri ca în header, dar decupate cu --header-h mai sus: rândul
+     de sus al cardului continuă exact rândul de jos al header-ului, fără
+     muchie vizibilă. */
+  background-image: var(--auth-glow);
+  background-size: 100% var(--auth-surface-h);
+  background-position: 0 calc(-1 * var(--header-h));
+  background-repeat: no-repeat;
   box-shadow: 0 22px 54px rgba(35, 68, 111, 0.08);
 }
 

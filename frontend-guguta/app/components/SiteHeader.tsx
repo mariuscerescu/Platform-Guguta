@@ -13,7 +13,10 @@ import { withBase } from "../../lib/paths";
  *    header (pagina de start, logare, înregistrare) header-ul e alb, cu același
  *    chenar ca cardul, ca să se citească drept o singură suprafață; pe celelalte
  *    pagini ia nuanța de fundal a paginii, ca să nu se vadă o bandă străină
- *    deasupra conținutului.
+ *    deasupra conținutului. Pe logare și înregistrare cardul are și un gradient,
+ *    iar header-ul pictează aceeași imagine (`.header-auth`), decupată cu
+ *    înălțimea lui mai sus: gradientul continuă din pagină în header, fără
+ *    muchie la îmbinare.
  * 2. Butonul „Intră în cont", care apare doar pe pagina de start: vizitator →
  *    logare, autentificat → carnetele lui. Pe celelalte pagini header-ul rămâne
  *    fără buton de cont.
@@ -25,6 +28,9 @@ import { withBase } from "../../lib/paths";
 
 /** Rute al căror prim bloc e un card alb, lipit de marginea de jos a header-ului. */
 const CARD_ROUTES = ["/", "/login", "/register"];
+
+/** Rute la care header-ul și cardul pictează aceeași imagine de fundal. */
+const AUTH_ROUTES = ["/login", "/register"];
 
 function matchesRoute(pathname: string, route: string): boolean {
   if (pathname === route || pathname === withBase(route)) return true;
@@ -38,9 +44,17 @@ export default function SiteHeader() {
   // Cardul de logare/înregistrare are exact același chenar ca header-ul: dacă
   // header-ul ar lua fundalul paginii, s-ar vedea o dungă albastră între ele.
   const isCardPage = CARD_ROUTES.some((route) => matchesRoute(pathname, route));
+  const isAuthPage = AUTH_ROUTES.some((route) => matchesRoute(pathname, route));
+  const headerClass = [
+    "header",
+    isCardPage ? "header-card" : "header-inner",
+    isAuthPage ? "header-auth" : null,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <header className={isCardPage ? "header header-card" : "header header-inner"}>
+    <header className={headerClass}>
       <a href={withBase("/")} className="wordmark" aria-label="Guguță">
         <span>Guguță</span>
       </a>
