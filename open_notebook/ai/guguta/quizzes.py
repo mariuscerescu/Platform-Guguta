@@ -12,7 +12,7 @@ from typing import Any
 from open_notebook.ai.guguta.openrouter import OpenRouterClient, OpenRouterError
 from open_notebook.exceptions import ConfigurationError
 
-PROMPT_VERSION = "guguta-quizzes-1"
+PROMPT_VERSION = "guguta-quizzes-2"
 QUESTION_TARGETS = {"fewer": 6, "standard": 12, "more": 20}
 QUESTION_TYPES = {"multiple_choice", "multiple_select", "fill_in_blank", "short_answer"}
 
@@ -60,8 +60,9 @@ class QuizGenerator:
         question_types: Sequence[str],
         instructions: str | None,
         evidence: Sequence[dict[str, str]],
+        _target_override: int | None = None,
     ) -> GeneratedQuiz:
-        target = QUESTION_TARGETS[quantity]
+        target = _target_override or QUESTION_TARGETS[quantity]
         allowed = list(dict.fromkeys(question_types))
         if not allowed or any(value not in QUESTION_TYPES for value in allowed):
             raise ValueError("Tipurile de întrebări nu sunt valide.")
@@ -79,6 +80,34 @@ class QuizGenerator:
             )
         if self._client is None:
             raise ConfigurationError("Furnizorul pentru quiz-uri nu este configurat.")
+        # Smaller models tend to collapse a heterogeneous union to its first
+        # variant. Generate one strictly-shaped batch per requested type, then
+        # merge the batches. This makes type coverage a structural guarantee.
+        if len(allowed) > 1:
+            base, remainder = divmod(target, len(allowed))
+            batches: list[GeneratedQuestion] = []
+            titles: list[str] = []
+            for index, kind in enumerate(allowed):
+                count = base + (1 if index < remainder else 0)
+                if count == 0:
+                    continue
+                batch = await self.generate(
+                    quantity=quantity,
+                    difficulty=difficulty,
+                    question_types=[kind],
+                    instructions=instructions,
+                    evidence=evidence,
+                    _target_override=count,
+                )
+                batches.extend(batch.questions)
+                titles.append(batch.title)
+            if not batches:
+                raise OpenRouterError("Quiz-ul primit de la model este invalid.")
+            return GeneratedQuiz(
+                titles[0] if titles else "Quiz de recapitulare",
+                tuple(batches[:target]),
+                self._model,
+            )
         difficulty_rule = {
             "easy": "recall direct și concepte fundamentale",
             "medium": "relații, cauze și comparații",
@@ -105,6 +134,12 @@ class QuizGenerator:
             "required": ["id", "text", "is_correct", "rationale"],
             "additionalProperties": False,
         }
+        options_schema: dict[str, Any] = {
+            "type": "array",
+            "items": option_schema,
+        }
+        if allowed[0] in {"multiple_choice", "multiple_select"}:
+            options_schema.update({"minItems": 4, "maxItems": 4})
         question_schema = {
             "type": "object",
             "properties": {
@@ -112,7 +147,7 @@ class QuizGenerator:
                 "prompt": {"type": "string", "minLength": 1},
                 "hint": {"type": "string", "minLength": 1},
                 "concepts": {"type": "array", "items": {"type": "string"}},
-                "options": {"type": "array", "items": option_schema},
+                "options": options_schema,
                 "accepted_answers": {"type": "array", "items": {"type": "string"}},
                 "reference_answer": {"type": "string"},
                 "required_concepts": {"type": "array", "items": {"type": "string"}},
@@ -195,7 +230,10 @@ class QuizGenerator:
             questions: list[GeneratedQuestion] = []
             seen: set[str] = set()
             for value in parsed["questions"]:
-                q = self._validate(value, valid_ids, set(allowed))
+                try:
+                    q = self._validate(value, valid_ids, set(allowed))
+                except (KeyError, TypeError, ValueError):
+                    continue
                 key = re.sub(r"\W+", "", q.prompt.casefold())
                 if key not in seen:
                     seen.add(key)
@@ -228,7 +266,7 @@ class QuizGenerator:
         correct = sum(bool(option.get("is_correct")) for option in options)
         if kind == "multiple_choice" and (len(options) < 3 or correct != 1):
             raise ValueError()
-        if kind == "multiple_select" and (len(options) < 3 or correct < 2):
+        if kind == "multiple_select" and (len(options) < 3 or correct < 1):
             raise ValueError()
         if kind == "fill_in_blank" and (not accepted or "_" not in prompt):
             raise ValueError()

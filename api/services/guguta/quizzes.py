@@ -523,7 +523,7 @@ class QuizService:
             raise InvalidInputError(
                 "Alegerea unică trebuie să aibă exact un răspuns corect."
             )
-        if kind == "multiple_select" and (len(options) < 2 or correct < 2):
+        if kind == "multiple_select" and (len(options) < 2 or correct < 1):
             raise InvalidInputError(
                 "Alegerea multiplă trebuie să aibă cel puțin două răspunsuri corecte."
             )
