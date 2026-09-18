@@ -3369,6 +3369,22 @@ textarea.quiz-answer-input { min-height: 130px; resize: vertical; }
 }
 
 /* Import + precision alignment fixes -------------------------------------- */
+main.container:has(> .nb-shell) {
+  padding-bottom: 0;
+}
+
+.library-shell .nb-card .menu-pop {
+  text-align: right;
+}
+
+.library-shell .nb-card .menu-pop > button {
+  justify-content: flex-end;
+}
+
+.library-shell .nb-card .menu-rename input {
+  text-align: right;
+}
+
 .segmented button {
   display: grid;
   place-items: center;
