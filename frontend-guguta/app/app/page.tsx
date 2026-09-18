@@ -338,11 +338,21 @@ export default function HomePage() {
               ))}
             </div>
           ) : filtered.length === 0 ? (
-            <div className="empty-state">
-              <p>Nu ai încă carnete. Creează unul sau alege din Carnetele școlare.</p>
-              <button className="chip" onClick={() => setTab("school")}>
-                Vezi Carnetele școlare
+            <div className="grid-cards library-empty-grid">
+              <button className="create-card" onClick={createNotebook} disabled={creating}>
+                <span className="plus-circle"><IconPlus /></span>
+                <span>Creează un Carnet digital</span>
               </button>
+              <div className="empty-state library-empty-copy">
+                <span className="empty-state-icon"><IconBook /></span>
+                <div>
+                  <strong>Începe cu materialele tale</strong>
+                  <p>Poți crea un carnet nou sau porni de la unul pregătit pentru școală.</p>
+                </div>
+                <button className="chip" onClick={() => setTab("school")}>
+                  Vezi Carnetele școlare
+                </button>
+              </div>
             </div>
           ) : view === "rows" ? (
             /* list view: table ca în NotebookLM (Titlu | Materiale | Creat | Rol) */
@@ -424,11 +434,8 @@ export default function HomePage() {
                     <p className="nb-meta">
                       {formatDate(nb.created_at)}
                       {nb.created_at ? " · " : ""}
-                      {nb.origin === "template"
-                        ? "Din catalogul școlar"
-                        : nb.origin === "import"
-                          ? "Importat"
-                          : "Personal"}
+                      {nb.source_count ?? 0}{" "}
+                      {(nb.source_count ?? 0) === 1 ? "material" : "materiale"}
                     </p>
                   </div>
                 </div>

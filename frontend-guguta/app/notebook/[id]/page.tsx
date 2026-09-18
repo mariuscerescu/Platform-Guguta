@@ -801,11 +801,10 @@ export default function NotebookPage() {
   return (
     <div className="nb-shell">
       <header className="nb-header">
-        <a href={withBase("/app")} className="nb-back" aria-label="Înapoi la carnetele mele">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="m14 6-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+        <a href={withBase("/app")} className="nb-brand wordmark" aria-label="Guguță — Carnetele mele">
+          <span>Guguță</span>
         </a>
+        <span className="nb-brand-divider" aria-hidden="true" />
         <div className="nb-title-area">
           {renamingTitle ? (
             <form className="nb-title-form" onSubmit={(event) => { event.preventDefault(); void saveNotebookTitle(); }}>
@@ -997,10 +996,11 @@ export default function NotebookPage() {
             */}
             <div className="msgs">
               {sessionId === null ? (
-                <p className="muted chat-hint">Se pregătește conversația…</p>
+                <p className="muted chat-hint"><ChatIcon />Se pregătește conversația…</p>
               ) : (
                 messages.length === 0 && (
                   <p className="muted chat-hint">
+                    <ChatIcon />
                     Întreabă ceva despre materialele selectate ale carnetului.
                   </p>
                 )
