@@ -63,8 +63,32 @@ class SearchService:
         self, actor_id: uuid.UUID, notebook_id: uuid.UUID, query: str, *,
         mode: str = "both", limit: int = 8,
     ) -> list[RetrievedChunk]:
-        """Authorize first; all embedding/reranking HTTP runs outside SQL transactions."""
-        if not query or not query.strip():
+        """Search a notebook with one query (compatibility wrapper)."""
+        return await self.search_notebook_multi(
+            actor_id, notebook_id, [query], query, mode=mode, limit=limit,
+        )
+
+    async def search_notebook_multi(
+        self, actor_id: uuid.UUID, notebook_id: uuid.UUID,
+        queries: list[str], ranking_query: str, *,
+        mode: str = "both", limit: int = 8,
+    ) -> list[RetrievedChunk]:
+        """Retrieve for several perspectives, fuse, then rerank once.
+
+        Authorization is established before any provider call. Embeddings are
+        batched and reranking sees only original, authorized chunk objects.
+        Reciprocal-rank fusion prevents one broad sub-query from crowding out
+        evidence found by the other perspectives.
+        """
+        clean_queries: list[str] = []
+        seen_queries: set[str] = set()
+        for query in queries[:4]:
+            normalized = " ".join((query or "").split()).strip()
+            key = normalized.casefold()
+            if normalized and key not in seen_queries:
+                clean_queries.append(normalized[:1000])
+                seen_queries.add(key)
+        if not clean_queries:
             return []
         limit = max(1, min(limit, 50))
         candidate_limit = max(limit, self._candidate_limit) if self._reranker else limit
@@ -77,7 +101,7 @@ class SearchService:
             space = (await conn.execute(text(
                 "SELECT id, model_name, model_revision, dimension FROM embedding_spaces WHERE is_active"
             ))).mappings().first()
-        qvec = None
+        qvecs: list[Optional[list[float]]] = [None] * len(clean_queries)
         space_id = None
         if mode in ("vector", "both") and space is not None:
             if (space["model_name"] != self._provider.model_name
@@ -85,13 +109,30 @@ class SearchService:
                 or int(space["dimension"]) != self._provider.dimension):
                 raise OpenNotebookError("Providerul de embedding nu corespunde spațiului vectorial activ; reindexare necesară.")
             space_id = space["id"]
-            qvec = (await invoke(self._provider.embed, [query.strip()]))[0]
+            qvecs = list(await invoke(self._provider.embed, clean_queries))
+        ranked_lists: list[list[RetrievedChunk]] = []
         async with actor_connection(self._engine, actor_id) as conn:
-            found = await self._search_on_conn(conn, actor_id, notebook_id, query,
-                mode=mode, limit=candidate_limit, results={}, qvec=qvec, space_id=space_id)
+            for query, qvec in zip(clean_queries, qvecs):
+                ranked_lists.append(await self._search_on_conn(
+                    conn, actor_id, notebook_id, query,
+                    mode=mode, limit=candidate_limit, results={},
+                    qvec=qvec, space_id=space_id,
+                ))
+
+        by_id: dict[uuid.UUID, RetrievedChunk] = {}
+        fusion: dict[uuid.UUID, float] = {}
+        for found in ranked_lists:
+            for rank, chunk in enumerate(found):
+                by_id.setdefault(chunk.chunk_id, chunk)
+                fusion[chunk.chunk_id] = fusion.get(chunk.chunk_id, 0.0) + 1.0 / (60 + rank)
+        fused = [
+            by_id[chunk_id] for chunk_id, _ in sorted(
+                fusion.items(), key=lambda item: item[1], reverse=True
+            )[:candidate_limit]
+        ]
         if self._reranker is not None:
-            return await self._reranker.rank(query, found, limit)
-        return found[:limit]
+            return await self._reranker.rank(ranking_query, fused, limit)
+        return fused[:limit]
 
     async def _search_on_conn(
         self, conn: Any, actor_id: uuid.UUID, notebook_id: uuid.UUID,

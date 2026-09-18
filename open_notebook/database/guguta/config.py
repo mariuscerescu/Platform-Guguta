@@ -10,6 +10,7 @@ encryption secrets and wildcard origins. Full endpoint hardening lands in L2.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
 
@@ -111,6 +112,7 @@ class GugutaConfig(BaseSettings):
     audio_overview_max_output_tokens: int = Field(default=4096, ge=512, le=8192)
     audio_overview_max_source_chars: int = Field(default=60_000, ge=2_000, le=250_000)
     moss_tts_base_url: str = "http://host.docker.internal:8000"
+    moss_tts_reference_audio: str = "/voices/romanian.wav"
     moss_tts_timeout_seconds: float = Field(default=900, gt=0, le=3600)
     job_lease_seconds: int = 300
     job_poll_seconds: float = 2.0
@@ -135,6 +137,15 @@ class GugutaConfig(BaseSettings):
         if parsed_tts.scheme != "http" or parsed_tts.hostname not in local_tts_hosts:
             raise ValueError(
                 "GUGUTA_MOSS_TTS_BASE_URL must point to the local MOSS-TTS service"
+            )
+        reference_audio = Path(self.moss_tts_reference_audio)
+        if (
+            not reference_audio.is_absolute()
+            or "\x00" in self.moss_tts_reference_audio
+            or ".." in reference_audio.parts
+        ):
+            raise ValueError(
+                "GUGUTA_MOSS_TTS_REFERENCE_AUDIO must be an absolute server-local path"
             )
         if self.environment in _DEV_ENVIRONMENTS:
             return self

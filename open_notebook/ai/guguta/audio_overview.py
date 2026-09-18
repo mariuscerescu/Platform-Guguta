@@ -132,7 +132,7 @@ class AudioScriptGenerator:
             ) from None
 
 
-def split_for_speech(text: str, max_chars: int = 1800) -> list[str]:
+def split_for_speech(text: str, max_chars: int = 650) -> list[str]:
     """Split narration at sentence boundaries without dropping text."""
     normalized = re.sub(r"\s+", " ", text).strip()
     if not normalized:
@@ -199,6 +199,7 @@ class MossTtsClient:
 
     def __init__(self, config: Any, *, transport: Any = None) -> None:
         self._base_url = config.moss_tts_base_url.rstrip("/") + "/"
+        self._reference_audio = config.moss_tts_reference_audio
         self._timeout = config.moss_tts_timeout_seconds
         self._transport = transport
 
@@ -222,6 +223,9 @@ class MossTtsClient:
                             "voice": "default",
                             "input": part,
                             "language": "Romanian",
+                            "references": [
+                                {"audio_path": self._reference_audio}
+                            ],
                             "instructions": (
                                 "Voce caldă, clară și calmă, potrivită pentru elevi. "
                                 "Ritm natural și pronunție românească atentă."

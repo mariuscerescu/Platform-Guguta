@@ -55,7 +55,7 @@ class SourcesRequired(OpenNotebookError):
 
     Păstrat pentru contractul de erori al API-ului, dar **nu mai este ridicat**:
     întrebarea se acceptă și fără materiale selectate, iar răspunsul de atunci
-    este general, fără citări (vezi ADR-0013).
+    declară lipsa dovezilor și nu conține citări.
     """
 
 
@@ -105,12 +105,25 @@ class ChatService:
 
         # streaming nu folosește idempotency (faza 2 e incompletă până la done)
 
-        # Retrieval ÎN AFARA tranzacției (embed/rerank = HTTP extern, ca în
-        # send_message); autorizarea sesiunii se face imediat după, în tx.
+        # Resolve follow-up references from the current-revision conversation
+        # before retrieval. Provider calls remain outside DB transactions.
+        async with actor_connection(self._engine, actor.actor_id) as conn:
+            snapshot = (await conn.execute(text(
+                "SELECT dn.context_revision FROM chat_sessions s JOIN digital_notebooks dn"
+                " ON dn.id=s.notebook_id WHERE s.id=:sid AND dn.id=:nb"
+            ), {"sid": session_id, "nb": notebook_id})).scalar_one_or_none()
+            if snapshot is None:
+                raise ChatSessionNotFound()
+            history_rows = (await conn.execute(text(
+                "SELECT role, content FROM chat_messages WHERE session_id=:sid"
+                " AND context_revision=:rev ORDER BY seq DESC LIMIT :lim"
+            ), {"sid": session_id, "rev": int(snapshot),
+                "lim": self._max_history})).all()
+            history = [{"role": r[0], "content": r[1]} for r in reversed(history_rows)]
         try:
             async with asyncio.timeout(self._total_timeout):
-                retrieval = await self._search.search_notebook(
-                    actor.actor_id, notebook_id, content, mode="both", limit=6,
+                retrieval = await self._retrieve(
+                    actor.actor_id, notebook_id, content, history,
                 )
         except TimeoutError:
             raise ChatProviderUnavailable(
@@ -137,12 +150,13 @@ class ChatService:
             if session is None:
                 raise ChatSessionNotFound()
             context_revision = int(session[1])
+            if context_revision != int(snapshot):
+                raise IdempotencyConflict(
+                    "Materialele s-au schimbat în timpul căutării; repetă întrebarea."
+                )
 
-            # Nu cerem materiale selectate: întrebarea se salvează mereu, iar
-            # fără fragmente furnizorul răspunde din cunoștințele generale și
-            # spune clar că răspunsul nu vine din carnet (vezi SYSTEM_PROMPT).
-            # Regula veche oprea conversația cu „Niciun fragment găsit în
-            # materialele selectate."
+            # Întrebarea se salvează și fără dovezi; furnizorul răspunde atunci
+            # cu o abținere utilă, nu cu fapte din memoria modelului.
             seq = (
                 await conn.execute(
                     text("SELECT coalesce(max(seq), 0) + 1 FROM chat_messages WHERE session_id = :sid"),
@@ -173,7 +187,7 @@ class ChatService:
 
                 async def _pump() -> None:
                     try:
-                        stream = self._provider.generate_stream(content, context, [])
+                        stream = self._provider.generate_stream(content, context, history)
                         async for token in stream:
                             await queue.put(token)
                     except Exception as exc:  # propagate to the consumer
@@ -231,7 +245,8 @@ class ChatService:
                         ),
                         {"id": assistant_id, "sid": session_id, "seq": assistant_seq,
                          "c": full_text, "rev": context_revision,
-                         "model": self._provider.model_name, "pv": "guguta-stream-1"},
+                         "model": self._provider.model_name,
+                         "pv": "guguta-stream-grounded-3"},
                     )
                     for idx in getattr(self._provider, "last_cited", []):
                         if idx < 0 or idx >= len(context):
@@ -428,10 +443,22 @@ class ChatService:
             ), {"sid": session_id, "nb": notebook_id})).scalar_one_or_none()
             if revision is None:
                 raise ChatSessionNotFound()
+            initial_history_rows = (await conn.execute(text(
+                "SELECT role, content FROM chat_messages WHERE session_id=:sid"
+                " AND context_revision=:rev ORDER BY seq DESC LIMIT :lim"
+            ), {"sid": session_id, "rev": int(revision),
+                "lim": self._max_history})).all()
+            initial_history = [
+                {"role": r[0], "content": r[1]}
+                for r in reversed(initial_history_rows)
+            ]
         try:
-            retrieval = await asyncio.wait_for(self._search.search_notebook(
-                actor.actor_id, notebook_id, content, mode="both", limit=6
-            ), timeout=max(0.001, deadline - asyncio.get_running_loop().time()))
+            retrieval = await asyncio.wait_for(
+                self._retrieve(
+                    actor.actor_id, notebook_id, content, initial_history,
+                ),
+                timeout=max(0.001, deadline - asyncio.get_running_loop().time()),
+            )
         except TimeoutError:
             raise ChatProviderUnavailable("Căutarea AI a depășit timpul de așteptare.") from None
         context = self._budget(retrieval)
@@ -462,8 +489,8 @@ class ChatService:
 
             if context_revision != revision:
                 raise IdempotencyConflict("Materialele s-au schimbat în timpul căutării; repetă întrebarea.")
-            # Ca și pe fluxul cu streaming, întrebarea trece și fără materiale:
-            # răspunsul de atunci e general, fără citări.
+            # Ca și pe fluxul cu streaming, întrebarea trece și fără dovezi;
+            # răspunsul este o abținere fără citări.
 
             # F07: the model context includes only messages generated under the
             # CURRENT revision. Older messages stay visible in UI history but
@@ -706,3 +733,36 @@ class ChatService:
             kept.append(chunk)
             total += len(chunk.text)
         return kept
+
+    async def _retrieve(
+        self, actor_id: uuid.UUID, notebook_id: uuid.UUID,
+        question: str, history: list[dict[str, str]],
+    ) -> list[RetrievedChunk]:
+        """Plan retrieval perspectives, then fuse and rerank their evidence.
+
+        Planning is an optional quality layer: if it is unavailable or returns
+        invalid output, the original question remains a safe retrieval query.
+        """
+        queries = [question]
+        planner = getattr(self._provider, "plan_queries", None)
+        if callable(planner):
+            try:
+                planned = await asyncio.wait_for(
+                    invoke(planner, question, history), timeout=30,
+                )
+                if isinstance(planned, list):
+                    queries.extend(q for q in planned if isinstance(q, str))
+            except (ExternalServiceError, TimeoutError, TypeError, ValueError) as exc:
+                logger.info(
+                    "query planner indisponibil; folosesc întrebarea originală: %s",
+                    type(exc).__name__,
+                )
+        multi = getattr(self._search, "search_notebook_multi", None)
+        if callable(multi):
+            return await multi(
+                actor_id, notebook_id, queries, question,
+                mode="both", limit=8,
+            )
+        return await self._search.search_notebook(
+            actor_id, notebook_id, question, mode="both", limit=8,
+        )

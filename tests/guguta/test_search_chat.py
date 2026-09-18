@@ -240,8 +240,8 @@ async def test_context_revision_changes_retrieval_scope(
     )).json()
     assert after == []
 
-    # asking still works: without materials the answer is general, marked as
-    # such, with no citations — the question is never refused (ADR-0013)
+    # Asking still works, but without evidence the answer abstains and has no
+    # citations; model memory is not used as notebook truth.
     session = (await client.post(
         f"/api/v1/notebooks/{nb_id}/sessions", json={},
         cookies=_cookies(a["auth"]), headers=_headers(a["auth"]),
@@ -259,8 +259,7 @@ async def test_context_revision_changes_retrieval_scope(
     )).json()
     assert [m["role"] for m in messages] == ["user", "assistant"]
     assert messages[0]["content"] == "Ce spune materialul despre gravitație?"
-    # răspunsul spune de unde vine: din cunoștințele generale, nu din materiale
-    assert "cunoștințele generale" in messages[1]["content"]
+    assert "dovezi relevante" in messages[1]["content"]
 
 
 async def test_full_probe_two_users_restart(

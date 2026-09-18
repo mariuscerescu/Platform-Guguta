@@ -91,6 +91,7 @@ async def test_moss_client_uses_exact_local_model_and_romanian() -> None:
     client = MossTtsClient(
         SimpleNamespace(
             moss_tts_base_url="http://moss-tts:8000",
+            moss_tts_reference_audio="/voices/romanian.wav",
             moss_tts_timeout_seconds=10,
         ),
         transport=httpx.MockTransport(handler),
@@ -100,6 +101,9 @@ async def test_moss_client_uses_exact_local_model_and_romanian() -> None:
     assert duration > 0
     assert seen[0]["model"] == "OpenMOSS-Team/MOSS-TTS-Local-Transformer-v1.5"
     assert seen[0]["language"] == "Romanian"
+    assert seen[0]["references"] == [
+        {"audio_path": "/voices/romanian.wav"}
+    ]
 
 
 @pytest.mark.asyncio
@@ -167,3 +171,8 @@ async def test_audio_overview_end_to_end(
 def test_moss_url_must_be_local() -> None:
     with pytest.raises(ValueError, match="local MOSS-TTS"):
         GugutaConfig(moss_tts_base_url="https://remote.example/tts")
+
+
+def test_moss_reference_must_be_server_local_absolute_path() -> None:
+    with pytest.raises(ValueError, match="absolute server-local path"):
+        GugutaConfig(moss_tts_reference_audio="../romanian.wav")

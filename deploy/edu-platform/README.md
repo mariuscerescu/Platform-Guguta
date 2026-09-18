@@ -22,7 +22,8 @@ container frontend  (Next.js, construit cu basePath=/edu-platform, port 3001)
   ▼
 container api  (FastAPI, port 5055, /api/v1 + /healthz)
   ├──► container db    (PostgreSQL 17 + pgvector, port 5432)
-  └──► container worker (procesează materialele: text, embeddings)
+  └──► container worker (materiale + rezumate audio)
+            └──► container moss-tts (GPU 1, voce românească, rețea privată)
 ```
 
 De ce trece totul prin frontend: browserul vorbește cu o singură origine, deci
@@ -35,6 +36,7 @@ au port în afara rețelei Docker.
 | `frontend` | 3001 | `127.0.0.1:8300` | UI, singurul punct public |
 | `api` | 5055 | — | logica aplicației |
 | `worker` | — | — | procesare asincronă |
+| `moss-tts` | 8000 | — | sinteză vocală românească privată |
 | `db` | 5432 | — | date + vectori |
 
 ---

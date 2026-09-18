@@ -19,50 +19,57 @@ Fluxul este asincron:
 
 Integrarea folosește checkpointul exact
 `OpenMOSS-Team/MOSS-TTS-Local-Transformer-v1.5`, servit prin endpointul privat
-OpenAI-compatible `/v1/audio/speech` oferit de SGLang-Omni.
+OpenAI-compatible `/v1/audio/speech`. Serviciul folosește o înregistrare
+românească validată drept referință zero-shot; vocea și checkpointurile rămân
+în afara imaginilor Docker și nu sunt salvate în Git.
 
-```bash
-hf download OpenMOSS-Team/MOSS-TTS-Local-Transformer-v1.5
-sgl-omni serve \
-  --model-path OpenMOSS-Team/MOSS-TTS-Local-Transformer-v1.5 \
-  --port 8000
-```
+În deploymentul curent, Compose montează read-only mediul MOSS-TTS deja
+instalat, modelul, codecul v2 și vocea de referință. Serviciul rulează pe GPU 1
+și nu publică niciun port pe gazdă.
 
 Workerul accesează serviciul prin rețeaua privată a platformei:
 
 ```dotenv
+GUGUTA_MOSS_TTS_RUNTIME_ROOT=/home/jupyter-marius/Test TTS modes
+GUGUTA_MOSS_TTS_REFERENCE_AUDIO_HOST=/home/jupyter-marius/Test TTS modes/reference/recording_5_48khz_stereo.wav
 GUGUTA_MOSS_TTS_BASE_URL=http://moss-tts:8000
+GUGUTA_MOSS_TTS_REFERENCE_AUDIO=/voices/romanian.wav
+GUGUTA_MOSS_TTS_GPU=1
 ```
 
 Endpointul vocal trebuie să rămână în rețeaua privată a platformei. Astfel,
 scenariul derivat din materialele elevului nu este trimis către un serviciu
 vocal public.
 
-## Ce mai trebuie făcut pentru activarea modelului real
+## Activare și verificare
 
-- [ ] Se instalează MOSS-TTS și SGLang-Omni pe serverul GPU conform
-  documentației oficiale.
-- [ ] Se descarcă checkpointul exact
-  `OpenMOSS-Team/MOSS-TTS-Local-Transformer-v1.5`.
-- [ ] Se pornește serviciul pe portul `8000`, accesibil numai din rețeaua
-  privată a platformei.
-- [ ] Se verifică endpointul înainte de pornirea workerului:
+- [ ] Directorul de runtime conține `.venv`, checkpointul exact
+  `OpenMOSS-Team/MOSS-TTS-Local-Transformer-v1.5` și
+  `MOSS-Audio-Tokenizer-v2`.
+- [ ] Înregistrarea românească de referință este WAV PCM, 48 kHz stereo și
+  poate fi citită de Docker.
+- [ ] Se pornește serviciul și se așteaptă healthcheck-ul (încărcarea inițială
+  a modelului poate dura câteva minute):
 
   ```bash
-  curl -X POST http://localhost:8000/v1/audio/speech \
-    -H "Content-Type: application/json" \
-    -d '{"model":"OpenMOSS-Team/MOSS-TTS-Local-Transformer-v1.5","voice":"default","language":"Romanian","input":"Bun venit pe platforma Guguță."}' \
-    --output test-moss.wav
+  sudo docker-compose --project-name guguta-edu \
+    -f deploy/edu-platform/docker-compose.yml up -d moss-tts
+  sudo docker-compose --project-name guguta-edu \
+    -f deploy/edu-platform/docker-compose.yml ps
   ```
 
-- [ ] Se configurează workerul cu
-  `GUGUTA_MOSS_TTS_BASE_URL=http://moss-tts:8000` și se repornește
-  containerul worker.
+- [ ] Se verifică endpointul din rețeaua privată:
+
+  ```bash
+  sudo docker exec guguta-edu_worker_1 python -c \
+    "import urllib.request; print(urllib.request.urlopen('http://moss-tts:8000/healthz').read().decode())"
+  ```
+
+- [ ] Se reconstruiește și se repornește workerul după schimbarea clientului.
 - [ ] Se generează din interfață câte un Audio Overview **Brief** și **Deep
   Dive**, verificând limba română, durata, playerul, descărcarea și reîncercarea
   după o eroare simulată.
-- [ ] Serviciul MOSS este configurat să pornească automat și să aibă un health
-  check. Portul `8000` nu este publicat pe internet.
+- [ ] `moss-tts` apare `healthy`; portul `8000` nu este publicat pe gazdă.
 
 Referințe oficiale:
 

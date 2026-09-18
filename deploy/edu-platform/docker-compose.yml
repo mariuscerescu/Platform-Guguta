@@ -62,6 +62,49 @@ services:
     command: ["alembic", "upgrade", "head"]
     restart: "no"
 
+  # --- MOSS-TTS privat, voce romaneasca clonata din referinta validata ------
+  # Foloseste mediul/modelul deja instalat pe gazda; nici modelul, nici vocea
+  # nu intra in imagine sau in Git. Serviciul nu publica niciun port.
+  moss-tts:
+    image: python:3.12-slim@sha256:d764629ce0ddd8c71fd371e9901efb324a95789d2315a47db7e4d27e78f1b0e9
+    runtime: nvidia
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${GUGUTA_MOSS_TTS_GPU:-1}
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      HF_HUB_DISABLE_PROGRESS_BARS: "1"
+      TRANSFORMERS_VERBOSITY: error
+      TQDM_DISABLE: "1"
+      MOSS_TTS_RUNTIME_ROOT: /opt/moss-runtime
+      MOSS_TTS_REFERENCE_AUDIO: /voices/romanian.wav
+      MOSS_TTS_REFERENCE_API_PATH: /voices/romanian.wav
+      MOSS_TTS_DEVICE: cuda:0
+    volumes:
+      - ${GUGUTA_MOSS_TTS_RUNTIME_ROOT:?setează GUGUTA_MOSS_TTS_RUNTIME_ROOT}:/opt/moss-runtime:ro
+      - ${GUGUTA_MOSS_TTS_REFERENCE_AUDIO_HOST:?setează GUGUTA_MOSS_TTS_REFERENCE_AUDIO_HOST}:/voices/romanian.wav:ro
+      - ../../scripts/guguta_moss_tts_server.py:/srv/guguta_moss_tts_server.py:ro
+    working_dir: /srv
+    command:
+      - /opt/moss-runtime/.venv/bin/python
+      - -m
+      - uvicorn
+      - guguta_moss_tts_server:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+    shm_size: 1gb
+    healthcheck:
+      test:
+        - CMD
+        - /opt/moss-runtime/.venv/bin/python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz').read()"
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 180s
+    restart: unless-stopped
+
   # --- API (FastAPI, doar /api/v1 + /healthz, /readyz, /versionz) ---
   api:
     build:
@@ -114,6 +157,8 @@ services:
         condition: service_healthy
       migrator:
         condition: service_completed_successfully
+      moss-tts:
+        condition: service_healthy
     restart: unless-stopped
 
   # --- Frontend Next.js, construit cu basePath=/edu-platform ---
