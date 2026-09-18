@@ -44,6 +44,43 @@ interface AudioOverview {
   job_id?: string | null;
 }
 
+interface FlashcardEvidence {
+  source_id: string;
+  chunk_id: string;
+  source_name: string;
+  locator: Record<string, unknown>;
+}
+
+interface Flashcard {
+  id: string;
+  front: string;
+  back: string;
+  concept?: string | null;
+  evidence: FlashcardEvidence[];
+}
+
+interface StudySession {
+  id: string;
+  mode: "all" | "same" | "missed";
+  card_order: string[];
+  current_index: number;
+  results: Record<string, "got_it" | "missed">;
+  completed_at?: string | null;
+}
+
+interface FlashcardDeck {
+  id: string;
+  quantity: "fewer" | "standard" | "more";
+  difficulty: "easy" | "medium" | "hard";
+  selected_source_ids: string[];
+  status: "queued" | "generating" | "ready" | "failed";
+  title?: string | null;
+  error_detail?: string | null;
+  card_count: number;
+  cards?: Flashcard[];
+  active_session?: StudySession | null;
+}
+
 /**
  * Răspunsul asistentului așa cum se afișează. Când referințele sunt oprite
  * (`lib/features.ts`), marcajele `[1]` se scot doar de aici — conținutul salvat
@@ -61,6 +98,7 @@ export default function NotebookPage() {
   const [sources, setSources] = useState<Source[] | null>(null);
   const [notes, setNotes] = useState<Note[] | null>(null);
   const [audioOverviews, setAudioOverviews] = useState<AudioOverview[] | null>(null);
+  const [flashcardDecks, setFlashcardDecks] = useState<FlashcardDeck[] | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -77,6 +115,18 @@ export default function NotebookPage() {
   const [audioSourceIds, setAudioSourceIds] = useState<string[]>([]);
   const [audioSubmitting, setAudioSubmitting] = useState(false);
   const [deletingAudioId, setDeletingAudioId] = useState<string | null>(null);
+  const [flashcardModalOpen, setFlashcardModalOpen] = useState(false);
+  const [flashcardQuantity, setFlashcardQuantity] = useState<"fewer" | "standard" | "more">("standard");
+  const [flashcardDifficulty, setFlashcardDifficulty] = useState<"easy" | "medium" | "hard">("medium");
+  const [flashcardSourceIds, setFlashcardSourceIds] = useState<string[]>([]);
+  const [flashcardInstructions, setFlashcardInstructions] = useState("");
+  const [flashcardSubmitting, setFlashcardSubmitting] = useState(false);
+  const [deletingDeckId, setDeletingDeckId] = useState<string | null>(null);
+  const [activeDeck, setActiveDeck] = useState<FlashcardDeck | null>(null);
+  const [studySession, setStudySession] = useState<StudySession | null>(null);
+  const [cardFlipped, setCardFlipped] = useState(false);
+  const [cardExplanation, setCardExplanation] = useState<string | null>(null);
+  const [explainingCard, setExplainingCard] = useState(false);
   useEffect(() => {
     if (!sending) {
       setElapsed(0);
@@ -112,6 +162,11 @@ export default function NotebookPage() {
         `/api/v1/notebooks/${nbId}/audio-overviews`,
       );
       setAudioOverviews(overviews);
+      const decks = await api<FlashcardDeck[]>(
+        "GET",
+        `/api/v1/notebooks/${nbId}/flashcard-decks`,
+      );
+      setFlashcardDecks(decks);
       const sess = await api<ChatSession[]>(
         "GET",
         `/api/v1/notebooks/${nbId}/sessions`,
@@ -189,7 +244,8 @@ export default function NotebookPage() {
     (sources?.some((s) => s.status === "processing") ?? false) ||
     (audioOverviews?.some((item) =>
       ["queued", "generating_script", "synthesizing"].includes(item.status)
-    ) ?? false);
+    ) ?? false) ||
+    (flashcardDecks?.some((item) => ["queued", "generating"].includes(item.status)) ?? false);
   useEffect(() => {
     if (!hasProcessing) return;
     const t = setInterval(() => {
@@ -443,6 +499,149 @@ export default function NotebookPage() {
     }
   }
 
+  function openFlashcardModal() {
+    setFlashcardSourceIds((sources ?? []).filter((source) => source.status === "ready").map((source) => source.id));
+    setFlashcardQuantity("standard");
+    setFlashcardDifficulty("medium");
+    setFlashcardInstructions("");
+    setFlashcardModalOpen(true);
+  }
+
+  function toggleFlashcardSource(sourceId: string) {
+    setFlashcardSourceIds((current) => current.includes(sourceId)
+      ? current.filter((id) => id !== sourceId)
+      : [...current, sourceId]);
+  }
+
+  async function createFlashcardDeck() {
+    if (flashcardSubmitting || flashcardSourceIds.length === 0) return;
+    setFlashcardSubmitting(true);
+    setError(null);
+    try {
+      const created = await api<FlashcardDeck>("POST", `/api/v1/notebooks/${nbId}/flashcard-decks`, {
+        source_ids: flashcardSourceIds,
+        quantity: flashcardQuantity,
+        difficulty: flashcardDifficulty,
+        instructions: flashcardInstructions.trim() || null,
+      });
+      setFlashcardDecks((current) => [created, ...(current ?? [])]);
+      setFlashcardModalOpen(false);
+      await loadAll();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setFlashcardSubmitting(false);
+    }
+  }
+
+  async function removeFlashcardDeck(deck: FlashcardDeck) {
+    if (deletingDeckId || !window.confirm(`Ștergi „${deck.title || "Flashcards"}”? Progresul de studiu va fi șters.`)) return;
+    setDeletingDeckId(deck.id);
+    try {
+      await api("DELETE", `/api/v1/notebooks/${nbId}/flashcard-decks/${deck.id}`);
+      setFlashcardDecks((current) => current?.filter((item) => item.id !== deck.id) ?? []);
+      if (activeDeck?.id === deck.id) setActiveDeck(null);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setDeletingDeckId(null);
+    }
+  }
+
+  async function openDeck(deckId: string, mode: "all" | "same" | "missed" = "all") {
+    try {
+      const deck = await api<FlashcardDeck>("GET", `/api/v1/notebooks/${nbId}/flashcard-decks/${deckId}`);
+      let session = mode === "all" ? deck.active_session ?? null : null;
+      if (!session) {
+        session = await api<StudySession>("POST", `/api/v1/notebooks/${nbId}/flashcard-decks/${deckId}/sessions`, { mode });
+      }
+      setActiveDeck(deck);
+      setStudySession(session);
+      setCardFlipped(false);
+      setCardExplanation(null);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
+  async function persistStudy(next: StudySession, completed = false) {
+    if (!activeDeck) return;
+    const saved = await api<StudySession>(
+      "PATCH",
+      `/api/v1/notebooks/${nbId}/flashcard-decks/${activeDeck.id}/sessions/${next.id}`,
+      { current_index: next.current_index, results: next.results, card_order: next.card_order, completed },
+    );
+    setStudySession(saved);
+  }
+
+  async function assessCard(result: "got_it" | "missed") {
+    if (!studySession) return;
+    const cardId = studySession.card_order[studySession.current_index];
+    const isLast = studySession.current_index >= studySession.card_order.length - 1;
+    const next = { ...studySession, results: { ...studySession.results, [cardId]: result },
+      current_index: isLast ? studySession.current_index : studySession.current_index + 1 };
+    setCardFlipped(false);
+    setCardExplanation(null);
+    await persistStudy(next, isLast);
+  }
+
+  async function shuffleStudy() {
+    if (!studySession) return;
+    const order = [...studySession.card_order];
+    for (let i = order.length - 1; i > 0; i -= 1) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [order[i], order[j]] = [order[j], order[i]];
+    }
+    setCardFlipped(false);
+    setCardExplanation(null);
+    await persistStudy({ ...studySession, card_order: order, current_index: 0 });
+  }
+
+  async function explainCard(cardId: string) {
+    if (!activeDeck || explainingCard) return;
+    setExplainingCard(true);
+    try {
+      const result = await api<{ explanation: string }>(
+        "POST",
+        `/api/v1/notebooks/${nbId}/flashcard-decks/${activeDeck.id}/cards/${cardId}/explain`,
+        {},
+      );
+      setCardExplanation(result.explanation);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setExplainingCard(false);
+    }
+  }
+
+  async function removeFlashcard(cardId: string) {
+    if (!activeDeck || !window.confirm("Ștergi acest cartonaș?")) return;
+    await api("DELETE", `/api/v1/notebooks/${nbId}/flashcard-decks/${activeDeck.id}/cards/${cardId}`);
+    const deck = await api<FlashcardDeck>("GET", `/api/v1/notebooks/${nbId}/flashcard-decks/${activeDeck.id}`);
+    setActiveDeck(deck);
+    if (studySession) {
+      const order = studySession.card_order.filter((id) => id !== cardId);
+      await persistStudy({ ...studySession, card_order: order, current_index: Math.min(studySession.current_index, Math.max(0, order.length - 1)) });
+    }
+  }
+
+  useEffect(() => {
+    if (!activeDeck || !studySession || studySession.completed_at) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === " ") { event.preventDefault(); setCardFlipped((value) => !value); }
+      if (event.key === "ArrowLeft") { setCardFlipped(false); setStudySession((value) => value ? { ...value, current_index: Math.max(0, value.current_index - 1) } : value); }
+      if (event.key === "ArrowRight") { setCardFlipped(false); setStudySession((value) => value ? { ...value, current_index: Math.min(value.card_order.length - 1, value.current_index + 1) } : value); }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [activeDeck, studySession]);
+
+  const currentStudyCard = activeDeck?.cards?.find(
+    (card) => card.id === studySession?.card_order[studySession.current_index],
+  );
+  const gotItCount = Object.values(studySession?.results ?? {}).filter((value) => value === "got_it").length;
+  const missedCount = Object.values(studySession?.results ?? {}).filter((value) => value === "missed").length;
+
   if (error && nb === null) {
     return (
       <>
@@ -684,10 +883,15 @@ export default function NotebookPage() {
             >
               <h2 id="studio-tools-title">Instrumente</h2>
               <div className="future-tools">
-                <div className="future-tool">
+                <button
+                  type="button"
+                  className="future-tool audio-tool"
+                  onClick={openFlashcardModal}
+                  disabled={!sources?.some((source) => source.status === "ready")}
+                >
                   <strong>Flashcards</strong>
-                  <span>Va genera cartonașe de recapitulare din materiale.</span>
-                </div>
+                  <span>Generează cartonașe de recapitulare din materiale.</span>
+                </button>
                 <div className="future-tool">
                   <strong>Quiz</strong>
                   <span>Va crea întrebări pentru verificarea cunoștințelor.</span>
@@ -710,14 +914,14 @@ export default function NotebookPage() {
             >
               <div className="studio-section-heading">
                 <h2 id="studio-results-title">Materiale create</h2>
-                {notes !== null && audioOverviews !== null ? (
-                  <span>{notes.length + audioOverviews.length}</span>
+                {notes !== null && audioOverviews !== null && flashcardDecks !== null ? (
+                  <span>{notes.length + audioOverviews.length + flashcardDecks.length}</span>
                 ) : null}
               </div>
 
-              {notes === null || audioOverviews === null ? (
+              {notes === null || audioOverviews === null || flashcardDecks === null ? (
                 <p className="muted">Se încarcă…</p>
-              ) : notes.length === 0 && audioOverviews.length === 0 ? (
+              ) : notes.length === 0 && audioOverviews.length === 0 && flashcardDecks.length === 0 ? (
                 <div className="studio-empty">
                   <svg viewBox="0 0 24 24" fill="currentColor" width="34" height="34">
                     <path d="M12 2l1.8 5.6L19 9l-5.2 1.4L12 16l-1.8-5.6L5 9l5.2-1.4L12 2zm7 12l.9 2.6L22.5 18l-2.6.9L19 21.5l-.9-2.6-2.6-.9 2.6-.9L19 14z" />
@@ -725,6 +929,38 @@ export default function NotebookPage() {
                   <p className="studio-strong">Materialele create vor apărea aici.</p>
                 </div>
               ) : null}
+
+              {flashcardDecks?.map((deck) => (
+                <article className="flashcard-deck-card" key={deck.id}>
+                  <button
+                    type="button"
+                    className="flashcard-deck-open"
+                    onClick={() => deck.status === "ready" && void openDeck(deck.id)}
+                    disabled={deck.status !== "ready"}
+                  >
+                    <span className="flashcard-deck-icon" aria-hidden="true">▣</span>
+                    <span>
+                      <strong>{deck.title || "Flashcards"}</strong>
+                      <small>
+                        {deck.status === "ready"
+                          ? `${deck.card_count} cartonașe · ${deck.difficulty === "easy" ? "Ușor" : deck.difficulty === "hard" ? "Dificil" : "Mediu"}`
+                          : deck.status === "failed" ? "Generarea a eșuat" : "Se generează în fundal…"}
+                      </small>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="audio-overview-delete"
+                    onClick={() => void removeFlashcardDeck(deck)}
+                    disabled={deletingDeckId !== null}
+                    aria-label={`Șterge ${deck.title || "setul de flashcards"}`}
+                    title="Șterge setul"
+                  >
+                    {deletingDeckId === deck.id ? <span className="spinner tiny" /> : "×"}
+                  </button>
+                  {deck.status === "failed" && <p className="error-text">{deck.error_detail || "Încearcă să generezi un set nou."}</p>}
+                </article>
+              ))}
 
               {audioOverviews?.map((overview) => (
                 <article className="audio-overview-card" key={overview.id}>
@@ -801,6 +1037,106 @@ export default function NotebookPage() {
           </div>
         </section>
       </div>
+
+      {flashcardModalOpen && (
+        <div className="modal-overlay" role="presentation" onClick={() => !flashcardSubmitting && setFlashcardModalOpen(false)}>
+          <div className="modal flashcard-config-modal" role="dialog" aria-modal="true" aria-labelledby="flashcard-config-title" onClick={(event) => event.stopPropagation()}>
+            <div className="audio-modal-heading">
+              <div>
+                <h2 id="flashcard-config-title">Creează Flashcards</h2>
+                <p className="muted">Cartonașe grounded exclusiv în materialele alese.</p>
+              </div>
+              <button type="button" className="icon-btn" aria-label="Închide" onClick={() => setFlashcardModalOpen(false)}>×</button>
+            </div>
+            <div className="flashcard-config-grid">
+              <fieldset className="flashcard-presets">
+                <legend>Număr de cartonașe</legend>
+                <div>{(["fewer", "standard", "more"] as const).map((value) => (
+                  <button type="button" key={value} className={flashcardQuantity === value ? "selected" : ""} onClick={() => setFlashcardQuantity(value)}>
+                    {value === "fewer" ? "Mai puține" : value === "more" ? "Mai multe" : "Standard"}
+                  </button>
+                ))}</div>
+              </fieldset>
+              <fieldset className="flashcard-presets">
+                <legend>Dificultate</legend>
+                <div>{(["easy", "medium", "hard"] as const).map((value) => (
+                  <button type="button" key={value} className={flashcardDifficulty === value ? "selected" : ""} onClick={() => setFlashcardDifficulty(value)}>
+                    {value === "easy" ? "Ușor" : value === "hard" ? "Dificil" : "Mediu"}
+                  </button>
+                ))}</div>
+              </fieldset>
+            </div>
+            <fieldset className="audio-source-options">
+              <div className="audio-source-legend"><span className="fieldset-label">Materiale</span><button type="button" onClick={() => setFlashcardSourceIds((sources ?? []).filter((source) => source.status === "ready").map((source) => source.id))}>Selectează toate</button></div>
+              <div className="audio-source-list">{(sources ?? []).filter((source) => source.status === "ready").map((source) => (
+                <label key={source.id}><input type="checkbox" checked={flashcardSourceIds.includes(source.id)} onChange={() => toggleFlashcardSource(source.id)} /><span>{source.local_name}</span></label>
+              ))}</div>
+            </fieldset>
+            <label className="flashcard-instructions">
+              <span>Pe ce să se concentreze?</span>
+              <textarea value={flashcardInstructions} onChange={(event) => setFlashcardInstructions(event.target.value)} maxLength={4000} placeholder="Opțional: formule, concepte-cheie, diferențe între metode…" />
+            </label>
+            <div className="modal-actions">
+              <button type="button" className="chip" onClick={() => setFlashcardModalOpen(false)} disabled={flashcardSubmitting}>Anulează</button>
+              <button type="button" className="create-btn" onClick={() => void createFlashcardDeck()} disabled={flashcardSubmitting || flashcardSourceIds.length === 0}>{flashcardSubmitting ? "Se adaugă…" : "Generează acum"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeDeck && studySession && (
+        <div className="modal-overlay flashcard-study-overlay" role="presentation">
+          <div className="flashcard-study" role="dialog" aria-modal="true" aria-labelledby="flashcard-study-title">
+            <header>
+              <div><h2 id="flashcard-study-title">{activeDeck.title || "Flashcards"}</h2><p>{studySession.card_order.length} cartonașe · Space pentru întoarcere</p></div>
+              <div className="flashcard-study-actions">
+                <a className="chip" href={`${API_BASE}/api/v1/notebooks/${nbId}/flashcard-decks/${activeDeck.id}/export.csv`}>CSV</a>
+                <button type="button" className="icon-btn" aria-label="Închide" onClick={() => { setActiveDeck(null); setStudySession(null); }}>×</button>
+              </div>
+            </header>
+            {studySession.completed_at ? (
+              <div className="flashcard-complete">
+                <span aria-hidden="true">✓</span>
+                <h3>Sesiune încheiată</h3>
+                <p><strong>{gotItCount}</strong> știute · <strong>{missedCount}</strong> ratate</p>
+                <div className="modal-actions">
+                  <button className="chip" onClick={() => void openDeck(activeDeck.id, "same")}>Aceleași cartonașe</button>
+                  <button className="chip" onClick={() => void openDeck(activeDeck.id, "all")}>Toate</button>
+                  <button className="create-btn" disabled={missedCount === 0} onClick={() => void openDeck(activeDeck.id, "missed")}>Doar cele ratate</button>
+                </div>
+              </div>
+            ) : currentStudyCard ? (
+              <>
+                <div className="flashcard-toolbar">
+                  <span>{studySession.current_index + 1} / {studySession.card_order.length}</span>
+                  <button className="chip" onClick={() => void shuffleStudy()}>Amestecă</button>
+                  <button className="chip danger" onClick={() => void removeFlashcard(currentStudyCard.id)}>Șterge cardul</button>
+                </div>
+                <button type="button" className={`study-card ${cardFlipped ? "flipped" : ""}`} onClick={() => setCardFlipped((value) => !value)}>
+                  <span className="study-card-label">{cardFlipped ? "Răspuns" : "Întrebare"}</span>
+                  <strong>{cardFlipped ? currentStudyCard.back : currentStudyCard.front}</strong>
+                  {!cardFlipped && <small>Apasă pentru a vedea răspunsul</small>}
+                  {cardFlipped && currentStudyCard.evidence.length > 0 && <small>Surse: {[...new Set(currentStudyCard.evidence.map((ref) => ref.source_name))].join(", ")}</small>}
+                </button>
+                {cardFlipped && (
+                  <div className="flashcard-explanation">
+                    {cardExplanation ? <p>{cardExplanation}</p> : (
+                      <button className="chip" disabled={explainingCard} onClick={() => void explainCard(currentStudyCard.id)}>
+                        {explainingCard ? "Se explică…" : "Explică mai mult"}
+                      </button>
+                    )}
+                  </div>
+                )}
+                <div className="flashcard-navigation">
+                  <button className="chip" disabled={studySession.current_index === 0} onClick={() => { setCardFlipped(false); setCardExplanation(null); setStudySession({ ...studySession, current_index: studySession.current_index - 1 }); }}>← Anterior</button>
+                  {cardFlipped ? <div><button className="missed-btn" onClick={() => void assessCard("missed")}>Am ratat</button><button className="got-it-btn" onClick={() => void assessCard("got_it")}>Știu</button></div> : <button className="create-btn" onClick={() => setCardFlipped(true)}>Vezi răspunsul</button>}
+                  <button className="chip" disabled={studySession.current_index === studySession.card_order.length - 1} onClick={() => { setCardFlipped(false); setCardExplanation(null); setStudySession({ ...studySession, current_index: studySession.current_index + 1 }); }}>Următor →</button>
+                </div>
+              </>
+            ) : <p className="error-text">Cartonașul nu mai există.</p>}
+          </div>
+        </div>
+      )}
 
       {audioModalOpen && (
         <div

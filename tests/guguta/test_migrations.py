@@ -17,7 +17,8 @@ EXPECTED_TABLES = [
     "template_versions", "template_materials", "share_snapshots",
     "share_materials", "share_credentials", "share_imports",
     "idempotency_records", "chat_sessions", "chat_messages", "citations",
-    "notes", "audio_overviews", "processing_jobs", "outbox_events", "audit_events",
+    "notes", "audio_overviews", "flashcard_decks", "flashcards", "flashcard_sessions",
+    "processing_jobs", "outbox_events", "audit_events",
 ]
 
 RLS_TABLES = EXPECTED_TABLES  # every Guguță table carries RLS

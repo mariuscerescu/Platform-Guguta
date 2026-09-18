@@ -15,6 +15,7 @@ from open_notebook.database.guguta.config import GugutaConfig
 from open_notebook.database.guguta.engine import create_engine_for_role
 from open_notebook.jobs.guguta.audio_overviews import process_audio_overview
 from open_notebook.jobs.guguta.embeddings import get_provider
+from open_notebook.jobs.guguta.flashcards import process_flashcard_deck
 from open_notebook.jobs.guguta.handlers import process_material_version
 from open_notebook.jobs.guguta.queue import claim
 from open_notebook.storage.guguta.filesystem import FilesystemStorage
@@ -72,6 +73,8 @@ class Worker:
                     self._config,
                     job,
                 )
+            elif job.job_type == "generate_flashcards":
+                await process_flashcard_deck(self._engine, self._config, job)
             else:
                 logger.error("tip de job necunoscut: %s", job.job_type)
                 from open_notebook.jobs.guguta.queue import fail

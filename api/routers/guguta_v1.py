@@ -895,6 +895,113 @@ async def delete_audio_overview(
 
 
 # ---------------------------------------------------------------------------
+# Flashcards — source-grounded decks and persistent study sessions
+# ---------------------------------------------------------------------------
+
+
+class FlashcardDeckCreate(BaseModel):
+    source_ids: list[uuid.UUID] = Field(min_length=1, max_length=20)
+    quantity: str = Field(default="standard", pattern="^(fewer|standard|more)$")
+    difficulty: str = Field(default="medium", pattern="^(easy|medium|hard)$")
+    instructions: str | None = Field(default=None, max_length=4000)
+
+
+class FlashcardSessionCreate(BaseModel):
+    mode: str = Field(default="all", pattern="^(all|same|missed)$")
+
+
+class FlashcardSessionUpdate(BaseModel):
+    current_index: int = Field(ge=0)
+    results: dict[str, str] = Field(default_factory=dict)
+    card_order: list[str] | None = None
+    completed: bool = False
+
+
+flashcards_router = APIRouter(
+    prefix="/api/v1/notebooks/{notebook_id}/flashcard-decks", tags=["flashcards"]
+)
+
+
+def get_flashcard_service(request: Request) -> Any:
+    return request.app.state.guguta_flashcards
+
+
+@flashcards_router.post("", status_code=202)
+async def create_flashcard_deck(notebook_id: uuid.UUID, body: FlashcardDeckCreate,
+                                request: Request) -> dict[str, Any]:
+    return await get_flashcard_service(request).create(
+        get_actor(request), notebook_id, source_ids=body.source_ids,
+        quantity=body.quantity, difficulty=body.difficulty, instructions=body.instructions,
+    )
+
+
+@flashcards_router.get("")
+async def list_flashcard_decks(notebook_id: uuid.UUID, request: Request) -> list[dict[str, Any]]:
+    return await get_flashcard_service(request).list_for_notebook(get_actor(request), notebook_id)
+
+
+@flashcards_router.get("/{deck_id}")
+async def get_flashcard_deck(notebook_id: uuid.UUID, deck_id: uuid.UUID,
+                             request: Request) -> dict[str, Any]:
+    return await get_flashcard_service(request).get(get_actor(request), notebook_id, deck_id)
+
+
+@flashcards_router.delete("/{deck_id}")
+async def delete_flashcard_deck(notebook_id: uuid.UUID, deck_id: uuid.UUID,
+                                request: Request) -> dict[str, bool]:
+    return {"deleted": await get_flashcard_service(request).delete(get_actor(request), notebook_id, deck_id)}
+
+
+@flashcards_router.delete("/{deck_id}/cards/{card_id}")
+async def delete_flashcard(notebook_id: uuid.UUID, deck_id: uuid.UUID, card_id: uuid.UUID,
+                           request: Request) -> dict[str, bool]:
+    return {"deleted": await get_flashcard_service(request).delete_card(
+        get_actor(request), notebook_id, deck_id, card_id
+    )}
+
+
+@flashcards_router.post("/{deck_id}/cards/{card_id}/explain")
+async def explain_flashcard(notebook_id: uuid.UUID, deck_id: uuid.UUID,
+                            card_id: uuid.UUID, request: Request) -> dict[str, Any]:
+    return await get_flashcard_service(request).explain(
+        get_actor(request), notebook_id, deck_id, card_id
+    )
+
+
+@flashcards_router.post("/{deck_id}/sessions", status_code=201)
+async def create_flashcard_session(notebook_id: uuid.UUID, deck_id: uuid.UUID,
+                                   body: FlashcardSessionCreate, request: Request) -> dict[str, Any]:
+    return await get_flashcard_service(request).create_session(
+        get_actor(request), notebook_id, deck_id, mode=body.mode
+    )
+
+
+@flashcards_router.patch("/{deck_id}/sessions/{session_id}")
+async def update_flashcard_session(notebook_id: uuid.UUID, deck_id: uuid.UUID,
+                                   session_id: uuid.UUID, body: FlashcardSessionUpdate,
+                                   request: Request) -> dict[str, Any]:
+    return await get_flashcard_service(request).update_session(
+        get_actor(request), notebook_id, deck_id, session_id,
+        current_index=body.current_index, results=body.results,
+        card_order=body.card_order, completed=body.completed,
+    )
+
+
+@flashcards_router.get("/{deck_id}/export.csv")
+async def export_flashcard_deck(notebook_id: uuid.UUID, deck_id: uuid.UUID,
+                                request: Request) -> Response:
+    from urllib.parse import quote
+
+    data, filename = await get_flashcard_service(request).csv_export(
+        get_actor(request), notebook_id, deck_id
+    )
+    safe_name = filename.replace('"', "").replace("\r", "").replace("\n", "")
+    return Response(content=data, media_type="text/csv; charset=utf-8", headers={
+        "Content-Disposition": f'attachment; filename="flashcards.csv"; filename*=UTF-8\'\'{quote(safe_name)}'
+    })
+
+
+# ---------------------------------------------------------------------------
 # Admin (L5) — central AI credentials, content reports
 # ---------------------------------------------------------------------------
 
@@ -1150,5 +1257,3 @@ async def import_snapshot(body: ImportRequest, request: Request) -> dict[str, An
     return await request.app.state.guguta_sharing.import_snapshot(
         actor, body.token, idempotency_key=body.idempotency_key
     )
-
-

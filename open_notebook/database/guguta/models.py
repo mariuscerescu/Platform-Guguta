@@ -911,6 +911,74 @@ class AudioOverview(GugutaBase):
     )
 
 
+class FlashcardDeck(GugutaBase):
+    __tablename__ = "flashcard_decks"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    notebook_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("digital_notebooks.id", ondelete="CASCADE"), nullable=False)
+    created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    quantity: Mapped[str] = mapped_column(String(20), nullable=False, default="standard", server_default="standard")
+    difficulty: Mapped[str] = mapped_column(String(20), nullable=False, default="medium", server_default="medium")
+    instructions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    selected_source_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    language: Mapped[str] = mapped_column(String(20), nullable=False, default="ro", server_default="ro")
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="queued", server_default="queued")
+    title: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    model_name: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    prompt_version: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    error_detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = _ts()
+    updated_at: Mapped[datetime] = _updated_at()
+    completed_at: Mapped[Optional[datetime]] = _ts_opt()
+
+    __table_args__ = (
+        CheckConstraint("quantity IN ('fewer','standard','more')", name="ck_flashcard_decks_quantity"),
+        CheckConstraint("difficulty IN ('easy','medium','hard')", name="ck_flashcard_decks_difficulty"),
+        CheckConstraint("status IN ('queued','generating','ready','failed')", name="ck_flashcard_decks_status"),
+        Index("ix_flashcard_decks_notebook_created", "notebook_id", "created_at"),
+    )
+
+
+class Flashcard(GugutaBase):
+    __tablename__ = "flashcards"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    deck_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("flashcard_decks.id", ondelete="CASCADE"), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    front: Mapped[str] = mapped_column(Text, nullable=False)
+    back: Mapped[str] = mapped_column(Text, nullable=False)
+    concept: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    evidence: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, server_default="[]")
+    created_at: Mapped[datetime] = _ts()
+
+    __table_args__ = (
+        UniqueConstraint("deck_id", "position", name="ux_flashcards_deck_position"),
+        CheckConstraint("position >= 0", name="ck_flashcards_position"),
+        Index("ix_flashcards_deck", "deck_id", "position"),
+    )
+
+
+class FlashcardSession(GugutaBase):
+    __tablename__ = "flashcard_sessions"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    deck_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("flashcard_decks.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    mode: Mapped[str] = mapped_column(String(20), nullable=False, default="all", server_default="all")
+    card_order: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    current_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    results: Mapped[dict[str, str]] = mapped_column(JSONB, nullable=False, server_default="{}")
+    started_at: Mapped[datetime] = _ts()
+    updated_at: Mapped[datetime] = _updated_at()
+    completed_at: Mapped[Optional[datetime]] = _ts_opt()
+
+    __table_args__ = (
+        CheckConstraint("mode IN ('all','same','missed')", name="ck_flashcard_sessions_mode"),
+        CheckConstraint("current_index >= 0", name="ck_flashcard_sessions_index"),
+        Index("ix_flashcard_sessions_deck_user", "deck_id", "user_id", "updated_at"),
+    )
+
+
 class OutboxEvent(GugutaBase):
     """Transactional outbox for future external publication (ADR-0002 Â§5)."""
 
