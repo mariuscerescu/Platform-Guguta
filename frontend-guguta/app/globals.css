@@ -1574,7 +1574,7 @@ main.container {
 }
 .study-card.flipped { border-color: #c9bdf5; background: linear-gradient(145deg, #fff, #f7f4ff); }
 .study-card-label { margin-bottom: 28px; color: #7359cb; font-size: .72rem; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; }
-.study-card strong { max-width: 720px; font-size: clamp(1.35rem, 3vw, 2rem); line-height: 1.4; }
+.study-card strong { max-width: 720px; font-size: clamp(1.2rem, 2.25vw, 1.7rem); line-height: 1.4; }
 .study-card small { margin-top: 30px; color: var(--text-secondary); font-size: .82rem; }
 .flashcard-explanation { max-width: 760px; margin: 16px auto 0; color: var(--text-secondary); line-height: 1.6; text-align: center; }
 .flashcard-explanation p { margin: 0; padding: 16px 20px; border: 1px solid #ded8f5; border-radius: 14px; background: #faf8ff; white-space: pre-wrap; }
