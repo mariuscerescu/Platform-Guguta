@@ -105,3 +105,12 @@ export function TrashIcon(props: IconProps) {
     </IconBase>
   );
 }
+
+export function PencilIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16v4Z" />
+      <path d="m13.5 6.5 4 4" />
+    </IconBase>
+  );
+}

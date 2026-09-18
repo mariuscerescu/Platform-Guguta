@@ -13,6 +13,7 @@ import {
   CardsIcon,
   ChatIcon,
   MaterialsIcon,
+  PencilIcon,
   QuizIcon,
   ShareIcon,
   StudioIcon,
@@ -160,7 +161,9 @@ export default function NotebookPage() {
   const [quizHint,setQuizHint]=useState(false);
   const [quizExplanation,setQuizExplanation]=useState<string|null>(null);
   const [quizBusy,setQuizBusy]=useState(false);
-  const [showQuizPrompt,setShowQuizPrompt]=useState(false);
+  const [renamingTitle,setRenamingTitle]=useState(false);
+  const [titleDraft,setTitleDraft]=useState("");
+  const [titleSaving,setTitleSaving]=useState(false);
   const [shareModalOpen,setShareModalOpen]=useState(false);
   const [shareSourceIds,setShareSourceIds]=useState<string[]>([]);
   const [shareTitle,setShareTitle]=useState("");
@@ -719,7 +722,7 @@ export default function NotebookPage() {
     try {
       const quiz=await api<QuizArtifact>("GET",`/api/v1/notebooks/${nbId}/quizzes/${id}`);
       const attempt=!retake&&quiz.active_attempt?quiz.active_attempt:await api<QuizAttempt>("POST",`/api/v1/notebooks/${nbId}/quizzes/${id}/attempts`,{});
-      setActiveQuiz(quiz);setQuizAttempt(attempt);setQuizResponse("");setQuizHint(false);setQuizExplanation(null);setShowQuizPrompt(false);
+      setActiveQuiz(quiz);setQuizAttempt(attempt);setQuizResponse("");setQuizHint(false);setQuizExplanation(null);
     } catch(err){setError((err as Error).message);}
   }
   async function submitQuizAnswer() {
@@ -760,6 +763,31 @@ export default function NotebookPage() {
   const currentQuizQuestion=activeQuiz?.questions?.find((q)=>q.id===quizAttempt?.question_order[quizAttempt.current_index]);
   const currentQuizAnswer=currentQuizQuestion&&quizAttempt?.answers[currentQuizQuestion.id];
 
+  function startTitleRename() {
+    setTitleDraft(nb?.title ?? "");
+    setRenamingTitle(true);
+  }
+
+  async function saveNotebookTitle() {
+    const nextTitle = titleDraft.trim();
+    if (!nb || !nextTitle || titleSaving) return;
+    if (nextTitle === nb.title) {
+      setRenamingTitle(false);
+      return;
+    }
+    setTitleSaving(true);
+    setError(null);
+    try {
+      const updated = await api<Notebook>("PATCH", `/api/v1/notebooks/${nbId}`, { title: nextTitle });
+      setNb((current) => current ? { ...current, title: updated.title ?? nextTitle } : current);
+      setRenamingTitle(false);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setTitleSaving(false);
+    }
+  }
+
   if (error && nb === null) {
     return (
       <>
@@ -778,13 +806,34 @@ export default function NotebookPage() {
             <path d="m14 6-6 6 6 6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </a>
-        <h1>{nb?.title ?? "Carnet"}</h1>
+        <div className="nb-title-area">
+          {renamingTitle ? (
+            <form className="nb-title-form" onSubmit={(event) => { event.preventDefault(); void saveNotebookTitle(); }}>
+              <input
+                value={titleDraft}
+                onChange={(event) => setTitleDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") setRenamingTitle(false);
+                }}
+                aria-label="Denumirea carnetului"
+                maxLength={500}
+                autoFocus
+              />
+              <button type="submit" className="nb-title-save" disabled={!titleDraft.trim() || titleSaving}>
+                {titleSaving ? "Se salvează…" : "Salvează"}
+              </button>
+              <button type="button" className="nb-title-cancel" onClick={() => setRenamingTitle(false)} disabled={titleSaving} aria-label="Anulează redenumirea">×</button>
+            </form>
+          ) : (
+            <>
+              <h1>{nb?.title ?? "Carnet"}</h1>
+              <button type="button" className="nb-title-edit" onClick={startTitleRename} disabled={!nb} aria-label="Redenumește carnetul" title="Redenumește carnetul">
+                <PencilIcon />
+              </button>
+            </>
+          )}
+        </div>
         <div className="nb-actions">
-          {/*
-            Redenumirea, fixarea sus și ștergerea se fac din meniul cardului,
-            în lista de carnete (app/components/NotebookMenu.tsx) — aici rămâne
-            doar partajarea, care ține de conținutul carnetului deschis.
-          */}
           <button
             className="pill share-btn"
             onClick={() => void openShareModal()}
@@ -1246,7 +1295,7 @@ export default function NotebookPage() {
 
       {activeQuiz&&quizAttempt&&(
         <div className="modal-overlay flashcard-study-overlay" role="presentation"><div className="flashcard-study quiz-study" role="dialog" aria-modal="true">
-          <header><div><h2>{activeQuiz.title||"Quiz"}</h2><p>{showQuizPrompt?(activeQuiz.instructions||"Fără instrucțiuni personalizate."):"Întrebări din materialele selectate"}</p></div><div className="flashcard-study-actions"><button className="chip" onClick={()=>setShowQuizPrompt(v=>!v)}>{showQuizPrompt?"Ascunde promptul":"Arată promptul"}</button><button className="icon-btn" onClick={()=>{setActiveQuiz(null);setQuizAttempt(null)}}>×</button></div></header>
+          <header><div><h2>{activeQuiz.title||"Quiz"}</h2><p>Întrebări din materialele selectate</p></div><div className="flashcard-study-actions"><button className="icon-btn" onClick={()=>{setActiveQuiz(null);setQuizAttempt(null)}} aria-label="Închide">×</button></div></header>
           {quizAttempt.completed_at?(
             <div className="flashcard-complete"><span>✓</span><h3>Quiz încheiat</h3><p><strong>{Object.values(quizAttempt.answers).filter(v=>v.status==="correct").length}</strong> din <strong>{quizAttempt.question_order.length}</strong> răspunsuri corecte</p><div className="modal-actions"><button className="chip" onClick={()=>{setQuizAttempt({...quizAttempt,completed_at:null,current_index:0});}}>Revizuiește</button><button className="create-btn" onClick={()=>void openQuiz(activeQuiz.id,true)}>Reia quiz-ul</button></div></div>
           ):currentQuizQuestion? <>
@@ -1313,7 +1362,6 @@ export default function NotebookPage() {
             <header>
               <div><h2 id="flashcard-study-title">{activeDeck.title || "Flashcards"}</h2><p>{studySession.card_order.length} cartonașe · Space pentru întoarcere</p></div>
               <div className="flashcard-study-actions">
-                <a className="chip" href={`${API_BASE}/api/v1/notebooks/${nbId}/flashcard-decks/${activeDeck.id}/export.csv`}>CSV</a>
                 <button type="button" className="icon-btn" aria-label="Închide" onClick={() => { setActiveDeck(null); setStudySession(null); }}>×</button>
               </div>
             </header>
