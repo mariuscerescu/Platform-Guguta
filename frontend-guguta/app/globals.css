@@ -2917,6 +2917,11 @@ textarea.quiz-answer-input { min-height: 130px; resize: vertical; }
   transition: border-color 160ms ease, transform 160ms ease, box-shadow 160ms ease;
 }
 
+.audio-overview-card,
+.flashcard-deck-card {
+  padding: 12px;
+}
+
 .audio-overview-card:hover,
 .flashcard-deck-card:hover,
 .studio-body .card:hover {
