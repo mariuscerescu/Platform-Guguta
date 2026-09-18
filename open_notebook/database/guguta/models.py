@@ -867,6 +867,50 @@ class ProcessingJob(GugutaBase):
     )
 
 
+class AudioOverview(GugutaBase):
+    """Single-speaker educational audio generated from selected sources."""
+
+    __tablename__ = "audio_overviews"
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    notebook_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("digital_notebooks.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    created_by: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    format: Mapped[str] = mapped_column(String(32), nullable=False)
+    selected_source_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="queued", server_default="queued"
+    )
+    title: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    script_text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    audio_storage_key: Mapped[Optional[str]] = mapped_column(String(1000), nullable=True)
+    mime_type: Mapped[str] = mapped_column(
+        String(255), nullable=False, default="audio/wav", server_default="audio/wav"
+    )
+    duration_seconds: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
+    script_model_name: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    tts_model_name: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    prompt_version: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    error_detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = _ts()
+    updated_at: Mapped[datetime] = _updated_at()
+    completed_at: Mapped[Optional[datetime]] = _ts_opt()
+
+    __table_args__ = (
+        CheckConstraint("format IN ('brief','deep_dive')", name="ck_audio_overviews_format"),
+        CheckConstraint(
+            "status IN ('queued','generating_script','synthesizing','ready','failed')",
+            name="ck_audio_overviews_status",
+        ),
+        Index("ix_audio_overviews_notebook_created", "notebook_id", "created_at"),
+    )
+
+
 class OutboxEvent(GugutaBase):
     """Transactional outbox for future external publication (ADR-0002 Â§5)."""
 

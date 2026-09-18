@@ -795,6 +795,94 @@ async def save_answer_as_note(
 
 
 # ---------------------------------------------------------------------------
+# Audio Overview — single-speaker Brief / Deep Dive
+# ---------------------------------------------------------------------------
+
+
+class AudioOverviewCreate(BaseModel):
+    format: str = Field(pattern="^(brief|deep_dive)$")
+    source_ids: list[uuid.UUID] = Field(min_length=1, max_length=20)
+
+
+audio_overviews_router = APIRouter(
+    prefix="/api/v1/notebooks/{notebook_id}/audio-overviews",
+    tags=["audio-overviews"],
+)
+
+
+def get_audio_overviews_service(request: Request) -> Any:
+    return request.app.state.guguta_audio_overviews
+
+
+@audio_overviews_router.post("", status_code=202)
+async def create_audio_overview(
+    notebook_id: uuid.UUID, body: AudioOverviewCreate, request: Request
+) -> dict[str, Any]:
+    actor = get_actor(request)
+    return await get_audio_overviews_service(request).create(
+        actor,
+        notebook_id,
+        format_name=body.format,
+        source_ids=body.source_ids,
+    )
+
+
+@audio_overviews_router.get("")
+async def list_audio_overviews(
+    notebook_id: uuid.UUID, request: Request
+) -> list[dict[str, Any]]:
+    actor = get_actor(request)
+    return await get_audio_overviews_service(request).list_for_notebook(
+        actor, notebook_id
+    )
+
+
+@audio_overviews_router.get("/{overview_id}")
+async def get_audio_overview(
+    notebook_id: uuid.UUID, overview_id: uuid.UUID, request: Request
+) -> dict[str, Any]:
+    actor = get_actor(request)
+    return await get_audio_overviews_service(request).get(
+        actor, notebook_id, overview_id
+    )
+
+
+@audio_overviews_router.get("/{overview_id}/audio")
+async def download_audio_overview(
+    notebook_id: uuid.UUID, overview_id: uuid.UUID, request: Request
+) -> Response:
+    from urllib.parse import quote
+
+    actor = get_actor(request)
+    data, mime, filename = await get_audio_overviews_service(request).download(
+        actor, notebook_id, overview_id
+    )
+    safe_name = filename.replace('"', "").replace("\r", "").replace("\n", "")
+    ascii_name = safe_name.encode("ascii", "replace").decode("ascii")
+    return Response(
+        content=data,
+        media_type=mime,
+        headers={
+            "Content-Disposition": (
+                f'inline; filename="{ascii_name}"; filename*=UTF-8\'\'{quote(safe_name)}'
+            )
+        },
+    )
+
+
+@audio_overviews_router.post("/{overview_id}/retry")
+async def retry_audio_overview(
+    notebook_id: uuid.UUID, overview_id: uuid.UUID, request: Request
+) -> dict[str, bool]:
+    actor = get_actor(request)
+    return {
+        "requeued": await get_audio_overviews_service(request).retry(
+            actor, notebook_id, overview_id
+        )
+    }
+
+
+# ---------------------------------------------------------------------------
 # Admin (L5) — central AI credentials, content reports
 # ---------------------------------------------------------------------------
 

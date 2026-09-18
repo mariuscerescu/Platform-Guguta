@@ -13,6 +13,7 @@ import signal
 
 from open_notebook.database.guguta.config import GugutaConfig
 from open_notebook.database.guguta.engine import create_engine_for_role
+from open_notebook.jobs.guguta.audio_overviews import process_audio_overview
 from open_notebook.jobs.guguta.embeddings import get_provider
 from open_notebook.jobs.guguta.handlers import process_material_version
 from open_notebook.jobs.guguta.queue import claim
@@ -63,6 +64,13 @@ class Worker:
                     job,
                     chunk_size_chars=self._config.chunk_size_chars,
                     overlap_chars=self._config.chunk_overlap_chars,
+                )
+            elif job.job_type == "generate_audio_overview":
+                await process_audio_overview(
+                    self._engine,
+                    self._storage,
+                    self._config,
+                    job,
                 )
             else:
                 logger.error("tip de job necunoscut: %s", job.job_type)

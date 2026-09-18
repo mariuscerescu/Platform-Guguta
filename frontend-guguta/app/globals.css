@@ -1408,6 +1408,234 @@ main.container {
   font-size: 0.84rem;
 }
 
+.audio-tool {
+  width: 100%;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+
+.audio-tool:hover:not(:disabled) {
+  border-color: #9dbdf5;
+  background: #edf4ff;
+  transform: translateY(-1px);
+}
+
+.audio-tool:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.audio-overview-card {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #cfe0fb;
+  border-radius: var(--radius);
+  background: linear-gradient(145deg, #f8fbff, #eef5ff);
+}
+
+.audio-overview-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.audio-overview-head > div {
+  min-width: 0;
+}
+
+.audio-overview-head strong,
+.audio-overview-head span {
+  display: block;
+}
+
+.audio-overview-head strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.93rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audio-overview-head span:not(.audio-overview-icon) {
+  margin-top: 2px;
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+}
+
+.audio-overview-icon {
+  display: grid;
+  flex: 0 0 38px;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 11px;
+  background: #dceaff;
+  color: var(--primary);
+}
+
+.audio-overview-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.audio-overview-card audio {
+  width: 100%;
+  height: 36px;
+}
+
+.audio-overview-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
+.audio-overview-error p {
+  margin: 0 0 9px;
+  color: var(--red);
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.audio-overview-modal {
+  width: min(100%, 640px);
+  max-height: min(88vh, 760px);
+  overflow-y: auto;
+}
+
+.audio-modal-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.audio-modal-heading h2 {
+  margin-bottom: 4px;
+}
+
+.audio-modal-heading p {
+  margin: 0 0 18px;
+}
+
+.audio-format-options,
+.audio-source-options {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  margin: 0 0 20px;
+  padding: 0;
+  border: 0;
+}
+
+.audio-format-options > legend,
+.fieldset-label {
+  margin-bottom: 2px;
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.audio-format-options > label {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 13px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.audio-format-options > label.selected {
+  border-color: var(--primary);
+  background: #f0f6ff;
+  box-shadow: 0 0 0 1px var(--primary);
+}
+
+.audio-format-options input {
+  margin-top: 3px;
+  accent-color: var(--primary);
+}
+
+.audio-format-options strong,
+.audio-format-options small {
+  display: block;
+}
+
+.audio-format-options small {
+  margin-top: 3px;
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.audio-source-legend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.audio-source-legend button {
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.audio-source-list {
+  display: grid;
+  max-height: 210px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.audio-source-list label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+}
+
+.audio-source-list label:last-child {
+  border-bottom: 0;
+}
+
+.audio-source-list input {
+  flex: 0 0 auto;
+  accent-color: var(--primary);
+}
+
+.audio-source-list span {
+  overflow: hidden;
+  font-size: 0.86rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.audio-local-note {
+  margin: -4px 0 18px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #f4f8fe;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
 .error-text {
   color: var(--red);
   font-weight: 700;

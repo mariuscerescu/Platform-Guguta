@@ -32,6 +32,18 @@ interface ChatSession {
   created_revision: number;
 }
 
+interface AudioOverview {
+  id: string;
+  notebook_id: string;
+  format: "brief" | "deep_dive";
+  selected_source_ids: string[];
+  status: "queued" | "generating_script" | "synthesizing" | "ready" | "failed";
+  title?: string | null;
+  duration_seconds?: number | null;
+  error_detail?: string | null;
+  job_id?: string | null;
+}
+
 /**
  * Răspunsul asistentului așa cum se afișează. Când referințele sunt oprite
  * (`lib/features.ts`), marcajele `[1]` se scot doar de aici — conținutul salvat
@@ -48,6 +60,7 @@ export default function NotebookPage() {
   const [nb, setNb] = useState<Notebook | null>(null);
   const [sources, setSources] = useState<Source[] | null>(null);
   const [notes, setNotes] = useState<Note[] | null>(null);
+  const [audioOverviews, setAudioOverviews] = useState<AudioOverview[] | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -59,6 +72,10 @@ export default function NotebookPage() {
   const [studioCollapsed, setStudioCollapsed] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [streaming, setStreaming] = useState<string | null>(null);
+  const [audioModalOpen, setAudioModalOpen] = useState(false);
+  const [audioFormat, setAudioFormat] = useState<"brief" | "deep_dive">("brief");
+  const [audioSourceIds, setAudioSourceIds] = useState<string[]>([]);
+  const [audioSubmitting, setAudioSubmitting] = useState(false);
   useEffect(() => {
     if (!sending) {
       setElapsed(0);
@@ -89,6 +106,11 @@ export default function NotebookPage() {
       setSources(srcs);
       const nts = await api<Note[]>(`GET`, `/api/v1/notebooks/${nbId}/notes`);
       setNotes(nts);
+      const overviews = await api<AudioOverview[]>(
+        "GET",
+        `/api/v1/notebooks/${nbId}/audio-overviews`,
+      );
+      setAudioOverviews(overviews);
       const sess = await api<ChatSession[]>(
         "GET",
         `/api/v1/notebooks/${nbId}/sessions`,
@@ -162,7 +184,11 @@ export default function NotebookPage() {
 
   // Materialele în procesare se reîmprospătează singure: cercul de lângă
   // fișier se oprește fără intervenția utilizatorului când workerul termină.
-  const hasProcessing = sources?.some((s) => s.status === "processing") ?? false;
+  const hasProcessing =
+    (sources?.some((s) => s.status === "processing") ?? false) ||
+    (audioOverviews?.some((item) =>
+      ["queued", "generating_script", "synthesizing"].includes(item.status)
+    ) ?? false);
   useEffect(() => {
     if (!hasProcessing) return;
     const t = setInterval(() => {
@@ -335,6 +361,55 @@ export default function NotebookPage() {
   async function removeNote(id: string) {
     try {
       await api("DELETE", `/api/v1/notebooks/${nbId}/notes/${id}`);
+      await loadAll();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
+  function openAudioModal() {
+    const readyIds = (sources ?? [])
+      .filter((source) => source.status === "ready")
+      .map((source) => source.id);
+    setAudioSourceIds(readyIds);
+    setAudioFormat("brief");
+    setAudioModalOpen(true);
+  }
+
+  function toggleAudioSource(sourceId: string) {
+    setAudioSourceIds((current) =>
+      current.includes(sourceId)
+        ? current.filter((id) => id !== sourceId)
+        : [...current, sourceId],
+    );
+  }
+
+  async function createAudioOverview() {
+    if (audioSubmitting || audioSourceIds.length === 0) return;
+    setAudioSubmitting(true);
+    setError(null);
+    try {
+      const created = await api<AudioOverview>(
+        "POST",
+        `/api/v1/notebooks/${nbId}/audio-overviews`,
+        { format: audioFormat, source_ids: audioSourceIds },
+      );
+      setAudioOverviews((current) => [created, ...(current ?? [])]);
+      setAudioModalOpen(false);
+      await loadAll();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setAudioSubmitting(false);
+    }
+  }
+
+  async function retryAudioOverview(overviewId: string) {
+    try {
+      await api(
+        "POST",
+        `/api/v1/notebooks/${nbId}/audio-overviews/${overviewId}/retry`,
+      );
       await loadAll();
     } catch (err) {
       setError((err as Error).message);
@@ -576,17 +651,64 @@ export default function NotebookPage() {
             </button>
           </div>
           <div className="panel-body studio-body">
-            {notes === null ? (
+            {notes === null || audioOverviews === null ? (
               <p className="muted">Se încarcă…</p>
-            ) : notes.length === 0 ? (
+            ) : notes.length === 0 && audioOverviews.length === 0 ? (
               <div className="studio-empty">
                 <svg viewBox="0 0 24 24" fill="currentColor" width="34" height="34">
                   <path d="M12 2l1.8 5.6L19 9l-5.2 1.4L12 16l-1.8-5.6L5 9l5.2-1.4L12 2zm7 12l.9 2.6L22.5 18l-2.6.9L19 21.5l-.9-2.6-2.6-.9 2.6-.9L19 14z" />
                 </svg>
                 <p className="studio-strong">Rezultatul Studio va fi salvat aici.</p>
               </div>
-            ) : (
-              notes.map((n) => (
+            ) : null}
+
+            {audioOverviews?.map((overview) => (
+              <article className="audio-overview-card" key={overview.id}>
+                <div className="audio-overview-head">
+                  <span className="audio-overview-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path d="M5 9v6M9 6v12M13 4v16M17 7v10M21 10v4" strokeLinecap="round" />
+                    </svg>
+                  </span>
+                  <div>
+                    <strong>{overview.title || "Rezumat audio"}</strong>
+                    <span>
+                      {overview.format === "brief" ? "Brief" : "Deep Dive"}
+                      {overview.duration_seconds
+                        ? ` · ${Math.max(1, Math.round(overview.duration_seconds / 60))} min`
+                        : ""}
+                    </span>
+                  </div>
+                </div>
+                {overview.status === "ready" ? (
+                  <audio
+                    controls
+                    preload="metadata"
+                    src={`${API_BASE}/api/v1/notebooks/${nbId}/audio-overviews/${overview.id}/audio`}
+                  >
+                    Browserul tău nu poate reda acest fișier audio.
+                  </audio>
+                ) : overview.status === "failed" ? (
+                  <div className="audio-overview-error">
+                    <p>{overview.error_detail || "Generarea audio a eșuat."}</p>
+                    <button className="pill small" onClick={() => retryAudioOverview(overview.id)}>
+                      Reîncearcă
+                    </button>
+                  </div>
+                ) : (
+                  <p className="audio-overview-progress" role="status">
+                    <span className="spinner tiny" aria-hidden="true" />
+                    {overview.status === "synthesizing"
+                      ? "Se generează vocea local…"
+                      : overview.status === "generating_script"
+                        ? "Se pregătește scenariul…"
+                        : "În așteptare…"}
+                  </p>
+                )}
+              </article>
+            ))}
+
+            {notes?.map((n) => (
                 <div className="card" key={n.id}>
                   <h3>{n.title}</h3>
                   <p>{n.content}</p>
@@ -594,8 +716,7 @@ export default function NotebookPage() {
                     Șterge notița
                   </button>
                 </div>
-              ))
-            )}
+              ))}
             <div className="future-tools" aria-label="Instrumente planificate">
               <div className="future-tool">
                 <strong>Flashcards</strong>
@@ -605,14 +726,136 @@ export default function NotebookPage() {
                 <strong>Quiz</strong>
                 <span>Va crea întrebări pentru verificarea cunoștințelor.</span>
               </div>
-              <div className="future-tool">
-                <strong>Audio overview</strong>
-                <span>Va transforma materialele într-un rezumat audio.</span>
-              </div>
+              <button
+                type="button"
+                className="future-tool audio-tool"
+                onClick={openAudioModal}
+                disabled={!sources?.some((source) => source.status === "ready")}
+              >
+                <strong>Audio Overview</strong>
+                <span>Transformă materialele selectate într-un rezumat audio.</span>
+              </button>
             </div>
           </div>
         </section>
       </div>
+
+      {audioModalOpen && (
+        <div
+          className="modal-overlay"
+          role="presentation"
+          onClick={() => !audioSubmitting && setAudioModalOpen(false)}
+        >
+          <div
+            className="modal audio-overview-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="audio-overview-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="audio-modal-heading">
+              <div>
+                <h2 id="audio-overview-title">Creează un Audio Overview</h2>
+                <p className="muted">O singură voce explică materialele în limba română.</p>
+              </div>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Închide"
+                onClick={() => setAudioModalOpen(false)}
+                disabled={audioSubmitting}
+              >
+                ×
+              </button>
+            </div>
+
+            <fieldset className="audio-format-options">
+              <legend>Format</legend>
+              <label className={audioFormat === "brief" ? "selected" : ""}>
+                <input
+                  type="radio"
+                  name="audio-format"
+                  value="brief"
+                  checked={audioFormat === "brief"}
+                  onChange={() => setAudioFormat("brief")}
+                />
+                <span>
+                  <strong>Brief</strong>
+                  <small>Ideile esențiale într-un rezumat de aproximativ 2 minute.</small>
+                </span>
+              </label>
+              <label className={audioFormat === "deep_dive" ? "selected" : ""}>
+                <input
+                  type="radio"
+                  name="audio-format"
+                  value="deep_dive"
+                  checked={audioFormat === "deep_dive"}
+                  onChange={() => setAudioFormat("deep_dive")}
+                />
+                <span>
+                  <strong>Deep Dive</strong>
+                  <small>Explicație aprofundată, cu legături, exemple și recapitulare.</small>
+                </span>
+              </label>
+            </fieldset>
+
+            <fieldset className="audio-source-options">
+              <div className="audio-source-legend">
+                <span className="fieldset-label">Materiale</span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setAudioSourceIds(
+                      (sources ?? [])
+                        .filter((source) => source.status === "ready")
+                        .map((source) => source.id),
+                    )
+                  }
+                >
+                  Selectează toate
+                </button>
+              </div>
+              <div className="audio-source-list">
+                {(sources ?? [])
+                  .filter((source) => source.status === "ready")
+                  .map((source) => (
+                    <label key={source.id}>
+                      <input
+                        type="checkbox"
+                        checked={audioSourceIds.includes(source.id)}
+                        onChange={() => toggleAudioSource(source.id)}
+                      />
+                      <span title={source.local_name}>{source.local_name}</span>
+                    </label>
+                  ))}
+              </div>
+            </fieldset>
+
+            <p className="audio-local-note">
+              Vocea este generată local cu MOSS-TTS. Procesarea continuă în fundal;
+              poți închide această fereastră.
+            </p>
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="chip"
+                onClick={() => setAudioModalOpen(false)}
+                disabled={audioSubmitting}
+              >
+                Anulează
+              </button>
+              <button
+                type="button"
+                className="create-btn"
+                onClick={() => void createAudioOverview()}
+                disabled={audioSubmitting || audioSourceIds.length === 0}
+              >
+                {audioSubmitting ? "Se adaugă…" : "Generează audio"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

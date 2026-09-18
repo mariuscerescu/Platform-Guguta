@@ -11,6 +11,7 @@ encryption secrets and wildcard origins. Full endpoint hardening lands in L2.
 from __future__ import annotations
 
 from typing import Literal
+from urllib.parse import urlparse
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -107,6 +108,10 @@ class GugutaConfig(BaseSettings):
     openrouter_max_retries: int = Field(default=1, ge=0, le=3)
     openrouter_embedding_batch_size: int = Field(default=16, ge=1, le=32)
     openrouter_max_output_tokens: int = Field(default=1500, ge=128, le=8192)
+    audio_overview_max_output_tokens: int = Field(default=4096, ge=512, le=8192)
+    audio_overview_max_source_chars: int = Field(default=60_000, ge=2_000, le=250_000)
+    moss_tts_base_url: str = "http://host.docker.internal:8000"
+    moss_tts_timeout_seconds: float = Field(default=900, gt=0, le=3600)
     job_lease_seconds: int = 300
     job_poll_seconds: float = 2.0
     job_worker_name: str = "worker-1"
@@ -120,6 +125,17 @@ class GugutaConfig(BaseSettings):
                 raise ValueError("GUGUTA_OPENROUTER_API_KEY is required")
             if self.embedding_provider == "openrouter" and self.embedding_dimension != 2048:
                 raise ValueError("Nemotron embeddings require GUGUTA_EMBEDDING_DIMENSION=2048")
+        # Audio narration must stay on this machine / its private Docker
+        # network.  This prevents source-derived scripts from being sent to an
+        # arbitrary remote TTS endpoint through configuration drift.
+        parsed_tts = urlparse(self.moss_tts_base_url)
+        local_tts_hosts = {
+            "localhost", "127.0.0.1", "::1", "host.docker.internal", "moss-tts"
+        }
+        if parsed_tts.scheme != "http" or parsed_tts.hostname not in local_tts_hosts:
+            raise ValueError(
+                "GUGUTA_MOSS_TTS_BASE_URL must point to the local MOSS-TTS service"
+            )
         if self.environment in _DEV_ENVIRONMENTS:
             return self
         problems: list[str] = []

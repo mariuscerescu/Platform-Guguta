@@ -26,6 +26,7 @@ from sqlalchemy import text
 from api.routers.guguta_v1 import (
     admin_catalog_router,
     admin_router,
+    audio_overviews_router,
     auth_router,
     catalog_router,
     chat_router,
@@ -39,6 +40,7 @@ from api.routers.guguta_v1 import (
     sources_router,
 )
 from api.services.guguta.admin import AdminService
+from api.services.guguta.audio_overviews import AudioOverviewService
 from api.services.guguta.catalog import (
     CatalogService,
     CatalogValidation,
@@ -155,6 +157,9 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
         total_timeout_seconds=config.chat_total_timeout_seconds,
     )
     app.state.guguta_notes = NotesService(engine)
+    app.state.guguta_audio_overviews = AudioOverviewService(
+        engine, FilesystemStorage(config.storage_root)
+    )
     app.state.guguta_catalog = CatalogService(
         engine, quota_mib_per_user=config.quota_mib_per_user
     )
@@ -257,6 +262,7 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
     app.include_router(search_router)
     app.include_router(chat_router)
     app.include_router(notes_router)
+    app.include_router(audio_overviews_router)
     app.include_router(admin_catalog_router)
     app.include_router(catalog_router)
     app.include_router(shares_router)
