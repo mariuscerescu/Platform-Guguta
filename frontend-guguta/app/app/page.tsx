@@ -204,30 +204,54 @@ export default function HomePage() {
   const loadingCards = Array.from({ length: 4 }, (_, i) => i);
 
   return (
-    <>
-      {/* Toolbar — chips stânga; căutare, vedere, sortare, creare dreapta */}
+    <div className="library-shell">
+      <section className="library-heading" aria-labelledby="library-title">
+        <div>
+          <h1 id="library-title">Carnetele mele</h1>
+          <p>Organizează materialele, continuă conversațiile și creează resurse de studiu.</p>
+        </div>
+        <div className="library-primary-actions">
+          <button
+            className="library-import-btn"
+            onClick={() => {setImportOpen(true);setImportPreview(null);setImportedNotebookId(null);setImportToken("");}}
+            disabled={!authed}
+            title="Importă un carnet primit prin link sau cod"
+          >
+            <IconDownload />
+            <span>Importă carnet</span>
+          </button>
+          <button
+            className="create-btn"
+            onClick={createNotebook}
+            disabled={creating || !authed}
+          >
+            <IconPlus />
+            <span>{creating ? "Se creează…" : "Carnet nou"}</span>
+          </button>
+        </div>
+      </section>
+
+      {/* Toolbar — navigare stânga; căutare, vedere și sortare dreapta. */}
       <div className="toolbar">
-        <button
-          className={`chip ${tab === "mine" ? "active" : ""}`}
-          onClick={() => setTab("mine")}
-          disabled={!authed}
-        >
-          Carnetele mele
-        </button>
-        <button
-          className={`chip ${tab === "school" ? "active" : ""}`}
-          onClick={() => setTab("school")}
-        >
-          Carnete școlare
-        </button>
-        <button
-          className="chip"
-          onClick={() => {setImportOpen(true);setImportPreview(null);setImportedNotebookId(null);setImportToken("");}}
-          disabled={!authed}
-          title="Importă un carnet primit prin link sau cod"
-        >
-          Importă carnet
-        </button>
+        <div className="library-tabs" role="tablist" aria-label="Tipul carnetelor">
+          <button
+            role="tab"
+            aria-selected={tab === "mine"}
+            className={tab === "mine" ? "active" : ""}
+            onClick={() => setTab("mine")}
+            disabled={!authed}
+          >
+            Carnetele mele
+          </button>
+          <button
+            role="tab"
+            aria-selected={tab === "school"}
+            className={tab === "school" ? "active" : ""}
+            onClick={() => setTab("school")}
+          >
+            Carnete școlare
+          </button>
+        </div>
         <div className="toolbar-spacer" />
         <div className="search-wrap">
           {searchOpen && (
@@ -278,13 +302,6 @@ export default function HomePage() {
           <option value="recent">Cele mai recente</option>
           <option value="title">După titlu</option>
         </select>
-        <button
-          className="create-btn"
-          onClick={createNotebook}
-          disabled={creating || !authed}
-        >
-          Carnet nou
-        </button>
       </div>
 
       {error && <p className="error-text" style={{ padding: "0 24px" }}>{error}</p>}
@@ -292,7 +309,7 @@ export default function HomePage() {
       {/* Carnetele mele */}
       {tab === "mine" && (
         <>
-          <h2 className="section-title">Carnetele mele</h2>
+          <h2 className="section-title">Carnetele tale</h2>
           {authed === null ? (
             <div className="grid-cards" aria-label="Se încarcă lista de carnete">
               {loadingCards.map((i) => (
@@ -547,6 +564,6 @@ export default function HomePage() {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

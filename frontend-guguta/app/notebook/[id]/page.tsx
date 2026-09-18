@@ -8,6 +8,16 @@ import {
   withoutReferenceMarkers,
 } from "../../../lib/features";
 import SourceUploader from "../../components/SourceUploader";
+import {
+  AudioIcon,
+  BroomIcon,
+  CardsIcon,
+  ChatIcon,
+  MaterialsIcon,
+  QuizIcon,
+  ShareIcon,
+  StudioIcon,
+} from "../../components/UiIcons";
 import { withBase, API_BASE } from "../../../lib/paths";
 
 interface ChatMessage {
@@ -87,6 +97,7 @@ interface QuizAttempt { id:string; current_index:number; question_order:string[]
 interface QuizArtifact { id:string; quantity:"fewer"|"standard"|"more"; difficulty:"easy"|"medium"|"hard"; question_types:QuizQuestionType[]; selected_source_ids:string[]; instructions?:string|null; status:"queued"|"generating"|"ready"|"failed"; title?:string|null; error_detail?:string|null; question_count:number; questions?:QuizQuestion[]; active_attempt?:QuizAttempt|null; }
 interface ShareItem { id:string; title:string; status:"active"|"revoked"|"expired"; material_count:number; created_at:string; expires_at?:string|null; }
 interface CreatedShare { share_id:string; token:string; code:string; material_count:number; expires_at?:string|null; }
+type MobilePanel = "materials" | "chat" | "studio";
 
 /**
  * Răspunsul asistentului așa cum se afișează. Când referințele sunt oprite
@@ -116,6 +127,7 @@ export default function NotebookPage() {
   const [error, setError] = useState<string | null>(null);
   const [srcCollapsed, setSrcCollapsed] = useState(false);
   const [studioCollapsed, setStudioCollapsed] = useState(false);
+  const [mobilePanel, setMobilePanel] = useState<MobilePanel>("chat");
   const [elapsed, setElapsed] = useState(0);
   const [streaming, setStreaming] = useState<string | null>(null);
   const [audioModalOpen, setAudioModalOpen] = useState(false);
@@ -774,16 +786,47 @@ export default function NotebookPage() {
             doar partajarea, care ține de conținutul carnetului deschis.
           */}
           <button
-            className="pill"
+            className="pill share-btn"
             onClick={() => void openShareModal()}
             disabled={!sources?.some((s) => s.status === "ready")}
             title="Creează un pachet de partajare"
           >
-            Partajează
+            <ShareIcon />
+            <span>Partajează</span>
           </button>
         </div>
       </header>
       {error && <p className="error-text nb-error">{error}</p>}
+
+      <nav className="mobile-workspace-nav" aria-label="Panourile carnetului">
+        <button
+          type="button"
+          className={mobilePanel === "materials" ? "active" : ""}
+          aria-pressed={mobilePanel === "materials"}
+          onClick={() => setMobilePanel("materials")}
+        >
+          <MaterialsIcon />
+          <span>Materiale</span>
+        </button>
+        <button
+          type="button"
+          className={mobilePanel === "chat" ? "active" : ""}
+          aria-pressed={mobilePanel === "chat"}
+          onClick={() => setMobilePanel("chat")}
+        >
+          <ChatIcon />
+          <span>Conversație</span>
+        </button>
+        <button
+          type="button"
+          className={mobilePanel === "studio" ? "active" : ""}
+          aria-pressed={mobilePanel === "studio"}
+          onClick={() => setMobilePanel("studio")}
+        >
+          <StudioIcon />
+          <span>Studio</span>
+        </button>
+      </nav>
 
       <div
         className={[
@@ -794,7 +837,7 @@ export default function NotebookPage() {
       >
         {/* -------- Surse (stânga, colapsabil) -------- */}
         <section
-          className={`panel src ${srcCollapsed ? "collapsed" : ""}`}
+          className={`panel src ${srcCollapsed ? "collapsed" : ""} ${mobilePanel === "materials" ? "mobile-active" : ""}`}
           aria-label="Materiale"
         >
           <div className="panel-head">
@@ -882,10 +925,20 @@ export default function NotebookPage() {
         </section>
 
         {/* -------- Conversație (centru) -------- */}
-        <section className="panel chat" aria-label="Conversație">
+        <section className={`panel chat ${mobilePanel === "chat" ? "mobile-active" : ""}`} aria-label="Conversație">
           <div className="panel-head">
-            <span className="panel-title">Conversație</span>
-            <button className="pill small" onClick={newSession}>Conversație nouă</button>
+            <div className="panel-heading-copy">
+              <span className="panel-title">Conversație</span>
+              <span className="panel-subtitle">Întreabă și explorează materialele selectate.</span>
+            </div>
+            <button
+              className="icon-btn reset-chat-btn"
+              onClick={newSession}
+              aria-label="Resetează conversația"
+              title="Resetează conversația"
+            >
+              <BroomIcon />
+            </button>
           </div>
           <div className="panel-body chat-body">
             {/*
@@ -968,7 +1021,7 @@ export default function NotebookPage() {
 
         {/* -------- Studio (dreapta, colapsabil) -------- */}
         <section
-          className={`panel studio ${studioCollapsed ? "collapsed" : ""}`}
+          className={`panel studio ${studioCollapsed ? "collapsed" : ""} ${mobilePanel === "studio" ? "mobile-active" : ""}`}
           aria-label="Studio"
         >
           <div className="panel-head">
@@ -995,12 +1048,12 @@ export default function NotebookPage() {
                   onClick={openFlashcardModal}
                   disabled={!sources?.some((source) => source.status === "ready")}
                 >
-                  <strong>Flashcards</strong>
-                  <span>Generează cartonașe de recapitulare din materiale.</span>
+                  <span className="studio-tool-icon"><CardsIcon /></span>
+                  <span className="studio-tool-copy"><strong>Flashcards</strong><span>Cartonașe de recapitulare</span></span>
                 </button>
                 <button type="button" className="future-tool audio-tool" onClick={openQuizModal} disabled={!sources?.some((source)=>source.status==="ready")}>
-                  <strong>Quiz</strong>
-                  <span>Testează înțelegerea cu patru tipuri de întrebări.</span>
+                  <span className="studio-tool-icon"><QuizIcon /></span>
+                  <span className="studio-tool-copy"><strong>Quiz</strong><span>Testează înțelegerea</span></span>
                 </button>
                 <button
                   type="button"
@@ -1008,8 +1061,8 @@ export default function NotebookPage() {
                   onClick={openAudioModal}
                   disabled={!sources?.some((source) => source.status === "ready")}
                 >
-                  <strong>Audio Overview</strong>
-                  <span>Transformă materialele selectate într-un rezumat audio.</span>
+                  <span className="studio-tool-icon"><AudioIcon /></span>
+                  <span className="studio-tool-copy"><strong>Audio Overview</strong><span>Rezumat audio în română</span></span>
                 </button>
               </div>
             </section>

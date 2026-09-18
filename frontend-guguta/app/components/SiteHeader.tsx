@@ -45,10 +45,15 @@ export default function SiteHeader() {
   // header-ul ar lua fundalul paginii, s-ar vedea o dungă albastră între ele.
   const isCardPage = CARD_ROUTES.some((route) => matchesRoute(pathname, route));
   const isAuthPage = AUTH_ROUTES.some((route) => matchesRoute(pathname, route));
+  const isProductPage =
+    matchesRoute(pathname, "/app") ||
+    pathname.startsWith("/notebook/") ||
+    pathname.startsWith(`${withBase("")}/notebook/`);
   const headerClass = [
     "header",
     isCardPage ? "header-card" : "header-inner",
     isAuthPage ? "header-auth" : null,
+    isProductPage ? "header-product" : null,
   ]
     .filter(Boolean)
     .join(" ");
@@ -59,6 +64,7 @@ export default function SiteHeader() {
         <span>Guguță</span>
       </a>
       <nav className="top-nav" aria-label="Navigare principală">
+        {isProductPage && <a href={withBase("/app")}>Carnetele mele</a>}
         <a href={withBase("/import")}>Importă</a>
       </nav>
       {isLanding && (
