@@ -4605,10 +4605,16 @@ main.container:has(> .nb-shell) {
 
 .composer .send-btn {
   right: 26px;
-  bottom: 27px;
+  top: 50%;
+  bottom: auto;
   width: 40px;
   height: 40px;
   border-radius: 12px;
+  transform: translateY(-50%);
+}
+
+.composer .send-btn:hover:not(:disabled) {
+  transform: translate(2px, -50%);
 }
 
 .studio-body {
