@@ -114,3 +114,20 @@ export function PencilIcon(props: IconProps) {
     </IconBase>
   );
 }
+
+export function PanelToggleIcon({
+  direction,
+  side,
+  ...props
+}: IconProps & { direction: "left" | "right"; side: "left" | "right" }) {
+  const arrow = direction === "left" ? "m14 8-4 4 4 4" : "m10 8 4 4-4 4";
+  const dividerX = side === "left" ? 8 : 16;
+
+  return (
+    <IconBase {...props}>
+      <rect x="3" y="4" width="18" height="16" rx="2.5" />
+      <path d={`M${dividerX} 4v16`} />
+      <path d={arrow} />
+    </IconBase>
+  );
+}

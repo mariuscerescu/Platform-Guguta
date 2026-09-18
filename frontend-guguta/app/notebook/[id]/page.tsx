@@ -14,6 +14,7 @@ import {
   ChatIcon,
   MaterialsIcon,
   PencilIcon,
+  PanelToggleIcon,
   QuizIcon,
   ShareIcon,
   StudioIcon,
@@ -891,12 +892,13 @@ export default function NotebookPage() {
           <div className="panel-head">
             <span className="panel-title">Materiale</span>
             <button
+              type="button"
               className="icon-btn"
               onClick={() => setSrcCollapsed((v) => !v)}
               aria-label={srcCollapsed ? "Desfă panoul Materiale" : "Strânge panoul Materiale"}
               title={srcCollapsed ? "Desfă" : "Strânge"}
             >
-              {srcCollapsed ? "»" : "«"}
+              <PanelToggleIcon side="left" direction={srcCollapsed ? "right" : "left"} />
             </button>
           </div>
           <div className="panel-body">
@@ -1076,12 +1078,13 @@ export default function NotebookPage() {
           <div className="panel-head">
             <span className="panel-title">Studio</span>
             <button
+              type="button"
               className="icon-btn"
               onClick={() => setStudioCollapsed((v) => !v)}
               aria-label={studioCollapsed ? "Desfă panoul Studio" : "Strânge panoul Studio"}
               title={studioCollapsed ? "Desfă" : "Strânge"}
             >
-              {studioCollapsed ? "«" : "»"}
+              <PanelToggleIcon side="right" direction={studioCollapsed ? "left" : "right"} />
             </button>
           </div>
           <div className="panel-body studio-body">
