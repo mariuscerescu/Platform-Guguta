@@ -41,12 +41,15 @@ function matchesRoute(pathname: string, route: string): boolean {
 export default function SiteHeader() {
   const pathname = usePathname();
   const isLanding = matchesRoute(pathname, "/");
+  const isLibraryPage = matchesRoute(pathname, "/app");
+  const isImportPage = matchesRoute(pathname, "/import");
   // Cardul de logare/înregistrare are exact același chenar ca header-ul: dacă
   // header-ul ar lua fundalul paginii, s-ar vedea o dungă albastră între ele.
   const isCardPage = CARD_ROUTES.some((route) => matchesRoute(pathname, route));
   const isAuthPage = AUTH_ROUTES.some((route) => matchesRoute(pathname, route));
   const isProductPage =
-    matchesRoute(pathname, "/app") ||
+    isLibraryPage ||
+    isImportPage ||
     pathname.startsWith("/notebook/") ||
     pathname.startsWith(`${withBase("")}/notebook/`);
   const headerClass = [
@@ -64,8 +67,14 @@ export default function SiteHeader() {
         <span>Guguță</span>
       </a>
       <nav className="top-nav" aria-label="Navigare principală">
-        {isProductPage && <a href={withBase("/app")}>Carnetele mele</a>}
-        <a href={withBase("/import")}>Importă</a>
+        {isProductPage && (
+          <a href={withBase("/app")} aria-current={isLibraryPage ? "page" : undefined}>
+            Carnetele mele
+          </a>
+        )}
+        <a href={withBase("/import")} aria-current={isImportPage ? "page" : undefined}>
+          Importă
+        </a>
       </nav>
       {isLanding && (
         <div className="header-actions">

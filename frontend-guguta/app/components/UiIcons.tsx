@@ -19,17 +19,6 @@ function IconBase({ children, ...props }: IconProps) {
   );
 }
 
-export function BroomIcon(props: IconProps) {
-  return (
-    <IconBase {...props}>
-      <path d="m20 3-9.2 9.2" />
-      <path d="m9.2 10.8 4 4" />
-      <path d="M10.5 12.1c-2.8-.2-5 .8-6.3 3L2.5 18l3.5 3.5 2.9-1.7c2.2-1.3 3.2-3.5 3-6.3" />
-      <path d="m4.5 16.8 3.7 3.7" />
-    </IconBase>
-  );
-}
-
 export function ShareIcon(props: IconProps) {
   return (
     <IconBase {...props}>
@@ -105,6 +94,14 @@ export function PlusIcon(props: IconProps) {
   return (
     <IconBase {...props}>
       <path d="M12 5v14M5 12h14" />
+    </IconBase>
+  );
+}
+
+export function TrashIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5M14 11v5" />
     </IconBase>
   );
 }

@@ -10,13 +10,13 @@ import {
 import SourceUploader from "../../components/SourceUploader";
 import {
   AudioIcon,
-  BroomIcon,
   CardsIcon,
   ChatIcon,
   MaterialsIcon,
   QuizIcon,
   ShareIcon,
   StudioIcon,
+  TrashIcon,
 } from "../../components/UiIcons";
 import { withBase, API_BASE } from "../../../lib/paths";
 
@@ -937,7 +937,7 @@ export default function NotebookPage() {
               aria-label="Resetează conversația"
               title="Resetează conversația"
             >
-              <BroomIcon />
+              <img src={withBase("/assets/broom.png")} alt="" />
             </button>
           </div>
           <div className="panel-body chat-body">
@@ -1115,7 +1115,7 @@ export default function NotebookPage() {
                     aria-label={`Șterge ${deck.title || "setul de flashcards"}`}
                     title="Șterge setul"
                   >
-                    {deletingDeckId === deck.id ? <span className="spinner tiny" /> : "×"}
+                    {deletingDeckId === deck.id ? <span className="spinner tiny" /> : <TrashIcon />}
                   </button>
                   {deck.status === "failed" && (
                     <div className="flashcard-deck-error">
@@ -1131,7 +1131,7 @@ export default function NotebookPage() {
                   <button type="button" className="flashcard-deck-open" disabled={quiz.status!=="ready"} onClick={()=>quiz.status==="ready"&&void openQuiz(quiz.id)}>
                     <span className="flashcard-deck-icon" aria-hidden="true">?</span><span><strong>{quiz.title||"Quiz"}</strong><small>{quiz.status==="ready"?`${quiz.question_count} întrebări · ${quiz.difficulty==="easy"?"Ușor":quiz.difficulty==="hard"?"Dificil":"Mediu"}`:quiz.status==="failed"?"Generarea a eșuat":"Se generează în fundal…"}</small></span>
                   </button>
-                  <button type="button" className="audio-overview-delete" onClick={()=>void removeQuiz(quiz)} aria-label="Șterge quiz-ul">×</button>
+                  <button type="button" className="audio-overview-delete" onClick={()=>void removeQuiz(quiz)} aria-label="Șterge quiz-ul"><TrashIcon /></button>
                   {quiz.status==="failed"&&<div className="flashcard-deck-error"><p className="error-text">{quiz.error_detail||"Generarea a eșuat."}</p><button className="pill small" onClick={()=>void retryQuiz(quiz.id)}>Reîncearcă</button></div>}
                 </article>
               ))}
@@ -1164,9 +1164,7 @@ export default function NotebookPage() {
                       {deletingAudioId === overview.id ? (
                         <span className="spinner tiny" aria-hidden="true" />
                       ) : (
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                          <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5M14 11v5" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
+                        <TrashIcon />
                       )}
                     </button>
                   </div>

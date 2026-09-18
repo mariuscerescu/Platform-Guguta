@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { api, me } from "../../lib/api";
 import { withBase } from "../../lib/paths";
+import { UploadIcon } from "../components/UiIcons";
 
 interface PreviewData {
   snapshot_id: string;
@@ -16,6 +17,7 @@ export default function ImportPage() {
   const [token, setToken] = useState("");
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [authed, setAuthed] = useState<boolean | null>(null);
+  const [checking, setChecking] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
@@ -38,12 +40,15 @@ export default function ImportPage() {
   }, []);
 
   async function doPreview() {
+    setChecking(true);
     setError(null);
     setPreview(null);
     try {
       setPreview(await api<PreviewData>("POST","/api/v1/imports/preview",{token:token.trim()}));
     } catch (err) {
       setError((err as Error).message || "Nu am putut verifica linkul.");
+    } finally {
+      setChecking(false);
     }
   }
 
@@ -71,60 +76,88 @@ export default function ImportPage() {
     // preserve the token for after login (F05)
     sessionStorage.setItem("guguta_pending_import", token);
     return (
-      <>
-        <h1>Import materiale</h1>
-        <p className="muted">
-          Trebuie să te autentifici ca să poți importa materialele.
-        </p>
-        <a href={withBase("/login")} className="btn">Autentificare</a>
-        <p className="muted" style={{ marginTop: 12 }}>
-          Codul este păstrat în acest browser și va fi disponibil după autentificare.
-        </p>
-      </>
+      <div className="import-shell">
+        <section className="import-card import-auth-card" aria-labelledby="import-title">
+          <div className="import-icon" aria-hidden="true"><UploadIcon /></div>
+          <p className="import-eyebrow">Carnet partajat</p>
+          <h1 id="import-title">Autentifică-te pentru a continua</h1>
+          <p className="import-lead">Codul primit este păstrat în acest browser și va fi disponibil imediat după autentificare.</p>
+          <a href={withBase("/login")} className="primary import-login-link">Autentificare</a>
+        </section>
+      </div>
     );
   }
 
   return (
-    <>
-      <h1>Import materiale</h1>
-      <p className="muted">
-        Se transferă numai materialele. Conversațiile, notițele și memoria AI a
-        autorului nu sunt incluse.
-      </p>
-      {error && <p className="error-text">{error}</p>}
-      {done && (
-        <div className="card">
-          <h3>Import reușit!</h3>
-          <p>
-            Carnetul a fost creat. <a href={withBase(`/notebook/${done}`)}>Deschide carnetul</a>
-          </p>
-        </div>
-      )}
+    <div className="import-shell">
+      <section className="import-card" aria-labelledby="import-title">
+        <header className="import-heading">
+          <div className="import-icon" aria-hidden="true"><UploadIcon /></div>
+          <div>
+            <p className="import-eyebrow">Carnet partajat</p>
+            <h1 id="import-title">Importă un carnet</h1>
+            <p className="import-lead">Introdu codul sau linkul primit pentru a crea o copie în spațiul tău.</p>
+          </div>
+        </header>
 
-      {!preview && (
-        <form onSubmit={(e) => { e.preventDefault(); void doPreview(); }} style={{ maxWidth: 480 }}>
-          <label htmlFor="token" className="muted">Linkul sau codul primit</label>
-          <input id="token" value={token} onChange={(e) => setToken(e.target.value)}
-            placeholder="ABCD-EFGH sau linkul complet" />
-          <button className="primary" style={{ marginTop: 8 }} disabled={!token.trim()}>
-            Verifică
-          </button>
-        </form>
-      )}
-
-      {preview && (
-        <div className="card" style={{ maxWidth: 480 }}>
-          <h3>{preview.title}</h3>
-          {preview.description && <p className="muted">{preview.description}</p>}
-          <p className="muted">{preview.material_count} materiale:</p>
-          <ul>
-            {preview.materials.map((m, i) => <li key={i}>{m}</li>)}
-          </ul>
-          <button className="primary" onClick={doImport} disabled={busy}>
-            {busy ? "Se importă…" : "Importă în carnetele mele"}
-          </button>
+        <div className="import-privacy-note">
+          <strong>Datele tale rămân separate.</strong>
+          <span>Se copiază doar materialele; conversațiile, notițele și memoria AI a autorului nu sunt incluse.</span>
         </div>
-      )}
-    </>
+
+        {error && <p className="error-text import-message" role="alert">{error}</p>}
+        {done && (
+          <div className="import-success" role="status">
+            <div>
+              <strong>Import reușit</strong>
+              <span>Carnetul este pregătit în biblioteca ta.</span>
+            </div>
+            <a href={withBase(`/notebook/${done}`)}>Deschide carnetul</a>
+          </div>
+        )}
+
+        {!preview && !done && (
+          <form className="import-form" onSubmit={(e) => { e.preventDefault(); void doPreview(); }}>
+            <label htmlFor="token">Linkul sau codul primit</label>
+            <div className="import-field-row">
+              <input
+                id="token"
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+                placeholder="ABCD-EFGH sau linkul complet"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <button className="primary" disabled={!token.trim() || checking}>
+                {checking ? "Se verifică…" : "Verifică"}
+              </button>
+            </div>
+            <p>Poți lipi linkul complet; codul va fi identificat automat.</p>
+          </form>
+        )}
+
+        {preview && (
+          <div className="import-preview-card">
+            <div className="import-preview-heading">
+              <div>
+                <p className="import-eyebrow">Previzualizare</p>
+                <h2>{preview.title}</h2>
+              </div>
+              <span>{preview.material_count} {preview.material_count === 1 ? "material" : "materiale"}</span>
+            </div>
+            {preview.description && <p className="import-preview-description">{preview.description}</p>}
+            <ul>
+              {preview.materials.map((m, i) => <li key={i}>{m}</li>)}
+            </ul>
+            <div className="import-preview-actions">
+              <button type="button" className="pill" onClick={() => setPreview(null)} disabled={busy}>Înapoi</button>
+              <button type="button" className="primary" onClick={doImport} disabled={busy}>
+                {busy ? "Se importă…" : "Importă în carnetele mele"}
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+    </div>
   );
 }
