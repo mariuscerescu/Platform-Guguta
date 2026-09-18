@@ -56,10 +56,12 @@ async def _load_input(engine: AsyncEngine, actor_id: uuid.UUID, deck_id: uuid.UU
         remaining -= len(content)
         if not content:
             continue
-        evidence_id = str(row["id"])
+        # Short labels are easier for smaller models to reproduce exactly;
+        # persisted evidence still keeps the real source/chunk identifiers.
+        evidence_id = f"E{len(evidence) + 1}"
         evidence.append({"id": evidence_id, "source_name": str(row["local_name"]), "text": content})
         lookup[evidence_id] = {
-            "source_id": str(row["source_id"]), "chunk_id": evidence_id,
+            "source_id": str(row["source_id"]), "chunk_id": str(row["id"]),
             "source_name": str(row["local_name"]), "locator": dict(row["locator"] or {}),
         }
     if not evidence:

@@ -548,6 +548,15 @@ export default function NotebookPage() {
     }
   }
 
+  async function retryFlashcardDeck(deckId: string) {
+    try {
+      await api("POST", `/api/v1/notebooks/${nbId}/flashcard-decks/${deckId}/retry`, {});
+      await loadAll();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
   async function openDeck(deckId: string, mode: "all" | "same" | "missed" = "all") {
     try {
       const deck = await api<FlashcardDeck>("GET", `/api/v1/notebooks/${nbId}/flashcard-decks/${deckId}`);
@@ -958,7 +967,12 @@ export default function NotebookPage() {
                   >
                     {deletingDeckId === deck.id ? <span className="spinner tiny" /> : "×"}
                   </button>
-                  {deck.status === "failed" && <p className="error-text">{deck.error_detail || "Încearcă să generezi un set nou."}</p>}
+                  {deck.status === "failed" && (
+                    <div className="flashcard-deck-error">
+                      <p className="error-text">{deck.error_detail || "Generarea a eșuat."}</p>
+                      <button className="pill small" onClick={() => void retryFlashcardDeck(deck.id)}>Reîncearcă</button>
+                    </div>
+                  )}
                 </article>
               ))}
 

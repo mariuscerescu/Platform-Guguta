@@ -15,7 +15,7 @@ from open_notebook.ai.guguta.flashcards import FlashcardGenerator
 from open_notebook.auth.guguta.actor import ActorContext
 from open_notebook.database.guguta.engine import actor_connection
 from open_notebook.exceptions import InvalidInputError, NotFoundError
-from open_notebook.jobs.guguta.queue import enqueue
+from open_notebook.jobs.guguta.queue import enqueue, requeue
 
 
 class FlashcardDeckNotFound(NotFoundError):
@@ -127,6 +127,37 @@ class FlashcardService:
                 "DELETE FROM flashcard_decks WHERE id=:id AND notebook_id=:n"
             ), {"id": deck_id, "n": notebook_id})
         return bool(result.rowcount)
+
+    async def retry(
+        self, actor: ActorContext, notebook_id: uuid.UUID, deck_id: uuid.UUID
+    ) -> bool:
+        async with actor_connection(self._engine, actor.actor_id) as conn:
+            row = (
+                await conn.execute(
+                    text(
+                        "SELECT d.status,j.id FROM flashcard_decks d JOIN processing_jobs j "
+                        "ON j.target_type='flashcard_deck' AND j.target_id=d.id "
+                        "WHERE d.id=:id AND d.notebook_id=:n "
+                        "ORDER BY j.created_at DESC LIMIT 1"
+                    ),
+                    {"id": deck_id, "n": notebook_id},
+                )
+            ).first()
+        if row is None:
+            raise FlashcardDeckNotFound()
+        if row.status != "failed":
+            raise InvalidInputError("Poate fi reluat numai un set eșuat.")
+        ok = await requeue(self._engine, row.id, actor.actor_id)
+        if ok:
+            async with actor_connection(self._engine, actor.actor_id) as conn:
+                await conn.execute(
+                    text(
+                        "UPDATE flashcard_decks SET status='queued',error_detail=NULL "
+                        "WHERE id=:id"
+                    ),
+                    {"id": deck_id},
+                )
+        return ok
 
     async def delete_card(self, actor: ActorContext, notebook_id: uuid.UUID, deck_id: uuid.UUID, card_id: uuid.UUID) -> bool:
         async with actor_connection(self._engine, actor.actor_id) as conn:

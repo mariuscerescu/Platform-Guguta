@@ -952,6 +952,14 @@ async def delete_flashcard_deck(notebook_id: uuid.UUID, deck_id: uuid.UUID,
     return {"deleted": await get_flashcard_service(request).delete(get_actor(request), notebook_id, deck_id)}
 
 
+@flashcards_router.post("/{deck_id}/retry")
+async def retry_flashcard_deck(notebook_id: uuid.UUID, deck_id: uuid.UUID,
+                               request: Request) -> dict[str, bool]:
+    return {"requeued": await get_flashcard_service(request).retry(
+        get_actor(request), notebook_id, deck_id
+    )}
+
+
 @flashcards_router.delete("/{deck_id}/cards/{card_id}")
 async def delete_flashcard(notebook_id: uuid.UUID, deck_id: uuid.UUID, card_id: uuid.UUID,
                            request: Request) -> dict[str, bool]:

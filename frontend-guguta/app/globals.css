@@ -1522,6 +1522,8 @@ main.container {
 }
 
 .flashcard-deck-card > .error-text { grid-column: 1 / -1; margin: 0; font-size: .78rem; }
+.flashcard-deck-error { grid-column: 1 / -1; }
+.flashcard-deck-error .error-text { margin: 0 0 8px; font-size: .78rem; }
 
 .flashcard-config-modal { width: min(100%, 720px); max-height: 90vh; overflow-y: auto; }
 .flashcard-config-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 20px; }

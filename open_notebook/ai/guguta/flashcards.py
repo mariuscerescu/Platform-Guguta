@@ -77,7 +77,9 @@ class FlashcardGenerator:
             "concis și neambiguu; răspunsul trebuie să fie scurt și direct. Evită duplicatele, "
             "întrebările triviale sau dependente de context nespecificat. Păstrează dezacordurile "
             "dintre surse. Fiecare card trebuie să includă 1-3 evidence_ids valide. "
-            f"Dificultate: {difficulty_rule}. Creează aproximativ {target} carduri, fără umplutură. "
+            f"Dificultate: {difficulty_rule}. Creează între 1 și {target} carduri. "
+            "Nu returna niciodată lista cards goală. Dacă dovezile susțin mai puține "
+            "carduri decât ținta, returnează doar cardurile bine susținute. "
             "Returnează numai JSON valid: {title, cards:[{front,back,concept,evidence_ids}]}."
         )
         payload = {
@@ -94,7 +96,48 @@ class FlashcardGenerator:
                 ],
                 "max_tokens": self._max_tokens,
                 "temperature": 0.2,
-                "response_format": {"type": "json_object"},
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {
+                        "name": "guguta_flashcard_deck",
+                        "strict": True,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "title": {"type": "string", "minLength": 1},
+                                "cards": {
+                                    "type": "array",
+                                    "minItems": 1,
+                                    "maxItems": target,
+                                    "items": {
+                                        "type": "object",
+                                        "properties": {
+                                            "front": {"type": "string", "minLength": 1},
+                                            "back": {"type": "string", "minLength": 1},
+                                            "concept": {"type": "string"},
+                                            "evidence_ids": {
+                                                "type": "array",
+                                                "minItems": 1,
+                                                "maxItems": 3,
+                                                "items": {"type": "string"},
+                                            },
+                                        },
+                                        "required": [
+                                            "front",
+                                            "back",
+                                            "concept",
+                                            "evidence_ids",
+                                        ],
+                                        "additionalProperties": False,
+                                    },
+                                },
+                            },
+                            "required": ["title", "cards"],
+                            "additionalProperties": False,
+                        },
+                    },
+                },
+                "provider": {"require_parameters": True},
                 "reasoning": {"enabled": False},
             },
         )
