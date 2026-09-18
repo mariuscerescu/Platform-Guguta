@@ -11,12 +11,13 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<string>("password");
+  const destination = () => sessionStorage.getItem("guguta_pending_import") ? withBase("/import") : withBase("/app");
 
   useEffect(() => {
     void authMode().then((value) => {
       setMode(value);
       if (value === "oidc") {
-        window.location.href = `${API_BASE}/api/v1/auth/oidc/login?next=${encodeURIComponent(withBase("/app"))}`;
+        window.location.href = `${API_BASE}/api/v1/auth/oidc/login?next=${encodeURIComponent(destination())}`;
       }
     });
   }, []);
@@ -28,7 +29,7 @@ export default function LoginPage() {
     setError(null);
     try {
       await loginPassword(email.trim(), password);
-      window.location.href = withBase("/app");
+      window.location.href = destination();
     } catch (err) {
       setError((err as Error).message);
       setBusy(false);
@@ -42,7 +43,7 @@ export default function LoginPage() {
     setError(null);
     try {
       await loginDev(devName.trim());
-      window.location.href = withBase("/app");
+      window.location.href = destination();
     } catch (err) {
       setError((err as Error).message);
       setBusy(false);

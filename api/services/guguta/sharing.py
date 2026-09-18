@@ -14,9 +14,12 @@ aborts; an import committed first leaves a valid copy.
 from __future__ import annotations
 
 import hashlib
+import re
 import secrets
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
+from urllib.parse import parse_qs, unquote, urlparse
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -36,6 +39,10 @@ class ShareValidation(OpenNotebookError):
 
 class ShareRevoked(OpenNotebookError):
     """The package was revoked; new imports are refused (maps to 410/409)."""
+
+
+class ShareExpired(OpenNotebookError):
+    """The package reached its author-selected expiration date."""
 
 
 class QuotaExceeded(OpenNotebookError):
@@ -61,6 +68,27 @@ def _generate_code() -> str:
     return "".join(secrets.choice(alphabet) for _ in range(8))
 
 
+def normalize_share_secret(value: str) -> str:
+    """Accept a raw token, an 8-char code, or a complete /import URL."""
+    value = unquote(value.strip())
+    if not value:
+        return ""
+    try:
+        parsed = urlparse(value)
+        fragment = parse_qs(parsed.fragment).get("token", [""])[0]
+        query = parse_qs(parsed.query).get("token", [""])[0]
+        if fragment or query:
+            value = fragment or query
+    except ValueError:
+        pass
+    if "#token=" in value:
+        value = value.split("#token=", 1)[1].split("&", 1)[0]
+    compact = re.sub(r"[\s-]", "", value)
+    if re.fullmatch(r"[A-Za-z2-9]{8}", compact):
+        return compact.upper()
+    return value.strip()
+
+
 class SharingService:
     def __init__(self, engine: AsyncEngine, *, quota_mib_per_user: int = 1024) -> None:
         self._engine = engine
@@ -69,46 +97,67 @@ class SharingService:
     # -- creation (author) ----------------------------------------------------
 
     async def create_share(
-        self, actor: ActorContext, notebook_id: uuid.UUID, *,
-        source_ids: list[uuid.UUID], title: Optional[str] = None,
+        self,
+        actor: ActorContext,
+        notebook_id: uuid.UUID,
+        *,
+        source_ids: list[uuid.UUID],
+        title: Optional[str] = None,
         description: Optional[str] = None,
+        expires_in_days: int | None = 30,
     ) -> dict[str, Any]:
         """Snapshot only the selected, READY materials of the author's notebook."""
         if not source_ids:
             raise ShareValidation("Selectează cel puțin un material.")
+        if expires_in_days not in (None, 1, 7, 30, 90):
+            raise ShareValidation("Perioada de valabilitate nu este acceptată.")
         snapshot_id = uuid.uuid4()
+        expires_at = (
+            datetime.now(timezone.utc) + timedelta(days=expires_in_days)
+            if expires_in_days is not None
+            else None
+        )
         async with actor_connection(self._engine, actor.actor_id) as conn:
             nb = (
-                await conn.execute(
-                    text(
-                        "SELECT id, title FROM digital_notebooks WHERE id = :id"
-                    ),
-                    {"id": notebook_id},
+                (
+                    await conn.execute(
+                        text("SELECT id, title FROM digital_notebooks WHERE id = :id"),
+                        {"id": notebook_id},
+                    )
                 )
-            ).mappings().first()
+                .mappings()
+                .first()
+            )
             if nb is None:
                 raise ShareNotFound()
             items: list[dict[str, Any]] = []
             for position, sid in enumerate(source_ids, start=1):
                 row = (
-                    await conn.execute(
-                        text(
-                            "SELECT ns.id, ns.local_name, mv.id AS mv_id, mv.version"
-                            " FROM notebook_sources ns"
-                            " JOIN material_versions mv ON mv.id = ns.material_version_id"
-                            " WHERE ns.id = :sid AND ns.notebook_id = :nb"
-                            "   AND ns.status = 'ready'"
-                        ),
-                        {"sid": sid, "nb": notebook_id},
+                    (
+                        await conn.execute(
+                            text(
+                                "SELECT ns.id, ns.local_name, mv.id AS mv_id, mv.version"
+                                " FROM notebook_sources ns"
+                                " JOIN material_versions mv ON mv.id = ns.material_version_id"
+                                " WHERE ns.id = :sid AND ns.notebook_id = :nb"
+                                "   AND ns.status = 'ready'"
+                            ),
+                            {"sid": sid, "nb": notebook_id},
+                        )
                     )
-                ).mappings().first()
+                    .mappings()
+                    .first()
+                )
                 if row is None:
                     raise ShareValidation(
                         f"Materialul {sid} nu există în carnet sau nu este gata."
                     )
                 items.append(
-                    {"material_version_id": str(row["mv_id"]),
-                     "display_name": row["local_name"], "position": position}
+                    {
+                        "material_version_id": str(row["mv_id"]),
+                        "display_name": row["local_name"],
+                        "position": position,
+                    }
                 )
             manifest = {
                 "schema_version": 1,
@@ -119,11 +168,18 @@ class SharingService:
             await conn.execute(
                 text(
                     "INSERT INTO share_snapshots (id, author_id, notebook_id,"
-                    " schema_version, title, description, status, manifest)"
-                    " VALUES (:id, :a, :nb, 1, :t, :d, 'active', CAST(:m AS jsonb))"
+                    " schema_version, title, description, status, manifest, expires_at)"
+                    " VALUES (:id, :a, :nb, 1, :t, :d, 'active', CAST(:m AS jsonb), :expires)"
                 ),
-                {"id": snapshot_id, "a": actor.actor_id, "nb": notebook_id,
-                 "t": manifest["title"], "d": description, "m": _json(manifest)},
+                {
+                    "id": snapshot_id,
+                    "a": actor.actor_id,
+                    "nb": notebook_id,
+                    "t": manifest["title"],
+                    "d": description,
+                    "m": _json(manifest),
+                    "expires": expires_at,
+                },
             )
             for item in items:
                 await conn.execute(
@@ -132,9 +188,13 @@ class SharingService:
                         " material_version_id, display_name, position)"
                         " VALUES (:id, :s, :mv, :name, :pos)"
                     ),
-                    {"id": uuid.uuid4(), "s": snapshot_id,
-                     "mv": uuid.UUID(item["material_version_id"]),
-                     "name": item["display_name"], "pos": item["position"]},
+                    {
+                        "id": uuid.uuid4(),
+                        "s": snapshot_id,
+                        "mv": uuid.UUID(item["material_version_id"]),
+                        "name": item["display_name"],
+                        "pos": item["position"],
+                    },
                 )
             link_token = _generate_link_token()
             code = _generate_code()
@@ -144,8 +204,12 @@ class SharingService:
                         "INSERT INTO share_credentials (id, snapshot_id, kind,"
                         " token_hash) VALUES (:id, :s, :k, :h)"
                     ),
-                    {"id": uuid.uuid4(), "s": snapshot_id, "k": kind,
-                     "h": _sha256(secret)},
+                    {
+                        "id": uuid.uuid4(),
+                        "s": snapshot_id,
+                        "k": kind,
+                        "h": _sha256(secret),
+                    },
                 )
             count = (
                 await conn.execute(
@@ -160,6 +224,7 @@ class SharingService:
             "code": code,
             "material_count": int(count),
             "manifest": manifest,
+            "expires_at": expires_at.isoformat() if expires_at else None,
         }
 
     async def list_shares_for_notebook(
@@ -175,17 +240,21 @@ class SharingService:
             if nb is None:
                 raise ShareNotFound()
             rows = (
-                await conn.execute(
-                    text(
-                        "SELECT s.id, s.title, s.status, s.created_at, s.revoked_at,"
-                        " (SELECT count(*) FROM share_materials sm"
-                        "  WHERE sm.snapshot_id = s.id) AS material_count"
-                        " FROM share_snapshots s WHERE s.notebook_id = :nb"
-                        " ORDER BY s.created_at DESC"
-                    ),
-                    {"nb": notebook_id},
+                (
+                    await conn.execute(
+                        text(
+                            "SELECT s.id, s.title, CASE WHEN s.status='active' AND s.expires_at IS NOT NULL AND s.expires_at<=now() THEN 'expired' ELSE s.status END AS status, s.created_at, s.revoked_at, s.expires_at,"
+                            " (SELECT count(*) FROM share_materials sm"
+                            "  WHERE sm.snapshot_id = s.id) AS material_count"
+                            " FROM share_snapshots s WHERE s.notebook_id = :nb"
+                            " ORDER BY s.created_at DESC"
+                        ),
+                        {"nb": notebook_id},
+                    )
                 )
-            ).mappings().all()
+                .mappings()
+                .all()
+            )
         return [dict(r) for r in rows]
 
     async def revoke_share(
@@ -270,18 +339,22 @@ class SharingService:
     ) -> tuple[uuid.UUID, str]:
         """Tolerant lookup: returns (snapshot_id, status) — the status check
         happens later, AFTER the idempotent replay (R36)."""
-        token_or_code = token_or_code.strip()
+        token_or_code = normalize_share_secret(token_or_code)
         if not token_or_code:
             raise ShareValidation("Introdu linkul sau codul.")
         async with self._engine.begin() as conn:
             row = (
-                await conn.execute(
-                    text(
-                        "SELECT snapshot_id, snapshot_status FROM guguta_share_lookup(:h)"
-                    ),
-                    {"h": _sha256(token_or_code)},
+                (
+                    await conn.execute(
+                        text(
+                            "SELECT snapshot_id, snapshot_status FROM guguta_share_lookup(:h)"
+                        ),
+                        {"h": _sha256(token_or_code)},
+                    )
                 )
-            ).mappings().first()
+                .mappings()
+                .first()
+            )
         if row is None:
             raise ShareNotFound("Linkul sau codul nu este valid.")
         return row["snapshot_id"], row["snapshot_status"]
@@ -291,20 +364,27 @@ class SharingService:
     ) -> dict[str, Any]:
         """Recipient preview: only the approved manifest metadata."""
         snapshot_id, status = await self._resolve_snapshot(actor, token_or_code)
+        if status == "expired":
+            raise ShareExpired("Codul de partajare a expirat.")
         if status != "active":
             raise ShareNotFound("Linkul sau codul nu mai este valid.")
         async with actor_connection(
             self._engine, actor.actor_id, share_context=snapshot_id
         ) as conn:
             snap = (
-                await conn.execute(
-                    text(
-                        "SELECT id, title, description, schema_version FROM"
-                        " share_snapshots WHERE id = :id AND status = 'active'"
-                    ),
-                    {"id": snapshot_id},
+                (
+                    await conn.execute(
+                        text(
+                            "SELECT id, title, description, schema_version, expires_at FROM"
+                            " share_snapshots WHERE id = :id AND status = 'active'"
+                            " AND (expires_at IS NULL OR expires_at > now())"
+                        ),
+                        {"id": snapshot_id},
+                    )
                 )
-            ).mappings().first()
+                .mappings()
+                .first()
+            )
             if snap is None:
                 raise ShareNotFound("Linkul sau codul nu mai este valid.")
             materials = (
@@ -323,10 +403,14 @@ class SharingService:
             "schema_version": snap["schema_version"],
             "materials": [m[0] for m in materials],
             "material_count": len(materials),
+            "expires_at": snap["expires_at"],
         }
 
     async def import_snapshot(
-        self, actor: ActorContext, token_or_code: str, *,
+        self,
+        actor: ActorContext,
+        token_or_code: str,
+        *,
         idempotency_key: str,
     ) -> dict[str, Any]:
         """Create the recipient's independent copy in ONE transaction.
@@ -355,6 +439,8 @@ class SharingService:
                 )
             return {"replayed": True, "notebook_id": replay["result_id"]}
 
+        if snapshot_status == "expired":
+            raise ShareExpired("Codul de partajare a expirat.")
         if snapshot_status != "active":
             raise ShareRevoked(
                 "Pachetul nu mai este disponibil pentru import (revocat)."
@@ -378,15 +464,27 @@ class SharingService:
                 {"a": actor.actor_id},
             )
             snap = (
-                await conn.execute(
-                    text(
-                        "SELECT id, title, status FROM share_snapshots"
-                        " WHERE id = :id"
-                    ),
-                    {"id": snapshot_id},
+                (
+                    await conn.execute(
+                        text(
+                            "SELECT id, title, status, expires_at FROM share_snapshots"
+                            " WHERE id = :id"
+                        ),
+                        {"id": snapshot_id},
+                    )
                 )
-            ).mappings().first()
-            if snap is None or snap["status"] != "active" or locked_status != "active":
+                .mappings()
+                .first()
+            )
+            if (
+                snap is None
+                or snap["status"] != "active"
+                or locked_status != "active"
+                or (
+                    snap["expires_at"] is not None
+                    and snap["expires_at"] <= datetime.now(timezone.utc)
+                )
+            ):
                 raise ShareRevoked(
                     "Pachetul nu mai este disponibil pentru import (revocat)."
                 )
@@ -425,8 +523,12 @@ class SharingService:
                     "INSERT INTO digital_notebooks (id, owner_id, title, origin,"
                     " origin_snapshot_id) VALUES (:id, :o, :t, 'import', :s)"
                 ),
-                {"id": nb_id, "o": actor.actor_id, "t": snap["title"],
-                 "s": snapshot_id},
+                {
+                    "id": nb_id,
+                    "o": actor.actor_id,
+                    "t": snap["title"],
+                    "s": snapshot_id,
+                },
             )
             materials = (
                 await conn.execute(
@@ -448,8 +550,14 @@ class SharingService:
                         " selected_for_chat, status, added_by)"
                         " VALUES (:id, :nb, :mv, :name, :pos, true, 'processing', :by)"
                     ),
-                    {"id": uuid.uuid4(), "nb": nb_id, "mv": mv_id,
-                     "name": display_name, "pos": position, "by": actor.actor_id},
+                    {
+                        "id": uuid.uuid4(),
+                        "nb": nb_id,
+                        "mv": mv_id,
+                        "name": display_name,
+                        "pos": position,
+                        "by": actor.actor_id,
+                    },
                 )
             for mv_id, display_name, position in materials:
                 artifact = (
@@ -470,7 +578,8 @@ class SharingService:
                 from open_notebook.jobs.guguta.queue import enqueue
 
                 await enqueue(
-                    self._engine, conn,
+                    self._engine,
+                    conn,
                     job_type="process_material_version",
                     target_type="material_version",
                     target_id=mv_id,
@@ -493,8 +602,13 @@ class SharingService:
                     " notebook_id, idempotency_key)"
                     " VALUES (:id, :s, :a, :nb, :k)"
                 ),
-                {"id": uuid.uuid4(), "s": snapshot_id, "a": actor.actor_id,
-                 "nb": nb_id, "k": idempotency_key},
+                {
+                    "id": uuid.uuid4(),
+                    "s": snapshot_id,
+                    "a": actor.actor_id,
+                    "nb": nb_id,
+                    "k": idempotency_key,
+                },
             )
             await conn.execute(
                 text(
@@ -502,14 +616,21 @@ class SharingService:
                     " idempotency_key, payload_hash, result_type, result_id)"
                     " VALUES (:id, :a, 'import', :k, :ph, 'notebook', :nb)"
                 ),
-                {"id": uuid.uuid4(), "a": actor.actor_id, "k": idempotency_key,
-                 "ph": payload_hash, "nb": nb_id},
+                {
+                    "id": uuid.uuid4(),
+                    "a": actor.actor_id,
+                    "k": idempotency_key,
+                    "ph": payload_hash,
+                    "nb": nb_id,
+                },
             )
             # A19: final re-check — a revocation committed before this point
             # aborts the import; a committed import keeps its copy.
             final_status = (
                 await conn.execute(
-                    text("SELECT status FROM share_snapshots WHERE id = :id"),
+                    text(
+                        "SELECT CASE WHEN status='active' AND expires_at IS NOT NULL AND expires_at<=now() THEN 'expired' ELSE status END FROM share_snapshots WHERE id = :id"
+                    ),
                     {"id": snapshot_id},
                 )
             ).scalar_one()
@@ -519,7 +640,9 @@ class SharingService:
                 )
             count = (
                 await conn.execute(
-                    text("SELECT count(*) FROM notebook_sources WHERE notebook_id = :nb"),
+                    text(
+                        "SELECT count(*) FROM notebook_sources WHERE notebook_id = :nb"
+                    ),
                     {"nb": nb_id},
                 )
             ).scalar_one()

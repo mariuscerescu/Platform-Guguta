@@ -31,11 +31,11 @@ from api.routers.guguta_v1 import (
     catalog_router,
     chat_router,
     flashcards_router,
-    quizzes_router,
     imports_router,
     jobs_router,
     notebooks_router,
     notes_router,
+    quizzes_router,
     reports_router,
     search_router,
     shares_router,
@@ -58,7 +58,6 @@ from api.services.guguta.chat import (
     SourcesRequired,
 )
 from api.services.guguta.flashcards import FlashcardService
-from api.services.guguta.quizzes import QuizService
 from api.services.guguta.notebooks import (
     NotebookNotFound,
     NotebookService,
@@ -69,11 +68,13 @@ from api.services.guguta.notes import (
     NotesService,
     NoteValidation,
 )
+from api.services.guguta.quizzes import QuizService
 from api.services.guguta.search import SearchService
 from api.services.guguta.sharing import (
     QuotaExceeded as ShareQuotaExceeded,
 )
 from api.services.guguta.sharing import (
+    ShareExpired,
     ShareNotFound,
     ShareRevoked,
     ShareValidation,
@@ -149,10 +150,16 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
         quota_mib_per_user=config.quota_mib_per_user,
     )
     from open_notebook.ai.guguta.openrouter import OpenRouterReranker
-    reranker = OpenRouterReranker(config) if config.rerank_provider == "openrouter" else None
+
+    reranker = (
+        OpenRouterReranker(config) if config.rerank_provider == "openrouter" else None
+    )
     app.state.guguta_search = SearchService(
-        engine, embedding_provider, max_vector_distance=config.vector_max_distance,
-        reranker=reranker, candidate_limit=config.retrieval_candidates,
+        engine,
+        embedding_provider,
+        max_vector_distance=config.vector_max_distance,
+        reranker=reranker,
+        candidate_limit=config.retrieval_candidates,
     )
     app.state.guguta_chat = ChatService(
         engine,
@@ -173,12 +180,14 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
     if config.auth_mode == "oidc" and config.oidc_issuer:
         from open_notebook.auth.guguta.oidc import OidcClient, OidcConfig
 
-        app.state.guguta_oidc = OidcClient(OidcConfig(
-            issuer=config.oidc_issuer,
-            client_id=config.oidc_client_id,
-            client_secret=config.oidc_client_secret,
-            redirect_uri=config.oidc_redirect_uri,
-        ))
+        app.state.guguta_oidc = OidcClient(
+            OidcConfig(
+                issuer=config.oidc_issuer,
+                client_id=config.oidc_client_id,
+                client_secret=config.oidc_client_secret,
+                redirect_uri=config.oidc_redirect_uri,
+            )
+        )
     app.state.guguta_sharing = SharingService(
         engine, quota_mib_per_user=config.quota_mib_per_user
     )
@@ -197,7 +206,10 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
 
     @app.on_event("startup")
     async def _startup_checks() -> None:
-        if config.environment not in ("development", "ci") and config.auth_mode == "test":
+        if (
+            config.environment not in ("development", "ci")
+            and config.auth_mode == "test"
+        ):
             raise RuntimeError("test authentication refused outside development/ci")
 
     @app.middleware("http")
@@ -213,12 +225,14 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
                 origin = request.headers.get("origin")
                 allowed = request.app.state.guguta_config.cors_origins
                 if origin is not None and origin not in allowed:
-                    return _error("origin_rejected", "Origine neacceptată.", 403,
-                                  request.headers.get("x-request-id", "-"))
+                    return _error(
+                        "origin_rejected",
+                        "Origine neacceptată.",
+                        403,
+                        request.headers.get("x-request-id", "-"),
+                    )
                 is_login_route = request.url.path.startswith(_CSRF_EXEMPT_PREFIXES)
-                is_readonly_post = request.url.path.endswith(
-                    ("/search", "/preview")
-                )
+                is_readonly_post = request.url.path.endswith(("/search", "/preview"))
                 if (
                     not is_login_route
                     and not is_readonly_post
@@ -226,8 +240,12 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
                         token, request.headers.get(CSRF_HEADER)
                     )
                 ):
-                    return _error("csrf_required", "Token CSRF lipsă sau invalid.", 403,
-                                  request.headers.get("x-request-id", "-"))
+                    return _error(
+                        "csrf_required",
+                        "Token CSRF lipsă sau invalid.",
+                        403,
+                        request.headers.get("x-request-id", "-"),
+                    )
         request_id = request.headers.get("x-request-id", "-")
         response = await call_next(request)
         response.headers.setdefault("x-request-id", request_id)
@@ -280,135 +298,224 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
 
     @app.exception_handler(AuthenticationError)
     async def auth_error(request: Request, exc: AuthenticationError) -> JSONResponse:
-        return _error("unauthenticated", "Autentificare necesară.", 401,
-                      request.headers.get("x-request-id", "-"))
+        return _error(
+            "unauthenticated",
+            "Autentificare necesară.",
+            401,
+            request.headers.get("x-request-id", "-"),
+        )
 
     @app.exception_handler(InvalidInputError)
     async def invalid_input(request: Request, exc: InvalidInputError) -> JSONResponse:
-        return _error("invalid", str(exc), 422, request.headers.get("x-request-id", "-"))
+        return _error(
+            "invalid", str(exc), 422, request.headers.get("x-request-id", "-")
+        )
 
     @app.exception_handler(OidcError)
     async def oidc_error(request: Request, exc: OidcError) -> JSONResponse:
-        return _error("auth_provider", "Autentificarea a eșuat.", 502,
-                      request.headers.get("x-request-id", "-"))
+        return _error(
+            "auth_provider",
+            "Autentificarea a eșuat.",
+            502,
+            request.headers.get("x-request-id", "-"),
+        )
 
     @app.exception_handler(ActorDenied)
     async def denied_error(request: Request, exc: ActorDenied) -> JSONResponse:
-        return _error("forbidden", "Acțiune nepermisă.", 403,
-                      request.headers.get("x-request-id", "-"))
+        return _error(
+            "forbidden",
+            "Acțiune nepermisă.",
+            403,
+            request.headers.get("x-request-id", "-"),
+        )
 
     @app.exception_handler(NotFoundError)
     async def not_found_error(request: Request, exc: NotFoundError) -> JSONResponse:
-        return _error("not_found", "Resursa nu există.", 404,
-                      request.headers.get("x-request-id", "-"))
+        return _error(
+            "not_found",
+            "Resursa nu există.",
+            404,
+            request.headers.get("x-request-id", "-"),
+        )
 
     from open_notebook.ai.guguta.openrouter import OpenRouterError
 
     @app.exception_handler(OpenRouterError)
     async def openrouter_error(request: Request, exc: OpenRouterError) -> JSONResponse:
-        return _error("ai_provider", str(exc), 502, request.headers.get("x-request-id", "-"))
+        return _error(
+            "ai_provider", str(exc), 502, request.headers.get("x-request-id", "-")
+        )
 
     @app.exception_handler(OpenNotebookError)
     async def domain_error(request: Request, exc: OpenNotebookError) -> JSONResponse:
-        return _error("error", "Eroare internă.", 500, request.headers.get("x-request-id", "-"))
+        return _error(
+            "error", "Eroare internă.", 500, request.headers.get("x-request-id", "-")
+        )
 
     @app.exception_handler(NotebookNotFound)
     async def not_found(request: Request, exc: NotebookNotFound) -> JSONResponse:
         # 404 also for foreign objects — no existence disclosure (GHID §5.1).
-        return _error("not_found", "Resursa nu există.", 404,
-                      request.headers.get("x-request-id", "-"))
+        return _error(
+            "not_found",
+            "Resursa nu există.",
+            404,
+            request.headers.get("x-request-id", "-"),
+        )
 
     @app.exception_handler(NotebookValidation)
-    async def validation_error(request: Request, exc: NotebookValidation) -> JSONResponse:
-        return _error("invalid", str(exc), 422, request.headers.get("x-request-id", "-"))
+    async def validation_error(
+        request: Request, exc: NotebookValidation
+    ) -> JSONResponse:
+        return _error(
+            "invalid", str(exc), 422, request.headers.get("x-request-id", "-")
+        )
 
     @app.exception_handler(SourceNotFound)
     async def source_not_found(request: Request, exc: SourceNotFound) -> JSONResponse:
-        return _error("not_found", "Resursa nu există.", 404,
-                      request.headers.get("x-request-id", "-"))
+        return _error(
+            "not_found",
+            "Resursa nu există.",
+            404,
+            request.headers.get("x-request-id", "-"),
+        )
 
     @app.exception_handler(SourceValidation)
-    async def source_validation(request: Request, exc: SourceValidation) -> JSONResponse:
-        return _error("invalid", str(exc), 422, request.headers.get("x-request-id", "-"))
+    async def source_validation(
+        request: Request, exc: SourceValidation
+    ) -> JSONResponse:
+        return _error(
+            "invalid", str(exc), 422, request.headers.get("x-request-id", "-")
+        )
 
     @app.exception_handler(QuotaExceeded)
     async def quota_exceeded(request: Request, exc: QuotaExceeded) -> JSONResponse:
-        return _error("quota_exceeded", str(exc), 429,
-                      request.headers.get("x-request-id", "-"))
+        return _error(
+            "quota_exceeded", str(exc), 429, request.headers.get("x-request-id", "-")
+        )
 
     @app.exception_handler(TemplateNotFound)
-    async def template_not_found(request: Request, exc: TemplateNotFound) -> JSONResponse:
-        return _error("not_found", "Resursa nu există.", 404,
-                      request.headers.get("x-request-id", "-"))
+    async def template_not_found(
+        request: Request, exc: TemplateNotFound
+    ) -> JSONResponse:
+        return _error(
+            "not_found",
+            "Resursa nu există.",
+            404,
+            request.headers.get("x-request-id", "-"),
+        )
 
     @app.exception_handler(CatalogValidation)
-    async def catalog_validation(request: Request, exc: CatalogValidation) -> JSONResponse:
-        return _error("invalid", str(exc), 422, request.headers.get("x-request-id", "-"))
+    async def catalog_validation(
+        request: Request, exc: CatalogValidation
+    ) -> JSONResponse:
+        return _error(
+            "invalid", str(exc), 422, request.headers.get("x-request-id", "-")
+        )
 
     @app.exception_handler(RetiredTemplate)
     async def retired_template(request: Request, exc: RetiredTemplate) -> JSONResponse:
-        return _error("retired", str(exc), 409, request.headers.get("x-request-id", "-"))
+        return _error(
+            "retired", str(exc), 409, request.headers.get("x-request-id", "-")
+        )
 
     @app.exception_handler(ShareNotFound)
     async def share_not_found(request: Request, exc: ShareNotFound) -> JSONResponse:
         message = str(exc) or "Resursa nu există."
-        return _error("not_found", message, 404,
-                      request.headers.get("x-request-id", "-"))
+        return _error(
+            "not_found", message, 404, request.headers.get("x-request-id", "-")
+        )
 
     @app.exception_handler(ShareRevoked)
     async def share_revoked(request: Request, exc: ShareRevoked) -> JSONResponse:
-        return _error("share_revoked", str(exc), 409,
-                      request.headers.get("x-request-id", "-"))
+        return _error(
+            "share_revoked", str(exc), 409, request.headers.get("x-request-id", "-")
+        )
+
+    @app.exception_handler(ShareExpired)
+    async def share_expired(request: Request, exc: ShareExpired) -> JSONResponse:
+        return _error(
+            "share_expired", str(exc), 410, request.headers.get("x-request-id", "-")
+        )
 
     @app.exception_handler(ShareValidation)
     async def share_validation(request: Request, exc: ShareValidation) -> JSONResponse:
-        return _error("invalid", str(exc), 422,
-                      request.headers.get("x-request-id", "-"))
+        return _error(
+            "invalid", str(exc), 422, request.headers.get("x-request-id", "-")
+        )
 
     @app.exception_handler(ShareQuotaExceeded)
     async def share_quota(request: Request, exc: ShareQuotaExceeded) -> JSONResponse:
-        return _error("quota_exceeded", str(exc), 429,
-                      request.headers.get("x-request-id", "-"))
+        return _error(
+            "quota_exceeded", str(exc), 429, request.headers.get("x-request-id", "-")
+        )
 
     @app.exception_handler(NoteNotFound)
     async def note_not_found(request: Request, exc: NoteNotFound) -> JSONResponse:
-        return _error("not_found", "Resursa nu există.", 404,
-                      request.headers.get("x-request-id", "-"))
+        return _error(
+            "not_found",
+            "Resursa nu există.",
+            404,
+            request.headers.get("x-request-id", "-"),
+        )
 
     @app.exception_handler(NoteValidation)
     async def note_validation(request: Request, exc: NoteValidation) -> JSONResponse:
-        return _error("invalid", str(exc), 422, request.headers.get("x-request-id", "-"))
+        return _error(
+            "invalid", str(exc), 422, request.headers.get("x-request-id", "-")
+        )
 
     from open_notebook.jobs.guguta.parsing import ExtractionError
 
     @app.exception_handler(ExtractionError)
     async def extraction_error(request: Request, exc: ExtractionError) -> JSONResponse:
-        return _error("unsupported", str(exc), 422,
-                      request.headers.get("x-request-id", "-"))
+        return _error(
+            "unsupported", str(exc), 422, request.headers.get("x-request-id", "-")
+        )
 
     @app.exception_handler(ChatValidation)
     async def chat_validation(request: Request, exc: ChatValidation) -> JSONResponse:
-        return _error("invalid", str(exc), 422, request.headers.get("x-request-id", "-"))
+        return _error(
+            "invalid", str(exc), 422, request.headers.get("x-request-id", "-")
+        )
 
     @app.exception_handler(SourcesRequired)
     async def sources_required(request: Request, exc: SourcesRequired) -> JSONResponse:
-        return _error("sources_required", str(exc), 422,
-                      request.headers.get("x-request-id", "-"))
+        return _error(
+            "sources_required", str(exc), 422, request.headers.get("x-request-id", "-")
+        )
 
     @app.exception_handler(IdempotencyConflict)
-    async def idempotency_conflict(request: Request, exc: IdempotencyConflict) -> JSONResponse:
-        return _error("idempotency_conflict", str(exc), 409,
-                      request.headers.get("x-request-id", "-"))
+    async def idempotency_conflict(
+        request: Request, exc: IdempotencyConflict
+    ) -> JSONResponse:
+        return _error(
+            "idempotency_conflict",
+            str(exc),
+            409,
+            request.headers.get("x-request-id", "-"),
+        )
 
     @app.exception_handler(ChatSessionNotFound)
-    async def chat_session_missing(request: Request, exc: ChatSessionNotFound) -> JSONResponse:
-        return _error("not_found", "Resursa nu există.", 404,
-                      request.headers.get("x-request-id", "-"))
+    async def chat_session_missing(
+        request: Request, exc: ChatSessionNotFound
+    ) -> JSONResponse:
+        return _error(
+            "not_found",
+            "Resursa nu există.",
+            404,
+            request.headers.get("x-request-id", "-"),
+        )
 
     @app.exception_handler(ChatProviderUnavailable)
-    async def provider_unavailable(request: Request, exc: ChatProviderUnavailable) -> JSONResponse:
-        return _error("provider_unavailable", str(exc), 502,
-                      request.headers.get("x-request-id", "-"))
+    async def provider_unavailable(
+        request: Request, exc: ChatProviderUnavailable
+    ) -> JSONResponse:
+        return _error(
+            "provider_unavailable",
+            str(exc),
+            502,
+            request.headers.get("x-request-id", "-"),
+        )
 
     return app
 

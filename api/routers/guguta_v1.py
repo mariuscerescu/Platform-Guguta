@@ -1504,14 +1504,15 @@ class ShareCreate(BaseModel):
     source_ids: list[str] = Field(min_length=1)
     title: Optional[str] = Field(default=None, max_length=500)
     description: Optional[str] = Field(default=None, max_length=5000)
+    expires_in_days: int | None = Field(default=30)
 
 
 class TokenRequest(BaseModel):
-    token: str = Field(min_length=1, max_length=255)
+    token: str = Field(min_length=1, max_length=2048)
 
 
 class ImportRequest(BaseModel):
-    token: str = Field(min_length=1, max_length=255)
+    token: str = Field(min_length=1, max_length=2048)
     idempotency_key: str = Field(min_length=1, max_length=255)
 
 
@@ -1537,6 +1538,7 @@ async def create_share(
         source_ids=source_uuids,
         title=body.title,
         description=body.description,
+        expires_in_days=body.expires_in_days,
     )
 
 

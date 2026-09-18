@@ -566,6 +566,7 @@ class ShareSnapshot(GugutaBase):
     manifest: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = _ts()
     revoked_at: Mapped[Optional[datetime]] = _ts_opt()
+    expires_at: Mapped[Optional[datetime]] = _ts_opt()
 
     __table_args__ = (
         CheckConstraint(

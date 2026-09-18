@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api, me } from "../../lib/api";
-import { withBase, API_BASE } from "../../lib/paths";
+import { withBase } from "../../lib/paths";
 
 interface PreviewData {
   snapshot_id: string;
@@ -23,30 +23,27 @@ export default function ImportPage() {
   // F05: extract the token from the URL fragment (#token=...) or query param
   useEffect(() => {
     const frag = window.location.hash;
+    let incoming = "";
     if (frag.startsWith("#token=")) {
-      setToken(decodeURIComponent(frag.slice(7)));
+      incoming = decodeURIComponent(frag.slice(7));
+      setToken(incoming);
       window.location.hash = ""; // clean the URL (don't leak in referrer)
     }
-    void me().then((u) => setAuthed(u !== null));
+    const pending = sessionStorage.getItem("guguta_pending_import");
+    if (!incoming && pending) setToken(pending);
+    void me().then((u) => {
+      setAuthed(u !== null);
+      if (u !== null) sessionStorage.removeItem("guguta_pending_import");
+    });
   }, []);
 
   async function doPreview() {
     setError(null);
     setPreview(null);
     try {
-      const res = await fetch(`${API_BASE}/api/v1/imports/preview`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: token.trim() }),
-      });
-      if (!res.ok) {
-        const d = (await res.json().catch(() => ({}))) as { message?: string };
-        setError(d.message ?? "Linkul sau codul nu este valid.");
-        return;
-      }
-      setPreview((await res.json()) as PreviewData);
-    } catch {
-      setError("Nu am putut verifica linkul.");
+      setPreview(await api<PreviewData>("POST","/api/v1/imports/preview",{token:token.trim()}));
+    } catch (err) {
+      setError((err as Error).message || "Nu am putut verifica linkul.");
     }
   }
 
@@ -81,7 +78,7 @@ export default function ImportPage() {
         </p>
         <a href={withBase("/login")} className="btn">Autentificare</a>
         <p className="muted" style={{ marginTop: 12 }}>
-          După autentificare, revino pe această pagină și lipește din nou linkul.
+          Codul este păstrat în acest browser și va fi disponibil după autentificare.
         </p>
       </>
     );
@@ -108,7 +105,7 @@ export default function ImportPage() {
         <form onSubmit={(e) => { e.preventDefault(); void doPreview(); }} style={{ maxWidth: 480 }}>
           <label htmlFor="token" className="muted">Linkul sau codul primit</label>
           <input id="token" value={token} onChange={(e) => setToken(e.target.value)}
-            placeholder="ex. /import#token=… sau codul din 8 caractere" />
+            placeholder="ABCD-EFGH sau linkul complet" />
           <button className="primary" style={{ marginTop: 8 }} disabled={!token.trim()}>
             Verifică
           </button>

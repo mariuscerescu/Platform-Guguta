@@ -8,6 +8,7 @@ import { withBase, API_BASE } from "../../lib/paths";
 type Tab = "mine" | "school";
 type View = "tiles" | "rows";
 type Sort = "recent" | "title";
+interface ImportPreview { snapshot_id:string; title:string; description?:string|null; material_count:number; materials:string[]; expires_at?:string|null; }
 
 /* minimal SVG icons — no emoji (design decision) */
 const IconDoc = () => (
@@ -86,6 +87,8 @@ export default function HomePage() {
   const [importOpen, setImportOpen] = useState(false);
   const [importToken, setImportToken] = useState("");
   const [importing, setImporting] = useState(false);
+  const [importPreview,setImportPreview]=useState<ImportPreview|null>(null);
+  const [importedNotebookId,setImportedNotebookId]=useState<string|null>(null);
 
   // Reîncărcabilă: meniul fiecărui carnet o cheamă după redenumire, fixare sau
   // ștergere, ca lista să reflecte imediat schimbarea (inclusiv ordinea).
@@ -150,11 +153,15 @@ export default function HomePage() {
     setImporting(true);
     setError(null);
     try {
-      await api("POST", "/api/v1/imports", {
+      if(!importPreview) {
+        setImportPreview(await api<ImportPreview>("POST","/api/v1/imports/preview",{token:importToken.trim()}));
+        return;
+      }
+      const result=await api<{notebook_id:string}>("POST", "/api/v1/imports", {
         token: importToken.trim(),
         idempotency_key: crypto.randomUUID(),
       });
-      setImportToken("");
+      setImportedNotebookId(result.notebook_id);
       setTab("mine");
       const list = await api<{ items: Notebook[] }>("GET", "/api/v1/notebooks");
       setNotebooks(list.items);
@@ -215,7 +222,7 @@ export default function HomePage() {
         </button>
         <button
           className="chip"
-          onClick={() => setImportOpen(true)}
+          onClick={() => {setImportOpen(true);setImportPreview(null);setImportedNotebookId(null);setImportToken("");}}
           disabled={!authed}
           title="Importă un carnet primit prin link sau cod"
         >
@@ -500,11 +507,11 @@ export default function HomePage() {
             aria-labelledby="import-title"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 id="import-title">Importă carnet</h2>
+            <div className="audio-modal-heading"><div><h2 id="import-title">Importă carnet</h2><p className="muted">Folosește codul de 8 caractere sau linkul primit de la autor.</p></div><button className="icon-btn" type="button" onClick={()=>setImportOpen(false)}>×</button></div>
             <p className="muted">
-              Lipește linkul sau codul primit de la autor. Se transferă numai
-              materialele — conversațiile și notițele autorului nu sunt incluse.
+              Se transferă numai materialele selectate — conversațiile, notițele și progresul autorului nu sunt incluse.
             </p>
+            {importedNotebookId?<div className="share-created"><div className="share-success">✓ Carnet importat</div><p>Copia ta este independentă și poate fi modificată fără a afecta autorul.</p><a className="create-btn" href={withBase(`/notebook/${importedNotebookId}`)}>Deschide carnetul</a></div>:
             <form
               onSubmit={(e) => {
                 e.preventDefault();
@@ -513,11 +520,12 @@ export default function HomePage() {
             >
               <input
                 style={{ width: "100%" }}
-                placeholder="Linkul sau codul primit"
+                placeholder="ABCD-EFGH sau linkul complet"
                 value={importToken}
                 autoFocus
-                onChange={(e) => setImportToken(e.target.value)}
+                onChange={(e) => {setImportToken(e.target.value);setImportPreview(null);}}
               />
+              {importPreview&&<div className="import-preview"><strong>{importPreview.title}</strong>{importPreview.description&&<p>{importPreview.description}</p>}<small>{importPreview.material_count} materiale incluse</small><ul>{importPreview.materials.map((m,i)=><li key={`${m}-${i}`}>{m}</li>)}</ul></div>}
               <div className="modal-actions">
                 <button
                   type="button"
@@ -532,10 +540,10 @@ export default function HomePage() {
                   className="create-btn"
                   disabled={importing || !importToken.trim()}
                 >
-                  {importing ? "Se importă…" : "Importă"}
+                  {importing ? (importPreview?"Se importă…":"Se verifică…") : importPreview?"Importă copia":"Verifică codul"}
                 </button>
               </div>
-            </form>
+            </form>}
           </div>
         </div>
       )}

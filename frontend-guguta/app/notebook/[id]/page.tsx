@@ -85,6 +85,8 @@ type QuizQuestionType = "multiple_choice" | "multiple_select" | "fill_in_blank" 
 interface QuizQuestion { id:string; position:number; question_type:QuizQuestionType; prompt:string; hint:string; concepts:string[]; options:{id:string;text:string}[]; version:number; }
 interface QuizAttempt { id:string; current_index:number; question_order:string[]; answers:Record<string,{response:string|string[];status:"correct"|"partial"|"incorrect";feedback:string;correct_answer:string|string[];hint_used:boolean}>; completed_at?:string|null; }
 interface QuizArtifact { id:string; quantity:"fewer"|"standard"|"more"; difficulty:"easy"|"medium"|"hard"; question_types:QuizQuestionType[]; selected_source_ids:string[]; instructions?:string|null; status:"queued"|"generating"|"ready"|"failed"; title?:string|null; error_detail?:string|null; question_count:number; questions?:QuizQuestion[]; active_attempt?:QuizAttempt|null; }
+interface ShareItem { id:string; title:string; status:"active"|"revoked"|"expired"; material_count:number; created_at:string; expires_at?:string|null; }
+interface CreatedShare { share_id:string; token:string; code:string; material_count:number; expires_at?:string|null; }
 
 /**
  * Răspunsul asistentului așa cum se afișează. Când referințele sunt oprite
@@ -147,6 +149,15 @@ export default function NotebookPage() {
   const [quizExplanation,setQuizExplanation]=useState<string|null>(null);
   const [quizBusy,setQuizBusy]=useState(false);
   const [showQuizPrompt,setShowQuizPrompt]=useState(false);
+  const [shareModalOpen,setShareModalOpen]=useState(false);
+  const [shareSourceIds,setShareSourceIds]=useState<string[]>([]);
+  const [shareTitle,setShareTitle]=useState("");
+  const [shareDescription,setShareDescription]=useState("");
+  const [shareExpiry,setShareExpiry]=useState<"1"|"7"|"30"|"90"|"never">("30");
+  const [shareSubmitting,setShareSubmitting]=useState(false);
+  const [createdShare,setCreatedShare]=useState<CreatedShare|null>(null);
+  const [shares,setShares]=useState<ShareItem[]>([]);
+  const [copiedShare,setCopiedShare]=useState<"link"|"code"|null>(null);
   useEffect(() => {
     if (!sending) {
       setElapsed(0);
@@ -398,23 +409,40 @@ export default function NotebookPage() {
   // Redenumirea, arhivarea și ștergerea carnetului se fac din meniul cardului
   // (app/components/NotebookMenu.tsx), în lista de carnete.
 
-  async function createShare() {
-    if (!sources?.length) return;
-    const ready = sources.filter((s) => s.status === "ready");
+  async function openShareModal() {
+    const ready = (sources ?? []).filter((s) => s.status === "ready");
     if (!ready.length) { setError("Niciun material gata pentru partajare."); return; }
+    setShareSourceIds(ready.map((s)=>s.id)); setShareTitle(nb?.title??""); setShareDescription("");
+    setShareExpiry("30"); setCreatedShare(null); setCopiedShare(null); setShareModalOpen(true);
+    try { setShares(await api<ShareItem[]>("GET",`/api/v1/notebooks/${nbId}/shares`)); } catch(err){setError((err as Error).message);}
+  }
+
+  async function createShare() {
+    if (!shareSourceIds.length || shareSubmitting) return;
+    setShareSubmitting(true); setError(null);
     try {
-      const share = await api<{ share_id: string; token: string; code: string }>(
+      const share = await api<CreatedShare>(
         "POST",
         `/api/v1/notebooks/${nbId}/shares`,
-        { source_ids: ready.map((s) => s.id), title: nb?.title },
+        { source_ids: shareSourceIds, title: shareTitle.trim()||nb?.title,
+          description:shareDescription.trim()||null,
+          expires_in_days:shareExpiry==="never"?null:Number(shareExpiry) },
       );
-      const link = `${window.location.origin}${withBase("/import")}#token=${share.token}`;
-      await navigator.clipboard.writeText(link);
-      alert(`Link copiat:\n${link}\n\nCod: ${share.code}`);
-      await loadAll();
+      setCreatedShare(share);
+      setShares(await api<ShareItem[]>("GET",`/api/v1/notebooks/${nbId}/shares`));
     } catch (err) {
       setError((err as Error).message);
-    }
+    } finally { setShareSubmitting(false); }
+  }
+
+  async function copyShare(value:string,kind:"link"|"code") {
+    await navigator.clipboard.writeText(value); setCopiedShare(kind);
+    window.setTimeout(()=>setCopiedShare(null),1800);
+  }
+
+  async function revokeShare(shareId:string) {
+    if(!window.confirm("Revoci acest cod? Copiile deja importate vor rămâne disponibile.")) return;
+    try { await api("POST",`/api/v1/notebooks/${nbId}/shares/${shareId}/revoke`,{}); setShares(v=>v.map(s=>s.id===shareId?{...s,status:"revoked"}:s)); } catch(err){setError((err as Error).message);}
   }
 
   async function removeSource(id: string) {
@@ -747,7 +775,7 @@ export default function NotebookPage() {
           */}
           <button
             className="pill"
-            onClick={createShare}
+            onClick={() => void openShareModal()}
             disabled={!sources?.some((s) => s.status === "ready")}
             title="Creează un pachet de partajare"
           >
@@ -1130,6 +1158,26 @@ export default function NotebookPage() {
           </div>
         </section>
       </div>
+
+      {shareModalOpen&&(
+        <div className="modal-overlay" role="presentation" onClick={()=>!shareSubmitting&&setShareModalOpen(false)}><div className="modal share-modal" role="dialog" aria-modal="true" aria-labelledby="share-title" onClick={e=>e.stopPropagation()}>
+          <div className="audio-modal-heading"><div><h2 id="share-title">Partajează carnetul</h2><p className="muted">Se creează o copie numai din materialele selectate. Chatul, notițele și progresul rămân private.</p></div><button className="icon-btn" onClick={()=>setShareModalOpen(false)}>×</button></div>
+          {createdShare? <div className="share-created">
+            <div className="share-success">✓ Codul este gata</div>
+            <p className="muted">Codul și linkul sunt afișate numai acum. Le poți revoca ulterior.</p>
+            <label><span>Cod de import</span><div className="share-copy-row"><code>{createdShare.code.slice(0,4)}-{createdShare.code.slice(4)}</code><button className="chip" onClick={()=>void copyShare(createdShare.code,"code")}>{copiedShare==="code"?"Copiat":"Copiază codul"}</button></div></label>
+            <label><span>Link direct</span><div className="share-copy-row"><input readOnly value={`${window.location.origin}${withBase("/import")}#token=${createdShare.token}`}/><button className="chip" onClick={()=>void copyShare(`${window.location.origin}${withBase("/import")}#token=${createdShare.token}`,"link")}>{copiedShare==="link"?"Copiat":"Copiază linkul"}</button></div></label>
+            <div className="modal-actions"><button className="create-btn" onClick={()=>setCreatedShare(null)}>Creează alt cod</button><button className="chip" onClick={()=>setShareModalOpen(false)}>Închide</button></div>
+          </div>:<>
+            <label className="flashcard-instructions"><span>Titlul copiei</span><input value={shareTitle} onChange={e=>setShareTitle(e.target.value)} maxLength={500}/></label>
+            <label className="flashcard-instructions"><span>Mesaj pentru destinatar (opțional)</span><textarea value={shareDescription} onChange={e=>setShareDescription(e.target.value)} maxLength={5000} placeholder="Descrie pe scurt conținutul carnetului…"/></label>
+            <fieldset className="audio-source-options"><div className="audio-source-legend"><span className="fieldset-label">Materiale incluse</span><button type="button" onClick={()=>setShareSourceIds((sources??[]).filter(s=>s.status==="ready").map(s=>s.id))}>Selectează toate</button></div><div className="audio-source-list">{(sources??[]).filter(s=>s.status==="ready").map(s=><label key={s.id}><input type="checkbox" checked={shareSourceIds.includes(s.id)} onChange={()=>setShareSourceIds(v=>v.includes(s.id)?v.filter(x=>x!==s.id):[...v,s.id])}/><span>{s.local_name}</span></label>)}</div></fieldset>
+            <label className="share-expiry"><span>Cod valabil</span><select value={shareExpiry} onChange={e=>setShareExpiry(e.target.value as typeof shareExpiry)}><option value="1">24 de ore</option><option value="7">7 zile</option><option value="30">30 de zile</option><option value="90">90 de zile</option><option value="never">Fără expirare</option></select></label>
+            <div className="modal-actions"><button className="chip" onClick={()=>setShareModalOpen(false)}>Anulează</button><button className="create-btn" disabled={shareSubmitting||!shareSourceIds.length||!shareTitle.trim()} onClick={()=>void createShare()}>{shareSubmitting?"Se creează…":"Creează codul"}</button></div>
+          </>}
+          {shares.length>0&&<section className="share-history"><h3>Coduri create</h3>{shares.map(item=><div className="share-history-item" key={item.id}><div><strong>{item.title}</strong><small>{item.material_count} materiale · {item.status==="active"?"Activ":item.status==="expired"?"Expirat":"Revocat"}</small></div>{item.status==="active"&&<button className="chip danger" onClick={()=>void revokeShare(item.id)}>Revocă</button>}</div>)}</section>}
+        </div></div>
+      )}
 
       {quizModalOpen&&(
         <div className="modal-overlay" role="presentation" onClick={()=>!quizSubmitting&&setQuizModalOpen(false)}><div className="modal flashcard-config-modal" role="dialog" aria-modal="true" onClick={(e)=>e.stopPropagation()}>
