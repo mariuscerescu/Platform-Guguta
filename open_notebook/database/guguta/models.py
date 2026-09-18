@@ -979,6 +979,68 @@ class FlashcardSession(GugutaBase):
     )
 
 
+class Quiz(GugutaBase):
+    __tablename__ = "quizzes"
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    notebook_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("digital_notebooks.id", ondelete="CASCADE"), nullable=False)
+    created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    quantity: Mapped[str] = mapped_column(String(20), nullable=False, server_default="standard")
+    difficulty: Mapped[str] = mapped_column(String(20), nullable=False, server_default="medium")
+    question_types: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    instructions: Mapped[Optional[str]] = mapped_column(Text)
+    selected_source_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    language: Mapped[str] = mapped_column(String(20), nullable=False, server_default="ro")
+    status: Mapped[str] = mapped_column(String(24), nullable=False, server_default="queued")
+    title: Mapped[Optional[str]] = mapped_column(String(500))
+    model_name: Mapped[Optional[str]] = mapped_column(String(500))
+    prompt_version: Mapped[Optional[str]] = mapped_column(String(100))
+    error_detail: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = _ts()
+    updated_at: Mapped[datetime] = _updated_at()
+    completed_at: Mapped[Optional[datetime]] = _ts_opt()
+    __table_args__ = (
+        CheckConstraint("quantity IN ('fewer','standard','more')", name="ck_quizzes_quantity"),
+        CheckConstraint("difficulty IN ('easy','medium','hard')", name="ck_quizzes_difficulty"),
+        CheckConstraint("status IN ('queued','generating','ready','failed')", name="ck_quizzes_status"),
+        Index("ix_quizzes_notebook_created", "notebook_id", "created_at"),
+    )
+
+
+class QuizQuestion(GugutaBase):
+    __tablename__ = "quiz_questions"
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    quiz_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("quizzes.id", ondelete="CASCADE"), nullable=False)
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    question_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    prompt: Mapped[str] = mapped_column(Text, nullable=False)
+    hint: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    concepts: Mapped[list[str]] = mapped_column(JSONB, nullable=False, server_default="[]")
+    options: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, server_default="[]")
+    accepted_answers: Mapped[list[str]] = mapped_column(JSONB, nullable=False, server_default="[]")
+    reference_answer: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    required_concepts: Mapped[list[str]] = mapped_column(JSONB, nullable=False, server_default="[]")
+    optional_concepts: Mapped[list[str]] = mapped_column(JSONB, nullable=False, server_default="[]")
+    evidence: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, nullable=False, server_default="[]")
+    version: Mapped[int] = mapped_column(Integer, nullable=False, server_default="1")
+    created_at: Mapped[datetime] = _ts()
+    updated_at: Mapped[datetime] = _updated_at()
+    __table_args__ = (UniqueConstraint("quiz_id", "position", name="ux_quiz_questions_position"), Index("ix_quiz_questions_quiz", "quiz_id", "position"))
+
+
+class QuizAttempt(GugutaBase):
+    __tablename__ = "quiz_attempts"
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    quiz_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("quizzes.id", ondelete="CASCADE"), nullable=False)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    current_index: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    question_order: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    answers: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False, server_default="{}")
+    started_at: Mapped[datetime] = _ts()
+    updated_at: Mapped[datetime] = _updated_at()
+    completed_at: Mapped[Optional[datetime]] = _ts_opt()
+    __table_args__ = (Index("ix_quiz_attempts_quiz_user", "quiz_id", "user_id", "updated_at"),)
+
+
 class OutboxEvent(GugutaBase):
     """Transactional outbox for future external publication (ADR-0002 Â§5)."""
 

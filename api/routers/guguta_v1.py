@@ -77,7 +77,12 @@ auth_router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 def _normalize_email(value: str) -> str:
     email = value.strip().lower()
-    if len(email) > 320 or "@" not in email or email.startswith("@") or email.endswith("@"):
+    if (
+        len(email) > 320
+        or "@" not in email
+        or email.startswith("@")
+        or email.endswith("@")
+    ):
         raise InvalidInputError("Adresa de email nu este validă.")
     local, _, domain = email.partition("@")
     if not local or "." not in domain or any(ch.isspace() for ch in email):
@@ -134,7 +139,9 @@ async def _open_session_for_user(
 
 
 @auth_router.post("/dev-login")
-async def dev_login(body: DevLoginRequest, request: Request, response: Response) -> MeResponse:
+async def dev_login(
+    body: DevLoginRequest, request: Request, response: Response
+) -> MeResponse:
     """Synthetic login — ONLY in development/ci with auth_mode=test.
 
     Provisions (issuer='test', subject=name) through the SECURITY DEFINER
@@ -219,11 +226,17 @@ async def password_login(
 
     async with engine.begin() as conn:
         row = (
-            await conn.execute(
-                text("SELECT user_id, password_hash, display_name, roles FROM guguta_password_auth_lookup(:email)"),
-                {"email": email},
+            (
+                await conn.execute(
+                    text(
+                        "SELECT user_id, password_hash, display_name, roles FROM guguta_password_auth_lookup(:email)"
+                    ),
+                    {"email": email},
+                )
             )
-        ).mappings().first()
+            .mappings()
+            .first()
+        )
     if row is None or not _verify_password(body.password, str(row["password_hash"])):
         raise AuthenticationError("Email sau parolă incorectă.")
     return await _open_session_for_user(
@@ -261,17 +274,21 @@ async def oidc_login(
     )
     redirect = RedirectResponse(url, status_code=307)
     redirect.set_cookie(
-        _STATE_COOKIE, cookie_value,
-        httponly=True, samesite="lax",
+        _STATE_COOKIE,
+        cookie_value,
+        httponly=True,
+        samesite="lax",
         secure=config.public_origin.startswith("https://"),
-        max_age=600, path="/",
+        max_age=600,
+        path="/",
     )
     return redirect
 
 
 @auth_router.get("/oidc/callback")
-async def oidc_callback(request: Request, response: Response, code: str = "",
-                        state: str = "") -> RedirectResponse:
+async def oidc_callback(
+    request: Request, response: Response, code: str = "", state: str = ""
+) -> RedirectResponse:
     """Finish the OIDC flow: validate, provision, open the session.
     Session cookie + CSRF are set ON THE RETURNED redirect object (F01)."""
     config = request.app.state.guguta_config
@@ -291,16 +308,22 @@ async def oidc_callback(request: Request, response: Response, code: str = "",
         user_id = (
             await conn.execute(
                 text("SELECT guguta_provision_user(:i, :s, :n, :e)"),
-                {"i": result.issuer, "s": result.subject,
-                 "n": result.display_name, "e": result.email},
+                {
+                    "i": result.issuer,
+                    "s": result.subject,
+                    "n": result.display_name,
+                    "e": result.email,
+                },
             )
         ).scalar_one()
     sessions: SessionService = get_session_service(request)
     token, csrf = await sessions.create_session(user_id)
     redirect = RedirectResponse(_safe_return_to(result.return_to), status_code=303)
     redirect.set_cookie(
-        SESSION_COOKIE, token,
-        httponly=True, samesite="lax",
+        SESSION_COOKIE,
+        token,
+        httponly=True,
+        samesite="lax",
         secure=config.public_origin.startswith("https://"),
         path="/",
     )
@@ -347,7 +370,8 @@ async def logout(request: Request, response: Response) -> dict[str, Any]:
 async def me(request: Request) -> MeResponse:
     actor = get_actor(request)
     return MeResponse(
-        id=str(actor.actor_id), display_name=actor.display_name,
+        id=str(actor.actor_id),
+        display_name=actor.display_name,
         roles=sorted(actor.roles),
     )
 
@@ -383,17 +407,28 @@ async def create_notebook(body: NotebookCreate, request: Request) -> dict[str, A
 
 @notebooks_router.get("")
 async def list_notebooks(
-    request: Request, page: int = 1, page_size: int = 20,
-    sort: str = "created_desc", status: Optional[str] = None,
+    request: Request,
+    page: int = 1,
+    page_size: int = 20,
+    sort: str = "created_desc",
+    status: Optional[str] = None,
 ) -> dict[str, Any]:
     actor = get_actor(request)
     service = request.app.state.guguta_notebooks
-    if sort not in ("created_desc", "created_asc", "title_asc", "title_desc", "updated_desc"):
+    if sort not in (
+        "created_desc",
+        "created_asc",
+        "title_asc",
+        "title_desc",
+        "updated_desc",
+    ):
         raise InvalidInputError("Sortare neacceptată.")
     if status not in (None, "active", "archived"):
         raise InvalidInputError("Stare neacceptată.")
     return await service.list_for_actor(
-        actor, page=page, page_size=page_size,
+        actor,
+        page=page,
+        page_size=page_size,
         sort=sort,  # type: ignore[arg-type]
         status=status,
     )
@@ -408,13 +443,18 @@ async def get_notebook(notebook_id: uuid.UUID, request: Request) -> dict[str, An
 
 @notebooks_router.patch("/{notebook_id}")
 async def update_notebook(
-    notebook_id: uuid.UUID, body: NotebookUpdate, request: Request,
+    notebook_id: uuid.UUID,
+    body: NotebookUpdate,
+    request: Request,
 ) -> dict[str, Any]:
     actor = get_actor(request)
     service = request.app.state.guguta_notebooks
     return await service.update(
-        actor, notebook_id,
-        title=body.title, description=body.description, archive=body.archive,
+        actor,
+        notebook_id,
+        title=body.title,
+        description=body.description,
+        archive=body.archive,
         pinned=body.pinned,
     )
 
@@ -460,8 +500,11 @@ async def upload_source(
     actor = get_actor(request)
     service = get_sources_service(request)
     return await service.upload_file(
-        actor, notebook_id,
-        stream=file.file, original_name=file.filename, local_name=None,
+        actor,
+        notebook_id,
+        stream=file.file,
+        original_name=file.filename,
+        local_name=None,
     )
 
 
@@ -477,7 +520,9 @@ async def add_text_source(
 
 
 @sources_router.get("")
-async def list_sources(notebook_id: uuid.UUID, request: Request) -> list[dict[str, Any]]:
+async def list_sources(
+    notebook_id: uuid.UUID, request: Request
+) -> list[dict[str, Any]]:
     actor = get_actor(request)
     service = get_sources_service(request)
     return await service.list_for_notebook(actor, notebook_id)
@@ -494,8 +539,10 @@ async def get_source(
 
 @sources_router.patch("/{source_id}")
 async def update_source(
-    notebook_id: uuid.UUID, source_id: uuid.UUID,
-    body: dict[str, Any], request: Request,
+    notebook_id: uuid.UUID,
+    source_id: uuid.UUID,
+    body: dict[str, Any],
+    request: Request,
 ) -> dict[str, Any]:
     actor = get_actor(request)
     service = get_sources_service(request)
@@ -504,7 +551,9 @@ async def update_source(
 
         raise InvalidInputError("Câmpuri neacceptate.")
     return await service.update(
-        actor, notebook_id, source_id,
+        actor,
+        notebook_id,
+        source_id,
         local_name=body.get("local_name"),
         selected_for_chat=body.get("selected_for_chat"),
     )
@@ -532,7 +581,9 @@ async def download_source(
     service = get_sources_service(request)
     data, mime, original = await service.download(actor, notebook_id, source_id)
     # F24: safe Content-Disposition with ASCII fallback + UTF-8 extension
-    safe_name = (original or "material").replace('"', "").replace("\r", "").replace("\n", "")
+    safe_name = (
+        (original or "material").replace('"', "").replace("\r", "").replace("\n", "")
+    )
     ascii_name = safe_name.encode("ascii", "replace").decode("ascii")
     utf8_name = quote(safe_name)
     headers = {
@@ -597,7 +648,11 @@ async def search(
         raise InvalidInputError("Mod de căutare neacceptat.")
     service = request.app.state.guguta_search
     chunks = await service.search_notebook(
-        actor.actor_id, notebook_id, body.query, mode=body.mode, limit=body.limit,
+        actor.actor_id,
+        notebook_id,
+        body.query,
+        mode=body.mode,
+        limit=body.limit,
     )
     return [
         {
@@ -636,7 +691,9 @@ async def create_session(
 
 
 @chat_router.get("")
-async def list_sessions(notebook_id: uuid.UUID, request: Request) -> list[dict[str, Any]]:
+async def list_sessions(
+    notebook_id: uuid.UUID, request: Request
+) -> list[dict[str, Any]]:
     actor = get_actor(request)
     service = request.app.state.guguta_chat
     return await service.list_sessions(actor, notebook_id)
@@ -653,20 +710,27 @@ async def list_messages(
 
 @chat_router.post("/{session_id}/messages")
 async def send_message(
-    notebook_id: uuid.UUID, session_id: uuid.UUID, body: MessageCreate,
+    notebook_id: uuid.UUID,
+    session_id: uuid.UUID,
+    body: MessageCreate,
     request: Request,
 ) -> dict[str, Any]:
     actor = get_actor(request)
     service = request.app.state.guguta_chat
     return await service.send_message(
-        actor, notebook_id, session_id,
-        content=body.content, idempotency_key=body.idempotency_key,
+        actor,
+        notebook_id,
+        session_id,
+        content=body.content,
+        idempotency_key=body.idempotency_key,
     )
 
 
 @chat_router.post("/{session_id}/messages/stream")
 async def send_message_stream(
-    notebook_id: uuid.UUID, session_id: uuid.UUID, body: MessageCreate,
+    notebook_id: uuid.UUID,
+    session_id: uuid.UUID,
+    body: MessageCreate,
     request: Request,
 ) -> Any:
     """SSE endpoint: streams chat response token by token."""
@@ -676,8 +740,11 @@ async def send_message_stream(
     actor = get_actor(request)
     service = request.app.state.guguta_chat
     gen = await service.send_message_stream(
-        actor, notebook_id, session_id,
-        content=body.content, idempotency_key=body.idempotency_key,
+        actor,
+        notebook_id,
+        session_id,
+        content=body.content,
+        idempotency_key=body.idempotency_key,
     )
 
     async def _sse(gen):
@@ -694,7 +761,9 @@ async def send_message_stream(
 
 @chat_router.get("/{session_id}/messages/{message_id}/citations")
 async def get_citations(
-    notebook_id: uuid.UUID, session_id: uuid.UUID, message_id: uuid.UUID,
+    notebook_id: uuid.UUID,
+    session_id: uuid.UUID,
+    message_id: uuid.UUID,
     request: Request,
 ) -> list[dict[str, Any]]:
     actor = get_actor(request)
@@ -721,9 +790,7 @@ class SaveAnswerRequest(BaseModel):
     title: str = Field(min_length=1, max_length=500)
 
 
-notes_router = APIRouter(
-    prefix="/api/v1/notebooks/{notebook_id}/notes", tags=["notes"]
-)
+notes_router = APIRouter(prefix="/api/v1/notebooks/{notebook_id}/notes", tags=["notes"])
 
 
 def get_notes_service(request: Request) -> Any:
@@ -775,8 +842,11 @@ async def delete_note(
 
 @chat_router.post("/{session_id}/messages/{message_id}/save-as-note", status_code=201)
 async def save_answer_as_note(
-    notebook_id: uuid.UUID, session_id: uuid.UUID, message_id: uuid.UUID,
-    body: SaveAnswerRequest, request: Request,
+    notebook_id: uuid.UUID,
+    session_id: uuid.UUID,
+    message_id: uuid.UUID,
+    body: SaveAnswerRequest,
+    request: Request,
 ) -> dict[str, Any]:
     actor = get_actor(request)
     chat = request.app.state.guguta_chat
@@ -787,7 +857,8 @@ async def save_answer_as_note(
 
         raise ChatSessionNotFound()
     return await get_notes_service(request).create(
-        actor, notebook_id,
+        actor,
+        notebook_id,
         title=body.title,
         content=target["content"],
         source_message_id=message_id,
@@ -864,7 +935,7 @@ async def download_audio_overview(
         media_type=mime,
         headers={
             "Content-Disposition": (
-                f'inline; filename="{ascii_name}"; filename*=UTF-8\'\'{quote(safe_name)}'
+                f"inline; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(safe_name)}"
             )
         },
     )
@@ -927,86 +998,318 @@ def get_flashcard_service(request: Request) -> Any:
 
 
 @flashcards_router.post("", status_code=202)
-async def create_flashcard_deck(notebook_id: uuid.UUID, body: FlashcardDeckCreate,
-                                request: Request) -> dict[str, Any]:
+async def create_flashcard_deck(
+    notebook_id: uuid.UUID, body: FlashcardDeckCreate, request: Request
+) -> dict[str, Any]:
     return await get_flashcard_service(request).create(
-        get_actor(request), notebook_id, source_ids=body.source_ids,
-        quantity=body.quantity, difficulty=body.difficulty, instructions=body.instructions,
+        get_actor(request),
+        notebook_id,
+        source_ids=body.source_ids,
+        quantity=body.quantity,
+        difficulty=body.difficulty,
+        instructions=body.instructions,
     )
 
 
 @flashcards_router.get("")
-async def list_flashcard_decks(notebook_id: uuid.UUID, request: Request) -> list[dict[str, Any]]:
-    return await get_flashcard_service(request).list_for_notebook(get_actor(request), notebook_id)
+async def list_flashcard_decks(
+    notebook_id: uuid.UUID, request: Request
+) -> list[dict[str, Any]]:
+    return await get_flashcard_service(request).list_for_notebook(
+        get_actor(request), notebook_id
+    )
 
 
 @flashcards_router.get("/{deck_id}")
-async def get_flashcard_deck(notebook_id: uuid.UUID, deck_id: uuid.UUID,
-                             request: Request) -> dict[str, Any]:
-    return await get_flashcard_service(request).get(get_actor(request), notebook_id, deck_id)
+async def get_flashcard_deck(
+    notebook_id: uuid.UUID, deck_id: uuid.UUID, request: Request
+) -> dict[str, Any]:
+    return await get_flashcard_service(request).get(
+        get_actor(request), notebook_id, deck_id
+    )
 
 
 @flashcards_router.delete("/{deck_id}")
-async def delete_flashcard_deck(notebook_id: uuid.UUID, deck_id: uuid.UUID,
-                                request: Request) -> dict[str, bool]:
-    return {"deleted": await get_flashcard_service(request).delete(get_actor(request), notebook_id, deck_id)}
+async def delete_flashcard_deck(
+    notebook_id: uuid.UUID, deck_id: uuid.UUID, request: Request
+) -> dict[str, bool]:
+    return {
+        "deleted": await get_flashcard_service(request).delete(
+            get_actor(request), notebook_id, deck_id
+        )
+    }
 
 
 @flashcards_router.post("/{deck_id}/retry")
-async def retry_flashcard_deck(notebook_id: uuid.UUID, deck_id: uuid.UUID,
-                               request: Request) -> dict[str, bool]:
-    return {"requeued": await get_flashcard_service(request).retry(
-        get_actor(request), notebook_id, deck_id
-    )}
+async def retry_flashcard_deck(
+    notebook_id: uuid.UUID, deck_id: uuid.UUID, request: Request
+) -> dict[str, bool]:
+    return {
+        "requeued": await get_flashcard_service(request).retry(
+            get_actor(request), notebook_id, deck_id
+        )
+    }
 
 
 @flashcards_router.delete("/{deck_id}/cards/{card_id}")
-async def delete_flashcard(notebook_id: uuid.UUID, deck_id: uuid.UUID, card_id: uuid.UUID,
-                           request: Request) -> dict[str, bool]:
-    return {"deleted": await get_flashcard_service(request).delete_card(
-        get_actor(request), notebook_id, deck_id, card_id
-    )}
+async def delete_flashcard(
+    notebook_id: uuid.UUID, deck_id: uuid.UUID, card_id: uuid.UUID, request: Request
+) -> dict[str, bool]:
+    return {
+        "deleted": await get_flashcard_service(request).delete_card(
+            get_actor(request), notebook_id, deck_id, card_id
+        )
+    }
 
 
 @flashcards_router.post("/{deck_id}/cards/{card_id}/explain")
-async def explain_flashcard(notebook_id: uuid.UUID, deck_id: uuid.UUID,
-                            card_id: uuid.UUID, request: Request) -> dict[str, Any]:
+async def explain_flashcard(
+    notebook_id: uuid.UUID, deck_id: uuid.UUID, card_id: uuid.UUID, request: Request
+) -> dict[str, Any]:
     return await get_flashcard_service(request).explain(
         get_actor(request), notebook_id, deck_id, card_id
     )
 
 
 @flashcards_router.post("/{deck_id}/sessions", status_code=201)
-async def create_flashcard_session(notebook_id: uuid.UUID, deck_id: uuid.UUID,
-                                   body: FlashcardSessionCreate, request: Request) -> dict[str, Any]:
+async def create_flashcard_session(
+    notebook_id: uuid.UUID,
+    deck_id: uuid.UUID,
+    body: FlashcardSessionCreate,
+    request: Request,
+) -> dict[str, Any]:
     return await get_flashcard_service(request).create_session(
         get_actor(request), notebook_id, deck_id, mode=body.mode
     )
 
 
 @flashcards_router.patch("/{deck_id}/sessions/{session_id}")
-async def update_flashcard_session(notebook_id: uuid.UUID, deck_id: uuid.UUID,
-                                   session_id: uuid.UUID, body: FlashcardSessionUpdate,
-                                   request: Request) -> dict[str, Any]:
+async def update_flashcard_session(
+    notebook_id: uuid.UUID,
+    deck_id: uuid.UUID,
+    session_id: uuid.UUID,
+    body: FlashcardSessionUpdate,
+    request: Request,
+) -> dict[str, Any]:
     return await get_flashcard_service(request).update_session(
-        get_actor(request), notebook_id, deck_id, session_id,
-        current_index=body.current_index, results=body.results,
-        card_order=body.card_order, completed=body.completed,
+        get_actor(request),
+        notebook_id,
+        deck_id,
+        session_id,
+        current_index=body.current_index,
+        results=body.results,
+        card_order=body.card_order,
+        completed=body.completed,
     )
 
 
 @flashcards_router.get("/{deck_id}/export.csv")
-async def export_flashcard_deck(notebook_id: uuid.UUID, deck_id: uuid.UUID,
-                                request: Request) -> Response:
+async def export_flashcard_deck(
+    notebook_id: uuid.UUID, deck_id: uuid.UUID, request: Request
+) -> Response:
     from urllib.parse import quote
 
     data, filename = await get_flashcard_service(request).csv_export(
         get_actor(request), notebook_id, deck_id
     )
     safe_name = filename.replace('"', "").replace("\r", "").replace("\n", "")
-    return Response(content=data, media_type="text/csv; charset=utf-8", headers={
-        "Content-Disposition": f'attachment; filename="flashcards.csv"; filename*=UTF-8\'\'{quote(safe_name)}'
-    })
+    return Response(
+        content=data,
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f"attachment; filename=\"flashcards.csv\"; filename*=UTF-8''{quote(safe_name)}"
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Quiz — grounded questions, server-side grading and persistent attempts
+# ---------------------------------------------------------------------------
+
+
+class QuizCreate(BaseModel):
+    source_ids: list[uuid.UUID] = Field(min_length=1, max_length=20)
+    quantity: str = Field(default="standard", pattern="^(fewer|standard|more)$")
+    difficulty: str = Field(default="medium", pattern="^(easy|medium|hard)$")
+    question_types: list[str] = Field(min_length=1, max_length=4)
+    instructions: str | None = Field(default=None, max_length=4000)
+
+
+class QuizAnswer(BaseModel):
+    question_id: uuid.UUID
+    response: str | list[str]
+    hint_used: bool = False
+
+
+class QuizExplain(BaseModel):
+    response: str | list[str] | None = None
+
+
+class QuizOptionInput(BaseModel):
+    id: str = Field(min_length=1, max_length=50)
+    text: str = Field(min_length=1, max_length=2000)
+    is_correct: bool
+    rationale: str = Field(min_length=1, max_length=4000)
+
+
+class QuizQuestionInput(BaseModel):
+    question_type: str = Field(
+        pattern="^(multiple_choice|multiple_select|fill_in_blank|short_answer)$"
+    )
+    prompt: str = Field(min_length=1, max_length=4000)
+    hint: str = Field(default="", max_length=2000)
+    concepts: list[str] = Field(default_factory=list, max_length=20)
+    options: list[QuizOptionInput] = Field(default_factory=list, max_length=10)
+    accepted_answers: list[str] = Field(default_factory=list, max_length=20)
+    reference_answer: str = Field(default="", max_length=8000)
+    required_concepts: list[str] = Field(default_factory=list, max_length=20)
+    optional_concepts: list[str] = Field(default_factory=list, max_length=20)
+
+
+quizzes_router = APIRouter(
+    prefix="/api/v1/notebooks/{notebook_id}/quizzes", tags=["quizzes"]
+)
+
+
+def get_quiz_service(request: Request) -> Any:
+    return request.app.state.guguta_quizzes
+
+
+@quizzes_router.post("", status_code=202)
+async def create_quiz(
+    notebook_id: uuid.UUID, body: QuizCreate, request: Request
+) -> dict[str, Any]:
+    return await get_quiz_service(request).create(
+        get_actor(request),
+        notebook_id,
+        source_ids=body.source_ids,
+        quantity=body.quantity,
+        difficulty=body.difficulty,
+        question_types=body.question_types,
+        instructions=body.instructions,
+    )
+
+
+@quizzes_router.get("")
+async def list_quizzes(
+    notebook_id: uuid.UUID, request: Request
+) -> list[dict[str, Any]]:
+    return await get_quiz_service(request).list(get_actor(request), notebook_id)
+
+
+@quizzes_router.get("/{quiz_id}")
+async def get_quiz(
+    notebook_id: uuid.UUID, quiz_id: uuid.UUID, request: Request
+) -> dict[str, Any]:
+    return await get_quiz_service(request).get(get_actor(request), notebook_id, quiz_id)
+
+
+@quizzes_router.delete("/{quiz_id}")
+async def delete_quiz(
+    notebook_id: uuid.UUID, quiz_id: uuid.UUID, request: Request
+) -> dict[str, bool]:
+    return {
+        "deleted": await get_quiz_service(request).delete(
+            get_actor(request), notebook_id, quiz_id
+        )
+    }
+
+
+@quizzes_router.post("/{quiz_id}/retry")
+async def retry_quiz(
+    notebook_id: uuid.UUID, quiz_id: uuid.UUID, request: Request
+) -> dict[str, bool]:
+    return {
+        "requeued": await get_quiz_service(request).retry(
+            get_actor(request), notebook_id, quiz_id
+        )
+    }
+
+
+@quizzes_router.post("/{quiz_id}/attempts", status_code=201)
+async def create_quiz_attempt(
+    notebook_id: uuid.UUID, quiz_id: uuid.UUID, request: Request
+) -> dict[str, Any]:
+    return await get_quiz_service(request).create_attempt(
+        get_actor(request), notebook_id, quiz_id
+    )
+
+
+@quizzes_router.post("/{quiz_id}/attempts/{attempt_id}/answers")
+async def answer_quiz(
+    notebook_id: uuid.UUID,
+    quiz_id: uuid.UUID,
+    attempt_id: uuid.UUID,
+    body: QuizAnswer,
+    request: Request,
+) -> dict[str, Any]:
+    return await get_quiz_service(request).answer(
+        get_actor(request),
+        notebook_id,
+        quiz_id,
+        attempt_id,
+        question_id=body.question_id,
+        response=body.response,
+        hint_used=body.hint_used,
+    )
+
+
+@quizzes_router.get("/{quiz_id}/attempts/{attempt_id}/results")
+async def quiz_results(
+    notebook_id: uuid.UUID, quiz_id: uuid.UUID, attempt_id: uuid.UUID, request: Request
+) -> dict[str, Any]:
+    return await get_quiz_service(request).results(
+        get_actor(request), notebook_id, quiz_id, attempt_id
+    )
+
+
+@quizzes_router.post("/{quiz_id}/questions/{question_id}/explain")
+async def explain_quiz_question(
+    notebook_id: uuid.UUID,
+    quiz_id: uuid.UUID,
+    question_id: uuid.UUID,
+    body: QuizExplain,
+    request: Request,
+) -> dict[str, Any]:
+    return await get_quiz_service(request).explain(
+        get_actor(request), notebook_id, quiz_id, question_id, body.response
+    )
+
+
+@quizzes_router.post("/{quiz_id}/questions", status_code=201)
+async def add_quiz_question(
+    notebook_id: uuid.UUID,
+    quiz_id: uuid.UUID,
+    body: QuizQuestionInput,
+    request: Request,
+) -> dict[str, Any]:
+    return await get_quiz_service(request).add_question(
+        get_actor(request), notebook_id, quiz_id, data=body.model_dump()
+    )
+
+
+@quizzes_router.put("/{quiz_id}/questions/{question_id}")
+async def update_quiz_question(
+    notebook_id: uuid.UUID,
+    quiz_id: uuid.UUID,
+    question_id: uuid.UUID,
+    body: QuizQuestionInput,
+    request: Request,
+) -> dict[str, Any]:
+    return await get_quiz_service(request).update_question(
+        get_actor(request), notebook_id, quiz_id, question_id, data=body.model_dump()
+    )
+
+
+@quizzes_router.delete("/{quiz_id}/questions/{question_id}")
+async def delete_quiz_question(
+    notebook_id: uuid.UUID, quiz_id: uuid.UUID, question_id: uuid.UUID, request: Request
+) -> dict[str, bool]:
+    return {
+        "deleted": await get_quiz_service(request).delete_question(
+            get_actor(request), notebook_id, quiz_id, question_id
+        )
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -1048,7 +1351,9 @@ async def list_credentials(request: Request) -> list[dict[str, Any]]:
 
 
 @admin_router.delete("/credentials/{credential_id}")
-async def delete_credential(credential_id: uuid.UUID, request: Request) -> dict[str, Any]:
+async def delete_credential(
+    credential_id: uuid.UUID, request: Request
+) -> dict[str, Any]:
     actor = get_actor(request)
     await request.app.state.guguta_admin.delete_credential(actor, credential_id)
     return {"deleted": True}
@@ -1118,7 +1423,9 @@ admin_catalog_router = APIRouter(
 
 
 @admin_catalog_router.post("", status_code=201)
-async def admin_create_template(body: TemplateCreate, request: Request) -> dict[str, Any]:
+async def admin_create_template(
+    body: TemplateCreate, request: Request
+) -> dict[str, Any]:
     actor = get_actor(request)
     return await request.app.state.guguta_catalog.create_template(
         actor, **body.model_dump()
@@ -1225,8 +1532,11 @@ async def create_share(
 
         raise InvalidInputError("source_ids trebuie să fie UUID-uri.") from exc
     return await request.app.state.guguta_sharing.create_share(
-        actor, notebook_id,
-        source_ids=source_uuids, title=body.title, description=body.description,
+        actor,
+        notebook_id,
+        source_ids=source_uuids,
+        title=body.title,
+        description=body.description,
     )
 
 
@@ -1254,9 +1564,7 @@ imports_router = APIRouter(prefix="/api/v1/imports", tags=["imports"])
 @imports_router.post("/preview")
 async def preview_import(body: TokenRequest, request: Request) -> dict[str, Any]:
     actor = get_actor(request)
-    return await request.app.state.guguta_sharing.preview_import(
-        actor, body.token
-    )
+    return await request.app.state.guguta_sharing.preview_import(actor, body.token)
 
 
 @imports_router.post("", status_code=201)

@@ -81,6 +81,11 @@ interface FlashcardDeck {
   active_session?: StudySession | null;
 }
 
+type QuizQuestionType = "multiple_choice" | "multiple_select" | "fill_in_blank" | "short_answer";
+interface QuizQuestion { id:string; position:number; question_type:QuizQuestionType; prompt:string; hint:string; concepts:string[]; options:{id:string;text:string}[]; version:number; }
+interface QuizAttempt { id:string; current_index:number; question_order:string[]; answers:Record<string,{response:string|string[];status:"correct"|"partial"|"incorrect";feedback:string;correct_answer:string|string[];hint_used:boolean}>; completed_at?:string|null; }
+interface QuizArtifact { id:string; quantity:"fewer"|"standard"|"more"; difficulty:"easy"|"medium"|"hard"; question_types:QuizQuestionType[]; selected_source_ids:string[]; instructions?:string|null; status:"queued"|"generating"|"ready"|"failed"; title?:string|null; error_detail?:string|null; question_count:number; questions?:QuizQuestion[]; active_attempt?:QuizAttempt|null; }
+
 /**
  * Răspunsul asistentului așa cum se afișează. Când referințele sunt oprite
  * (`lib/features.ts`), marcajele `[1]` se scot doar de aici — conținutul salvat
@@ -99,6 +104,7 @@ export default function NotebookPage() {
   const [notes, setNotes] = useState<Note[] | null>(null);
   const [audioOverviews, setAudioOverviews] = useState<AudioOverview[] | null>(null);
   const [flashcardDecks, setFlashcardDecks] = useState<FlashcardDeck[] | null>(null);
+  const [quizzes, setQuizzes] = useState<QuizArtifact[] | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -127,6 +133,20 @@ export default function NotebookPage() {
   const [cardFlipped, setCardFlipped] = useState(false);
   const [cardExplanation, setCardExplanation] = useState<string | null>(null);
   const [explainingCard, setExplainingCard] = useState(false);
+  const [quizModalOpen,setQuizModalOpen]=useState(false);
+  const [quizQuantity,setQuizQuantity]=useState<"fewer"|"standard"|"more">("standard");
+  const [quizDifficulty,setQuizDifficulty]=useState<"easy"|"medium"|"hard">("medium");
+  const [quizTypes,setQuizTypes]=useState<QuizQuestionType[]>(["fill_in_blank","multiple_choice","multiple_select","short_answer"]);
+  const [quizSourceIds,setQuizSourceIds]=useState<string[]>([]);
+  const [quizInstructions,setQuizInstructions]=useState("");
+  const [quizSubmitting,setQuizSubmitting]=useState(false);
+  const [activeQuiz,setActiveQuiz]=useState<QuizArtifact|null>(null);
+  const [quizAttempt,setQuizAttempt]=useState<QuizAttempt|null>(null);
+  const [quizResponse,setQuizResponse]=useState<string|string[]>("");
+  const [quizHint,setQuizHint]=useState(false);
+  const [quizExplanation,setQuizExplanation]=useState<string|null>(null);
+  const [quizBusy,setQuizBusy]=useState(false);
+  const [showQuizPrompt,setShowQuizPrompt]=useState(false);
   useEffect(() => {
     if (!sending) {
       setElapsed(0);
@@ -167,6 +187,7 @@ export default function NotebookPage() {
         `/api/v1/notebooks/${nbId}/flashcard-decks`,
       );
       setFlashcardDecks(decks);
+      setQuizzes(await api<QuizArtifact[]>("GET", `/api/v1/notebooks/${nbId}/quizzes`));
       const sess = await api<ChatSession[]>(
         "GET",
         `/api/v1/notebooks/${nbId}/sessions`,
@@ -245,7 +266,8 @@ export default function NotebookPage() {
     (audioOverviews?.some((item) =>
       ["queued", "generating_script", "synthesizing"].includes(item.status)
     ) ?? false) ||
-    (flashcardDecks?.some((item) => ["queued", "generating"].includes(item.status)) ?? false);
+    (flashcardDecks?.some((item) => ["queued", "generating"].includes(item.status)) ?? false) ||
+    (quizzes?.some((item) => ["queued", "generating"].includes(item.status)) ?? false);
   useEffect(() => {
     if (!hasProcessing) return;
     const t = setInterval(() => {
@@ -634,6 +656,51 @@ export default function NotebookPage() {
     }
   }
 
+  function openQuizModal() {
+    setQuizSourceIds((sources ?? []).filter((source) => source.status === "ready").map((source) => source.id));
+    setQuizQuantity("standard"); setQuizDifficulty("medium");
+    setQuizTypes(["fill_in_blank","multiple_choice","multiple_select","short_answer"]);
+    setQuizInstructions(""); setQuizModalOpen(true);
+  }
+  async function createQuiz() {
+    if (quizSubmitting || !quizSourceIds.length || !quizTypes.length) return;
+    setQuizSubmitting(true);
+    try {
+      const created=await api<QuizArtifact>("POST",`/api/v1/notebooks/${nbId}/quizzes`,{source_ids:quizSourceIds,quantity:quizQuantity,difficulty:quizDifficulty,question_types:quizTypes,instructions:quizInstructions.trim()||null});
+      setQuizzes((current)=>[created,...(current??[])]); setQuizModalOpen(false); await loadAll();
+    } catch(err) { setError((err as Error).message); } finally { setQuizSubmitting(false); }
+  }
+  async function removeQuiz(quiz: QuizArtifact) {
+    if (!window.confirm(`Ștergi „${quiz.title || "Quiz"}”? Încercările vor fi șterse.`)) return;
+    try { await api("DELETE",`/api/v1/notebooks/${nbId}/quizzes/${quiz.id}`); setQuizzes((v)=>v?.filter((x)=>x.id!==quiz.id)??[]); if(activeQuiz?.id===quiz.id){setActiveQuiz(null);setQuizAttempt(null);} } catch(err){setError((err as Error).message);}
+  }
+  async function retryQuiz(id:string) { try { await api("POST",`/api/v1/notebooks/${nbId}/quizzes/${id}/retry`,{}); await loadAll(); } catch(err){setError((err as Error).message);} }
+  async function openQuiz(id:string, retake=false) {
+    try {
+      const quiz=await api<QuizArtifact>("GET",`/api/v1/notebooks/${nbId}/quizzes/${id}`);
+      const attempt=!retake&&quiz.active_attempt?quiz.active_attempt:await api<QuizAttempt>("POST",`/api/v1/notebooks/${nbId}/quizzes/${id}/attempts`,{});
+      setActiveQuiz(quiz);setQuizAttempt(attempt);setQuizResponse("");setQuizHint(false);setQuizExplanation(null);setShowQuizPrompt(false);
+    } catch(err){setError((err as Error).message);}
+  }
+  async function submitQuizAnswer() {
+    if(!activeQuiz||!quizAttempt||quizBusy) return;
+    const question=activeQuiz.questions?.find((q)=>q.id===quizAttempt.question_order[quizAttempt.current_index]);
+    if(!question||(typeof quizResponse==="string"?!quizResponse.trim():!quizResponse.length)) return;
+    setQuizBusy(true);
+    try {
+      const data=await api<{attempt:QuizAttempt}>("POST",`/api/v1/notebooks/${nbId}/quizzes/${activeQuiz.id}/attempts/${quizAttempt.id}/answers`,{question_id:question.id,response:quizResponse,hint_used:quizHint});
+      setQuizAttempt(data.attempt);
+    } catch(err){setError((err as Error).message);} finally {setQuizBusy(false);}
+  }
+  function moveQuiz(delta:number) {
+    if(!quizAttempt) return; const index=Math.max(0,Math.min(quizAttempt.question_order.length-1,quizAttempt.current_index+delta));
+    setQuizAttempt({...quizAttempt,current_index:index});setQuizResponse("");setQuizHint(false);setQuizExplanation(null);
+  }
+  async function explainQuizQuestion() {
+    if(!activeQuiz||!quizAttempt||quizBusy) return; const q=activeQuiz.questions?.find((v)=>v.id===quizAttempt.question_order[quizAttempt.current_index]); if(!q)return;
+    setQuizBusy(true);try{const value=await api<{explanation:string}>("POST",`/api/v1/notebooks/${nbId}/quizzes/${activeQuiz.id}/questions/${q.id}/explain`,{response:quizAttempt.answers[q.id]?.response??quizResponse});setQuizExplanation(value.explanation);}catch(err){setError((err as Error).message);}finally{setQuizBusy(false);}
+  }
+
   useEffect(() => {
     if (!activeDeck || !studySession || studySession.completed_at) return;
     const onKey = (event: KeyboardEvent) => {
@@ -650,6 +717,8 @@ export default function NotebookPage() {
   );
   const gotItCount = Object.values(studySession?.results ?? {}).filter((value) => value === "got_it").length;
   const missedCount = Object.values(studySession?.results ?? {}).filter((value) => value === "missed").length;
+  const currentQuizQuestion=activeQuiz?.questions?.find((q)=>q.id===quizAttempt?.question_order[quizAttempt.current_index]);
+  const currentQuizAnswer=currentQuizQuestion&&quizAttempt?.answers[currentQuizQuestion.id];
 
   if (error && nb === null) {
     return (
@@ -901,10 +970,10 @@ export default function NotebookPage() {
                   <strong>Flashcards</strong>
                   <span>Generează cartonașe de recapitulare din materiale.</span>
                 </button>
-                <div className="future-tool">
+                <button type="button" className="future-tool audio-tool" onClick={openQuizModal} disabled={!sources?.some((source)=>source.status==="ready")}>
                   <strong>Quiz</strong>
-                  <span>Va crea întrebări pentru verificarea cunoștințelor.</span>
-                </div>
+                  <span>Testează înțelegerea cu patru tipuri de întrebări.</span>
+                </button>
                 <button
                   type="button"
                   className="future-tool audio-tool"
@@ -923,14 +992,14 @@ export default function NotebookPage() {
             >
               <div className="studio-section-heading">
                 <h2 id="studio-results-title">Materiale create</h2>
-                {notes !== null && audioOverviews !== null && flashcardDecks !== null ? (
-                  <span>{notes.length + audioOverviews.length + flashcardDecks.length}</span>
+                {notes !== null && audioOverviews !== null && flashcardDecks !== null && quizzes !== null ? (
+                  <span>{notes.length + audioOverviews.length + flashcardDecks.length + quizzes.length}</span>
                 ) : null}
               </div>
 
-              {notes === null || audioOverviews === null || flashcardDecks === null ? (
+              {notes === null || audioOverviews === null || flashcardDecks === null || quizzes === null ? (
                 <p className="muted">Se încarcă…</p>
-              ) : notes.length === 0 && audioOverviews.length === 0 && flashcardDecks.length === 0 ? (
+              ) : notes.length === 0 && audioOverviews.length === 0 && flashcardDecks.length === 0 && quizzes.length === 0 ? (
                 <div className="studio-empty">
                   <svg viewBox="0 0 24 24" fill="currentColor" width="34" height="34">
                     <path d="M12 2l1.8 5.6L19 9l-5.2 1.4L12 16l-1.8-5.6L5 9l5.2-1.4L12 2zm7 12l.9 2.6L22.5 18l-2.6.9L19 21.5l-.9-2.6-2.6-.9 2.6-.9L19 14z" />
@@ -973,6 +1042,16 @@ export default function NotebookPage() {
                       <button className="pill small" onClick={() => void retryFlashcardDeck(deck.id)}>Reîncearcă</button>
                     </div>
                   )}
+                </article>
+              ))}
+
+              {quizzes?.map((quiz)=>(
+                <article className="flashcard-deck-card" key={quiz.id}>
+                  <button type="button" className="flashcard-deck-open" disabled={quiz.status!=="ready"} onClick={()=>quiz.status==="ready"&&void openQuiz(quiz.id)}>
+                    <span className="flashcard-deck-icon" aria-hidden="true">?</span><span><strong>{quiz.title||"Quiz"}</strong><small>{quiz.status==="ready"?`${quiz.question_count} întrebări · ${quiz.difficulty==="easy"?"Ușor":quiz.difficulty==="hard"?"Dificil":"Mediu"}`:quiz.status==="failed"?"Generarea a eșuat":"Se generează în fundal…"}</small></span>
+                  </button>
+                  <button type="button" className="audio-overview-delete" onClick={()=>void removeQuiz(quiz)} aria-label="Șterge quiz-ul">×</button>
+                  {quiz.status==="failed"&&<div className="flashcard-deck-error"><p className="error-text">{quiz.error_detail||"Generarea a eșuat."}</p><button className="pill small" onClick={()=>void retryQuiz(quiz.id)}>Reîncearcă</button></div>}
                 </article>
               ))}
 
@@ -1051,6 +1130,37 @@ export default function NotebookPage() {
           </div>
         </section>
       </div>
+
+      {quizModalOpen&&(
+        <div className="modal-overlay" role="presentation" onClick={()=>!quizSubmitting&&setQuizModalOpen(false)}><div className="modal flashcard-config-modal" role="dialog" aria-modal="true" onClick={(e)=>e.stopPropagation()}>
+          <div className="audio-modal-heading"><div><h2>Creează Quiz</h2><p className="muted">Întrebări și evaluare grounded în materialele alese.</p></div><button className="icon-btn" onClick={()=>setQuizModalOpen(false)}>×</button></div>
+          <div className="flashcard-config-grid">
+            <fieldset className="flashcard-presets"><legend>Număr de întrebări</legend><div>{(["fewer","standard","more"] as const).map(v=><button type="button" key={v} className={quizQuantity===v?"selected":""} onClick={()=>setQuizQuantity(v)}>{v==="fewer"?"Mai puține":v==="more"?"Mai multe":"Standard"}</button>)}</div></fieldset>
+            <fieldset className="flashcard-presets"><legend>Dificultate</legend><div>{(["easy","medium","hard"] as const).map(v=><button type="button" key={v} className={quizDifficulty===v?"selected":""} onClick={()=>setQuizDifficulty(v)}>{v==="easy"?"Ușor":v==="hard"?"Dificil":"Mediu"}</button>)}</div></fieldset>
+          </div>
+          <fieldset className="quiz-types"><legend>Tipuri de întrebări</legend><div>{(["fill_in_blank","multiple_choice","multiple_select","short_answer"] as QuizQuestionType[]).map(v=><button type="button" key={v} className={quizTypes.includes(v)?"selected":""} onClick={()=>setQuizTypes(c=>c.includes(v)?c.filter(x=>x!==v):[...c,v])}>✓ {v==="fill_in_blank"?"Completează spațiul":v==="multiple_choice"?"Alegere unică":v==="multiple_select"?"Alegere multiplă":"Răspuns scurt"}</button>)}</div></fieldset>
+          <fieldset className="audio-source-options"><div className="audio-source-legend"><span className="fieldset-label">Materiale</span><button type="button" onClick={()=>setQuizSourceIds((sources??[]).filter(s=>s.status==="ready").map(s=>s.id))}>Selectează toate</button></div><div className="audio-source-list">{(sources??[]).filter(s=>s.status==="ready").map(s=><label key={s.id}><input type="checkbox" checked={quizSourceIds.includes(s.id)} onChange={()=>setQuizSourceIds(c=>c.includes(s.id)?c.filter(x=>x!==s.id):[...c,s.id])}/><span>{s.local_name}</span></label>)}</div></fieldset>
+          <label className="flashcard-instructions"><span>Pe ce să se concentreze?</span><textarea value={quizInstructions} onChange={e=>setQuizInstructions(e.target.value)} maxLength={4000} placeholder="Opțional: concepte, comparații, aplicații…"/></label>
+          <div className="modal-actions"><button className="chip" onClick={()=>setQuizModalOpen(false)}>Anulează</button><button className="create-btn" disabled={quizSubmitting||!quizSourceIds.length||!quizTypes.length} onClick={()=>void createQuiz()}>{quizSubmitting?"Se adaugă…":"Generează acum"}</button></div>
+        </div></div>
+      )}
+
+      {activeQuiz&&quizAttempt&&(
+        <div className="modal-overlay flashcard-study-overlay" role="presentation"><div className="flashcard-study quiz-study" role="dialog" aria-modal="true">
+          <header><div><h2>{activeQuiz.title||"Quiz"}</h2><p>{showQuizPrompt?(activeQuiz.instructions||"Fără instrucțiuni personalizate."):"Întrebări din materialele selectate"}</p></div><div className="flashcard-study-actions"><button className="chip" onClick={()=>setShowQuizPrompt(v=>!v)}>{showQuizPrompt?"Ascunde promptul":"Arată promptul"}</button><button className="icon-btn" onClick={()=>{setActiveQuiz(null);setQuizAttempt(null)}}>×</button></div></header>
+          {quizAttempt.completed_at?(
+            <div className="flashcard-complete"><span>✓</span><h3>Quiz încheiat</h3><p><strong>{Object.values(quizAttempt.answers).filter(v=>v.status==="correct").length}</strong> din <strong>{quizAttempt.question_order.length}</strong> răspunsuri corecte</p><div className="modal-actions"><button className="chip" onClick={()=>{setQuizAttempt({...quizAttempt,completed_at:null,current_index:0});}}>Revizuiește</button><button className="create-btn" onClick={()=>void openQuiz(activeQuiz.id,true)}>Reia quiz-ul</button></div></div>
+          ):currentQuizQuestion? <>
+            <div className="flashcard-toolbar"><span>{quizAttempt.current_index+1} / {quizAttempt.question_order.length}</span><span>{currentQuizQuestion.question_type==="multiple_choice"?"Alegere unică":currentQuizQuestion.question_type==="multiple_select"?"Alegere multiplă":currentQuizQuestion.question_type==="fill_in_blank"?"Completează":"Răspuns scurt"}</span></div>
+            <section className="quiz-question"><h3>{currentQuizQuestion.prompt}</h3>
+              {currentQuizQuestion.options.length>0?<div className="quiz-options">{currentQuizQuestion.options.map(o=>{const selected=Array.isArray(quizResponse)?quizResponse.includes(o.id):quizResponse===o.id;return <button type="button" key={o.id} className={selected?"selected":""} disabled={!!currentQuizAnswer} onClick={()=>setQuizResponse(currentQuizQuestion.question_type==="multiple_select"?(Array.isArray(quizResponse)&&quizResponse.includes(o.id)?quizResponse.filter(v=>v!==o.id):[...(Array.isArray(quizResponse)?quizResponse:[]),o.id]):o.id)}>{currentQuizQuestion.question_type==="multiple_select"?(selected?"☑":"☐"):selected?"●":"○"} {o.text}</button>})}</div>:currentQuizQuestion.question_type==="short_answer"?<textarea className="quiz-answer-input" value={typeof quizResponse==="string"?quizResponse:""} disabled={!!currentQuizAnswer} onChange={e=>setQuizResponse(e.target.value)} placeholder="Scrie răspunsul tău…"/>:<input className="quiz-answer-input" value={typeof quizResponse==="string"?quizResponse:""} disabled={!!currentQuizAnswer} onChange={e=>setQuizResponse(e.target.value)} placeholder="Completează răspunsul…"/>}
+              {quizHint&&<p className="quiz-hint"><strong>Indiciu:</strong> {currentQuizQuestion.hint}</p>}
+              {currentQuizAnswer&&<div className={`quiz-feedback ${currentQuizAnswer.status}`}><strong>{currentQuizAnswer.status==="correct"?"Răspuns corect":currentQuizAnswer.status==="partial"?"Parțial corect":"Mai încearcă"}</strong><p>{currentQuizAnswer.feedback}</p>{quizExplanation?<p>{quizExplanation}</p>:<button className="chip" onClick={()=>void explainQuizQuestion()} disabled={quizBusy}>Explică mai mult</button>}</div>}
+            </section>
+            <div className="flashcard-navigation"><button className="chip" disabled={quizAttempt.current_index===0} onClick={()=>moveQuiz(-1)}>← Anterior</button>{!currentQuizAnswer?<div><button className="chip" onClick={()=>setQuizHint(v=>!v)}>Indiciu</button><button className="create-btn" disabled={quizBusy||(typeof quizResponse==="string"?!quizResponse.trim():!quizResponse.length)} onClick={()=>void submitQuizAnswer()}>Verifică</button></div>:<span/>}<button className="chip" disabled={quizAttempt.current_index===quizAttempt.question_order.length-1} onClick={()=>moveQuiz(1)}>Următor →</button></div>
+          </>:<p className="error-text">Întrebarea nu mai există.</p>}
+        </div></div>
+      )}
 
       {flashcardModalOpen && (
         <div className="modal-overlay" role="presentation" onClick={() => !flashcardSubmitting && setFlashcardModalOpen(false)}>

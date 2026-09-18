@@ -113,6 +113,8 @@ class GugutaConfig(BaseSettings):
     audio_overview_max_source_chars: int = Field(default=60_000, ge=2_000, le=250_000)
     flashcard_max_output_tokens: int = Field(default=6144, ge=1024, le=16384)
     flashcard_max_source_chars: int = Field(default=80_000, ge=2_000, le=300_000)
+    quiz_max_output_tokens: int = Field(default=8192, ge=1024, le=16384)
+    quiz_max_source_chars: int = Field(default=80_000, ge=2_000, le=300_000)
     moss_tts_base_url: str = "http://host.docker.internal:8000"
     moss_tts_reference_audio: str = "/voices/romanian.wav"
     moss_tts_timeout_seconds: float = Field(default=900, gt=0, le=3600)

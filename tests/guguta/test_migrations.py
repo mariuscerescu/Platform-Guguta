@@ -18,6 +18,7 @@ EXPECTED_TABLES = [
     "share_materials", "share_credentials", "share_imports",
     "idempotency_records", "chat_sessions", "chat_messages", "citations",
     "notes", "audio_overviews", "flashcard_decks", "flashcards", "flashcard_sessions",
+    "quizzes", "quiz_questions", "quiz_attempts",
     "processing_jobs", "outbox_events", "audit_events",
 ]
 
