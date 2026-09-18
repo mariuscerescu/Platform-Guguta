@@ -12,64 +12,40 @@ Fluxul este asincron:
 
 1. API-ul validează că materialele aparțin utilizatorului și sunt procesate.
 2. Un job durabil generează scenariul pe baza textului extras din surse.
-3. Scenariul este trimis exclusiv serviciului local MOSS-TTS.
+3. Scenariul este trimis serviciului privat MOSS-TTS de pe serverul GPU.
 4. Fișierul WAV este salvat în stocarea privată și devine disponibil în Studio.
 
-## Serviciul vocal local
+## Serviciul vocal pe serverul GPU
 
 Integrarea folosește checkpointul exact
-`OpenMOSS-Team/MOSS-TTS-Local-Transformer-v1.5`, servit prin endpointul local
+`OpenMOSS-Team/MOSS-TTS-Local-Transformer-v1.5`, servit prin endpointul privat
 OpenAI-compatible `/v1/audio/speech` oferit de SGLang-Omni.
-
-Într-un mediu Linux/WSL2 cu CUDA și suficient spațiu:
 
 ```bash
 hf download OpenMOSS-Team/MOSS-TTS-Local-Transformer-v1.5
 sgl-omni serve \
   --model-path OpenMOSS-Team/MOSS-TTS-Local-Transformer-v1.5 \
-  --port 8000 \
-  --vocoder_cuda_graph false
+  --port 8000
 ```
 
-Workerul Docker accesează serviciul de pe host prin:
+Workerul accesează serviciul prin rețeaua privată a platformei:
 
 ```dotenv
-GUGUTA_MOSS_TTS_BASE_URL=http://host.docker.internal:8000
+GUGUTA_MOSS_TTS_BASE_URL=http://moss-tts:8000
 ```
 
-Configurația refuză deliberat URL-uri TTS externe. Astfel, scenariul derivat
-din materialele elevului nu poate fi trimis accidental către un serviciu vocal
-de pe internet.
-
-## Resurse
-
-Checkpointul BF16 are 5B parametri și include codecul MOSS Audio Tokenizer v2.
-Fișierele modelului ocupă aproximativ 9,12 GB. Pentru model, mediul Python,
-PyTorch/CUDA, cache și fișiere temporare trebuie rezervate:
-
-- minimum practic: GPU cu 16 GB VRAM, 32 GB RAM și 20 GB liberi pe SSD;
-- recomandat pentru producție: GPU cu 24 GB VRAM, 64 GB RAM și 30–40 GB
-  liberi pe SSD.
-
-GPU-ul actual cu 8 GB VRAM nu poate încărca în mod sigur checkpointul BF16
-integral. CPU offload sau o cuantizare realizată de terți poate reduce necesarul
-de VRAM, dar ar schimba profilul de performanță și trebuie validată separat.
+Endpointul vocal trebuie să rămână în rețeaua privată a platformei. Astfel,
+scenariul derivat din materialele elevului nu este trimis către un serviciu
+vocal public.
 
 ## Ce mai trebuie făcut pentru activarea modelului real
 
-- [ ] Se eliberează minimum 30 GB pe SSD-ul folosit pentru modelele Hugging
-  Face și mediul Python.
-- [ ] Se alocă un GPU NVIDIA cu minimum 16 GB VRAM; pentru producție se
-  recomandă 24 GB VRAM și 64 GB RAM.
-- [ ] Se instalează într-un mediu Linux sau WSL2 driverul NVIDIA, CUDA și un
-  mediu Python izolat compatibil cu versiunea PyTorch cerută de MOSS-TTS.
-- [ ] Se instalează `huggingface_hub`, MOSS-TTS și SGLang-Omni conform
+- [ ] Se instalează MOSS-TTS și SGLang-Omni pe serverul GPU conform
   documentației oficiale.
 - [ ] Se descarcă checkpointul exact
-  `OpenMOSS-Team/MOSS-TTS-Local-Transformer-v1.5` într-un director persistent,
-  nu în stratul efemer al unui container.
-- [ ] Se pornește serviciul pe portul `8000`, accesibil numai local. Pentru
-  servere cu memorie limitată se păstrează `--vocoder_cuda_graph false`.
+  `OpenMOSS-Team/MOSS-TTS-Local-Transformer-v1.5`.
+- [ ] Se pornește serviciul pe portul `8000`, accesibil numai din rețeaua
+  privată a platformei.
 - [ ] Se verifică endpointul înainte de pornirea workerului:
 
   ```bash
@@ -80,16 +56,13 @@ de VRAM, dar ar schimba profilul de performanță și trebuie validată separat.
   ```
 
 - [ ] Se configurează workerul cu
-  `GUGUTA_MOSS_TTS_BASE_URL=http://host.docker.internal:8000` și se repornește
+  `GUGUTA_MOSS_TTS_BASE_URL=http://moss-tts:8000` și se repornește
   containerul worker.
 - [ ] Se generează din interfață câte un Audio Overview **Brief** și **Deep
   Dive**, verificând limba română, durata, playerul, descărcarea și reîncercarea
   după o eroare simulată.
-- [ ] Se măsoară timpul de generare și vârful de VRAM/RAM pentru un singur job.
-  Concurența rămâne `1` până când măsurătorile arată că GPU-ul poate procesa mai
-  multe cereri fără OOM.
 - [ ] Serviciul MOSS este configurat să pornească automat și să aibă un health
-  check. Portul `8000` nu se publică pe internet.
+  check. Portul `8000` nu este publicat pe internet.
 
 Referințe oficiale:
 
