@@ -882,6 +882,18 @@ async def retry_audio_overview(
     }
 
 
+@audio_overviews_router.delete("/{overview_id}")
+async def delete_audio_overview(
+    notebook_id: uuid.UUID, overview_id: uuid.UUID, request: Request
+) -> dict[str, bool]:
+    actor = get_actor(request)
+    return {
+        "deleted": await get_audio_overviews_service(request).delete(
+            actor, notebook_id, overview_id
+        )
+    }
+
+
 # ---------------------------------------------------------------------------
 # Admin (L5) — central AI credentials, content reports
 # ---------------------------------------------------------------------------
@@ -1138,6 +1150,5 @@ async def import_snapshot(body: ImportRequest, request: Request) -> dict[str, An
     return await request.app.state.guguta_sharing.import_snapshot(
         actor, body.token, idempotency_key=body.idempotency_key
     )
-
 
 

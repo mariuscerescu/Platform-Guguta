@@ -167,6 +167,41 @@ async def test_audio_overview_end_to_end(
     assert audio.headers["content-type"].startswith("audio/wav")
     assert audio.content.startswith(b"RIFF")
 
+    deleted = await audio_client.delete(
+        f"/api/v1/notebooks/{notebook['id']}/audio-overviews/{overview_id}",
+        cookies=_cookies(auth),
+        headers=_headers(auth),
+    )
+    assert deleted.status_code == 200
+    assert deleted.json() == {"deleted": True}
+    assert (
+        await audio_client.get(
+            f"/api/v1/notebooks/{notebook['id']}/audio-overviews",
+            cookies=_cookies(auth),
+        )
+    ).json() == []
+    assert (
+        await audio_client.get(
+            f"/api/v1/notebooks/{notebook['id']}/audio-overviews/{overview_id}/audio",
+            cookies=_cookies(auth),
+        )
+    ).status_code == 404
+
+    queued = await audio_client.post(
+        f"/api/v1/notebooks/{notebook['id']}/audio-overviews",
+        json={"format": "brief", "source_ids": [source_id]},
+        cookies=_cookies(auth),
+        headers=_headers(auth),
+    )
+    assert queued.status_code == 202
+    cancelled = await audio_client.delete(
+        f"/api/v1/notebooks/{notebook['id']}/audio-overviews/{queued.json()['id']}",
+        cookies=_cookies(auth),
+        headers=_headers(auth),
+    )
+    assert cancelled.json() == {"deleted": True}
+    assert not await audio_worker.process_one()
+
 
 def test_moss_url_must_be_local() -> None:
     with pytest.raises(ValueError, match="local MOSS-TTS"):

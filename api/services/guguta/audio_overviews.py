@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import uuid
 from typing import Any
 
@@ -14,6 +15,8 @@ from open_notebook.database.guguta.engine import actor_connection
 from open_notebook.exceptions import InvalidInputError, NotFoundError
 from open_notebook.jobs.guguta.queue import enqueue, requeue
 from open_notebook.storage.guguta.base import StorageBackend
+
+logger = logging.getLogger(__name__)
 
 
 class AudioOverviewNotFound(NotFoundError):
@@ -196,3 +199,47 @@ class AudioOverviewService:
                     {"id": overview_id},
                 )
         return ok
+
+    async def delete(
+        self, actor: ActorContext, notebook_id: uuid.UUID, overview_id: uuid.UUID
+    ) -> bool:
+        """Delete an overview and fence any queued/running generation job."""
+        storage_key: str | None = None
+        async with actor_connection(self._engine, actor.actor_id) as conn:
+            row = (
+                await conn.execute(
+                    text(
+                        "SELECT audio_storage_key FROM audio_overviews "
+                        "WHERE id = :id AND notebook_id = :n FOR UPDATE"
+                    ),
+                    {"id": overview_id, "n": notebook_id},
+                )
+            ).mappings().first()
+            if row is None:
+                return False
+            storage_key = row["audio_storage_key"]
+            await conn.execute(
+                text(
+                    "UPDATE processing_jobs SET status = 'cancelled', "
+                    "completed_at = now(), lease_until = NULL "
+                    "WHERE target_type = 'audio_overview' AND target_id = :id "
+                    "AND status IN ('queued','claimed','running')"
+                ),
+                {"id": overview_id},
+            )
+            deleted = await conn.execute(
+                text(
+                    "DELETE FROM audio_overviews WHERE id = :id AND notebook_id = :n"
+                ),
+                {"id": overview_id, "n": notebook_id},
+            )
+        if storage_key:
+            try:
+                self._storage.delete(storage_key)
+            except Exception:  # noqa: BLE001 -- deletion remains authoritative
+                # The database remains the source of truth. A storage cleanup
+                # failure must not resurrect a deleted user-visible artifact.
+                logger.exception(
+                    "failed to remove audio artifact for overview %s", overview_id
+                )
+        return bool(deleted.rowcount)

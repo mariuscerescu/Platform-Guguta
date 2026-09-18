@@ -76,6 +76,7 @@ export default function NotebookPage() {
   const [audioFormat, setAudioFormat] = useState<"brief" | "deep_dive">("brief");
   const [audioSourceIds, setAudioSourceIds] = useState<string[]>([]);
   const [audioSubmitting, setAudioSubmitting] = useState(false);
+  const [deletingAudioId, setDeletingAudioId] = useState<string | null>(null);
   useEffect(() => {
     if (!sending) {
       setElapsed(0);
@@ -416,6 +417,32 @@ export default function NotebookPage() {
     }
   }
 
+  async function removeAudioOverview(overview: AudioOverview) {
+    if (
+      deletingAudioId !== null ||
+      !window.confirm(
+        `Ștergi „${overview.title || "Rezumat audio"}”? Fișierul audio nu va mai putea fi recuperat.`,
+      )
+    ) {
+      return;
+    }
+    setDeletingAudioId(overview.id);
+    setError(null);
+    try {
+      await api(
+        "DELETE",
+        `/api/v1/notebooks/${nbId}/audio-overviews/${overview.id}`,
+      );
+      setAudioOverviews((current) =>
+        current?.filter((item) => item.id !== overview.id) ?? [],
+      );
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setDeletingAudioId(null);
+    }
+  }
+
   if (error && nb === null) {
     return (
       <>
@@ -651,64 +678,117 @@ export default function NotebookPage() {
             </button>
           </div>
           <div className="panel-body studio-body">
-            {notes === null || audioOverviews === null ? (
-              <p className="muted">Se încarcă…</p>
-            ) : notes.length === 0 && audioOverviews.length === 0 ? (
-              <div className="studio-empty">
-                <svg viewBox="0 0 24 24" fill="currentColor" width="34" height="34">
-                  <path d="M12 2l1.8 5.6L19 9l-5.2 1.4L12 16l-1.8-5.6L5 9l5.2-1.4L12 2zm7 12l.9 2.6L22.5 18l-2.6.9L19 21.5l-.9-2.6-2.6-.9 2.6-.9L19 14z" />
-                </svg>
-                <p className="studio-strong">Rezultatul Studio va fi salvat aici.</p>
-              </div>
-            ) : null}
-
-            {audioOverviews?.map((overview) => (
-              <article className="audio-overview-card" key={overview.id}>
-                <div className="audio-overview-head">
-                  <span className="audio-overview-icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                      <path d="M5 9v6M9 6v12M13 4v16M17 7v10M21 10v4" strokeLinecap="round" />
-                    </svg>
-                  </span>
-                  <div>
-                    <strong>{overview.title || "Rezumat audio"}</strong>
-                    <span>
-                      {overview.format === "brief" ? "Brief" : "Deep Dive"}
-                      {overview.duration_seconds
-                        ? ` · ${Math.max(1, Math.round(overview.duration_seconds / 60))} min`
-                        : ""}
-                    </span>
-                  </div>
+            <section
+              className="studio-section studio-tools-section"
+              aria-labelledby="studio-tools-title"
+            >
+              <h2 id="studio-tools-title">Instrumente</h2>
+              <div className="future-tools">
+                <div className="future-tool">
+                  <strong>Flashcards</strong>
+                  <span>Va genera cartonașe de recapitulare din materiale.</span>
                 </div>
-                {overview.status === "ready" ? (
-                  <audio
-                    controls
-                    preload="metadata"
-                    src={`${API_BASE}/api/v1/notebooks/${nbId}/audio-overviews/${overview.id}/audio`}
-                  >
-                    Browserul tău nu poate reda acest fișier audio.
-                  </audio>
-                ) : overview.status === "failed" ? (
-                  <div className="audio-overview-error">
-                    <p>{overview.error_detail || "Generarea audio a eșuat."}</p>
-                    <button className="pill small" onClick={() => retryAudioOverview(overview.id)}>
-                      Reîncearcă
+                <div className="future-tool">
+                  <strong>Quiz</strong>
+                  <span>Va crea întrebări pentru verificarea cunoștințelor.</span>
+                </div>
+                <button
+                  type="button"
+                  className="future-tool audio-tool"
+                  onClick={openAudioModal}
+                  disabled={!sources?.some((source) => source.status === "ready")}
+                >
+                  <strong>Audio Overview</strong>
+                  <span>Transformă materialele selectate într-un rezumat audio.</span>
+                </button>
+              </div>
+            </section>
+
+            <section
+              className="studio-section studio-results"
+              aria-labelledby="studio-results-title"
+            >
+              <div className="studio-section-heading">
+                <h2 id="studio-results-title">Materiale create</h2>
+                {notes !== null && audioOverviews !== null ? (
+                  <span>{notes.length + audioOverviews.length}</span>
+                ) : null}
+              </div>
+
+              {notes === null || audioOverviews === null ? (
+                <p className="muted">Se încarcă…</p>
+              ) : notes.length === 0 && audioOverviews.length === 0 ? (
+                <div className="studio-empty">
+                  <svg viewBox="0 0 24 24" fill="currentColor" width="34" height="34">
+                    <path d="M12 2l1.8 5.6L19 9l-5.2 1.4L12 16l-1.8-5.6L5 9l5.2-1.4L12 2zm7 12l.9 2.6L22.5 18l-2.6.9L19 21.5l-.9-2.6-2.6-.9 2.6-.9L19 14z" />
+                  </svg>
+                  <p className="studio-strong">Materialele create vor apărea aici.</p>
+                </div>
+              ) : null}
+
+              {audioOverviews?.map((overview) => (
+                <article className="audio-overview-card" key={overview.id}>
+                  <div className="audio-overview-head">
+                    <span className="audio-overview-icon" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                        <path d="M5 9v6M9 6v12M13 4v16M17 7v10M21 10v4" strokeLinecap="round" />
+                      </svg>
+                    </span>
+                    <div className="audio-overview-title">
+                      <strong>{overview.title || "Rezumat audio"}</strong>
+                      <span>
+                        {overview.format === "brief" ? "Brief" : "Deep Dive"}
+                        {overview.duration_seconds
+                          ? ` · ${Math.max(1, Math.round(overview.duration_seconds / 60))} min`
+                          : ""}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      className="audio-overview-delete"
+                      onClick={() => void removeAudioOverview(overview)}
+                      disabled={deletingAudioId !== null}
+                      aria-label={`Șterge ${overview.title || "rezumatul audio"}`}
+                      title="Șterge Audio Overview"
+                    >
+                      {deletingAudioId === overview.id ? (
+                        <span className="spinner tiny" aria-hidden="true" />
+                      ) : (
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                          <path d="M4 7h16M9 7V4h6v3m-8 0 1 13h8l1-13M10 11v5M14 11v5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
                     </button>
                   </div>
-                ) : (
-                  <p className="audio-overview-progress" role="status">
-                    <span className="spinner tiny" aria-hidden="true" />
-                    {overview.status === "synthesizing"
-                      ? "Se generează vocea local…"
-                      : overview.status === "generating_script"
-                        ? "Se pregătește scenariul…"
-                        : "În așteptare…"}
-                  </p>
-                )}
-              </article>
-            ))}
+                  {overview.status === "ready" ? (
+                    <audio
+                      controls
+                      preload="metadata"
+                      src={`${API_BASE}/api/v1/notebooks/${nbId}/audio-overviews/${overview.id}/audio`}
+                    >
+                      Browserul tău nu poate reda acest fișier audio.
+                    </audio>
+                  ) : overview.status === "failed" ? (
+                    <div className="audio-overview-error">
+                      <p>{overview.error_detail || "Generarea audio a eșuat."}</p>
+                      <button className="pill small" onClick={() => retryAudioOverview(overview.id)}>
+                        Reîncearcă
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="audio-overview-progress" role="status">
+                      <span className="spinner tiny" aria-hidden="true" />
+                      {overview.status === "synthesizing"
+                        ? "Se generează vocea local…"
+                        : overview.status === "generating_script"
+                          ? "Se pregătește scenariul…"
+                          : "În așteptare…"}
+                    </p>
+                  )}
+                </article>
+              ))}
 
-            {notes?.map((n) => (
+              {notes?.map((n) => (
                 <div className="card" key={n.id}>
                   <h3>{n.title}</h3>
                   <p>{n.content}</p>
@@ -717,25 +797,7 @@ export default function NotebookPage() {
                   </button>
                 </div>
               ))}
-            <div className="future-tools" aria-label="Instrumente planificate">
-              <div className="future-tool">
-                <strong>Flashcards</strong>
-                <span>Va genera cartonașe de recapitulare din materiale.</span>
-              </div>
-              <div className="future-tool">
-                <strong>Quiz</strong>
-                <span>Va crea întrebări pentru verificarea cunoștințelor.</span>
-              </div>
-              <button
-                type="button"
-                className="future-tool audio-tool"
-                onClick={openAudioModal}
-                disabled={!sources?.some((source) => source.status === "ready")}
-              >
-                <strong>Audio Overview</strong>
-                <span>Transformă materialele selectate într-un rezumat audio.</span>
-              </button>
-            </div>
+            </section>
           </div>
         </section>
       </div>
