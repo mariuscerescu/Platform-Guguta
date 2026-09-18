@@ -1269,7 +1269,13 @@ main.container {
 
 .badge.ready { background: #e8f8ef; color: #087343; }
 .badge.error { background: #fff0ee; color: var(--red); }
-.badge.processing,
+.badge.processing {
+  justify-content: center;
+  min-width: 24px;
+  padding: 0 4px;
+  background: transparent;
+  color: var(--primary);
+}
 .badge.new { background: #fff8e0; color: #8a6200; }
 
 .chat-body { overflow: hidden; }
