@@ -1295,6 +1295,7 @@ export default function NotebookPage() {
 
       {activeQuiz&&quizAttempt&&(
         <div className="modal-overlay flashcard-study-overlay" role="presentation"><div className="flashcard-study quiz-study" role="dialog" aria-modal="true">
+          <div className="flashcard-study-scroll">
           <header><div><h2>{activeQuiz.title||"Quiz"}</h2><p>Întrebări din materialele selectate</p></div><div className="flashcard-study-actions"><button className="icon-btn" onClick={()=>{setActiveQuiz(null);setQuizAttempt(null)}} aria-label="Închide">×</button></div></header>
           {quizAttempt.completed_at?(
             <div className="flashcard-complete"><span>✓</span><h3>Quiz încheiat</h3><p><strong>{Object.values(quizAttempt.answers).filter(v=>v.status==="correct").length}</strong> din <strong>{quizAttempt.question_order.length}</strong> răspunsuri corecte</p><div className="modal-actions"><button className="chip" onClick={()=>{setQuizAttempt({...quizAttempt,completed_at:null,current_index:0});}}>Revizuiește</button><button className="create-btn" onClick={()=>void openQuiz(activeQuiz.id,true)}>Reia quiz-ul</button></div></div>
@@ -1307,6 +1308,7 @@ export default function NotebookPage() {
             </section>
             <div className="flashcard-navigation"><button className="chip" disabled={quizAttempt.current_index===0} onClick={()=>moveQuiz(-1)}>← Anterior</button>{!currentQuizAnswer?<div><button className="chip" onClick={()=>setQuizHint(v=>!v)}>Indiciu</button><button className="create-btn" disabled={quizBusy||(typeof quizResponse==="string"?!quizResponse.trim():!quizResponse.length)} onClick={()=>void submitQuizAnswer()}>Verifică</button></div>:<span/>}<button className="chip" disabled={quizAttempt.current_index===quizAttempt.question_order.length-1} onClick={()=>moveQuiz(1)}>Următor →</button></div>
           </>:<p className="error-text">Întrebarea nu mai există.</p>}
+          </div>
         </div></div>
       )}
 
@@ -1359,6 +1361,7 @@ export default function NotebookPage() {
       {activeDeck && studySession && (
         <div className="modal-overlay flashcard-study-overlay" role="presentation">
           <div className="flashcard-study" role="dialog" aria-modal="true" aria-labelledby="flashcard-study-title">
+            <div className="flashcard-study-scroll">
             <header>
               <div><h2 id="flashcard-study-title">{activeDeck.title || "Flashcards"}</h2><p>{studySession.card_order.length} cartonașe · Space pentru întoarcere</p></div>
               <div className="flashcard-study-actions">
@@ -1405,6 +1408,7 @@ export default function NotebookPage() {
                 </div>
               </>
             ) : <p className="error-text">Cartonașul nu mai există.</p>}
+            </div>
           </div>
         </div>
       )}

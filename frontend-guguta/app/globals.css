@@ -1548,7 +1548,7 @@ main.container {
   background: #f8f9fd;
   box-shadow: 0 28px 80px rgba(4, 15, 36, .32);
 }
-.flashcard-study > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
+.flashcard-study-scroll > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
 .flashcard-study h2 { margin: 0; }
 .flashcard-study header p { margin: 5px 0 0; color: var(--text-secondary); }
 .flashcard-study-actions { display: flex; align-items: center; gap: 8px; }
@@ -3520,8 +3520,7 @@ body:has(.modal-overlay) {
   padding: 24px;
 }
 
-.modal,
-.flashcard-study {
+.modal {
   max-height: calc(100dvh - 48px);
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -3531,8 +3530,34 @@ body:has(.modal-overlay) {
   width: min(840px, 100%);
   min-height: 0;
   max-height: min(680px, calc(100dvh - 48px));
-  padding: 24px;
+  padding: 0;
+  overflow: hidden;
   border-radius: 18px;
+}
+
+.flashcard-study-scroll {
+  max-height: inherit;
+  padding: 24px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: rgba(91, 107, 132, 0.55) transparent;
+  scrollbar-width: thin;
+}
+
+.flashcard-study-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.flashcard-study-scroll::-webkit-scrollbar-track {
+  margin-block: 12px;
+  background: transparent;
+}
+
+.flashcard-study-scroll::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgba(91, 107, 132, 0.55);
+  background-clip: content-box;
 }
 
 .study-card {
@@ -3837,8 +3862,12 @@ body:has(.modal-overlay) {
   .flashcard-study {
     min-height: 0;
     max-height: min(720px, calc(100dvh - 24px));
-    padding: 18px;
+    padding: 0;
     border-radius: 15px;
+  }
+
+  .flashcard-study-scroll {
+    padding: 18px;
   }
 
   .study-card {
