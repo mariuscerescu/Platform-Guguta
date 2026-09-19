@@ -761,6 +761,7 @@ main.container {
   height: auto;
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   gap: 10px;
   padding: 9px 10px;
   border-radius: var(--radius);
