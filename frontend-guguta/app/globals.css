@@ -4239,7 +4239,8 @@ body:has(.library-shell) > .header-product .top-nav a[aria-current="page"] {
 
 .library-shell .plus-circle {
   position: absolute;
-  top: 50%;
+  /* Centrează acțiunea în spațiul rămas deasupra etichetei de jos. */
+  top: calc(50% - 22px);
   left: 50%;
   width: 58px;
   height: 58px;
