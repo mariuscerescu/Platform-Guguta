@@ -8,6 +8,7 @@ Final result: passed
 - `C:\Users\User\AppData\Local\Temp\codex-clipboard-59b40cb8-015b-4e60-bf8a-2cb6bd98a10d.png`
 - `C:\Users\User\AppData\Local\Temp\codex-clipboard-e57f97a4-59c6-4a63-a6a2-e65337190b9b.png`
 - `C:\Users\User\AppData\Local\Temp\codex-clipboard-751c39e2-0693-4762-9b82-ea4d2795446d.png`
+- `C:\Users\User\AppData\Local\Temp\codex-clipboard-fa14653c-a40c-4f10-b4b8-c17dc83d1252.png`
 
 The references define the target qualities: restrained navigation, clear card
 hierarchy, three-panel workspace, compact controls, generous white space and
@@ -34,7 +35,7 @@ mobile Studio tab. No page errors were reported.
 | Library hierarchy | Quiet header, tabs and controls above the notebook grid | Header, title, actions, tabs, filters and grid have the same visual order | Passed |
 | Notebook cards | Large calm cards with soft color coding and metadata | Guguță cards use blue, mint and violet surfaces, clear titles and material counts | Passed |
 | Workspace shell | One title bar and three tall rounded panels | Duplicate global header removed; Materiale, Conversație and Studio fill the viewport | Passed |
-| Collapsed side panels | Narrow rounded rails, vertical labels and controls anchored at the bottom | Materiale and Studio collapse to 64 px rails with panel icons and stable bottom controls | Passed |
+| Collapsed side panels | Narrow rounded rails with the panel control at the top and compact actions below | Materiale exposes upload and source icons; Studio exposes the available creation tools; rotated labels are removed | Passed |
 | Chat focus | Central panel receives the largest width and a bottom composer | Conversation remains the dominant panel with a floating rounded composer | Passed |
 | Studio tools | Compact colored action tiles in a two-column grid | Flashcards, Quiz and Audio Overview use distinct tints and readable labels | Passed |
 | Typography | Compact UI chrome with clear title/body/caption hierarchy | Titles, panel labels, metadata and controls use deliberate sizes and weights | Passed |

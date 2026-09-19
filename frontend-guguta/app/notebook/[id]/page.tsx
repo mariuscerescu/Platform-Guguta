@@ -15,6 +15,7 @@ import {
   MaterialsIcon,
   PencilIcon,
   PanelToggleIcon,
+  PlusIcon,
   QuizIcon,
   ShareIcon,
   StudioIcon,
@@ -898,8 +899,32 @@ export default function NotebookPage() {
               aria-label={srcCollapsed ? "Desfă panoul Materiale" : "Strânge panoul Materiale"}
               title={srcCollapsed ? "Desfă" : "Strânge"}
             >
-              <PanelToggleIcon side="left" direction={srcCollapsed ? "right" : "left"} />
+              <PanelToggleIcon side="left" />
             </button>
+          </div>
+          <div className="panel-rail source-panel-rail" aria-hidden={!srcCollapsed}>
+            <button
+              type="button"
+              className="rail-action rail-add-source"
+              onClick={() => document.getElementById("src-file-input")?.click()}
+              tabIndex={srcCollapsed ? 0 : -1}
+              aria-label="Adaugă sursă"
+              title="Adaugă sursă"
+            >
+              <PlusIcon />
+            </button>
+            <div className="rail-source-list" aria-label="Materialele carnetului">
+              {sources?.map((source) => (
+                <span
+                  key={source.id}
+                  className={`rail-source ${source.selected_for_chat ? "selected" : ""} ${source.status}`}
+                  title={source.local_name}
+                >
+                  <MaterialsIcon />
+                  {source.status === "processing" && <span className="rail-status-dot" />}
+                </span>
+              ))}
+            </div>
           </div>
           <div className="panel-body">
             <SourceUploader
@@ -1084,7 +1109,42 @@ export default function NotebookPage() {
               aria-label={studioCollapsed ? "Desfă panoul Studio" : "Strânge panoul Studio"}
               title={studioCollapsed ? "Desfă" : "Strânge"}
             >
-              <PanelToggleIcon side="right" direction={studioCollapsed ? "left" : "right"} />
+              <PanelToggleIcon side="right" />
+            </button>
+          </div>
+          <div className="panel-rail studio-panel-rail" aria-hidden={!studioCollapsed}>
+            <button
+              type="button"
+              className="rail-action rail-tool rail-flashcards"
+              onClick={openFlashcardModal}
+              disabled={!sources?.some((source) => source.status === "ready")}
+              tabIndex={studioCollapsed ? 0 : -1}
+              aria-label="Creează Flashcards"
+              title="Flashcards"
+            >
+              <CardsIcon />
+            </button>
+            <button
+              type="button"
+              className="rail-action rail-tool rail-quiz"
+              onClick={openQuizModal}
+              disabled={!sources?.some((source) => source.status === "ready")}
+              tabIndex={studioCollapsed ? 0 : -1}
+              aria-label="Creează Quiz"
+              title="Quiz"
+            >
+              <QuizIcon />
+            </button>
+            <button
+              type="button"
+              className="rail-action rail-tool rail-audio"
+              onClick={openAudioModal}
+              disabled={!sources?.some((source) => source.status === "ready")}
+              tabIndex={studioCollapsed ? 0 : -1}
+              aria-label="Creează Audio Overview"
+              title="Audio Overview"
+            >
+              <AudioIcon />
             </button>
           </div>
           <div className="panel-body studio-body">

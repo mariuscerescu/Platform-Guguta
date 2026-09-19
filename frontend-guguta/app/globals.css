@@ -4485,21 +4485,16 @@ main.container:has(> .nb-shell) {
   .nb-grid .panel.collapsed .panel-head {
     position: relative;
     z-index: 2;
-    height: 100%;
-    min-height: 0;
-    flex: 1;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: 17px 0 13px;
-    border-bottom-color: transparent;
+    height: 64px;
+    min-height: 64px;
+    flex: 0 0 64px;
+    justify-content: center;
+    padding: 10px;
+    border-bottom-color: #e4e9f1;
   }
 
   .nb-grid .panel.collapsed .panel-title {
-    writing-mode: vertical-rl;
-    transform: rotate(180deg);
-    color: #536783;
-    font-size: 0.94rem;
-    letter-spacing: 0.015em;
+    display: none;
   }
 
   .nb-grid .panel.collapsed .panel-body {
@@ -4530,12 +4525,12 @@ main.container:has(> .nb-shell) {
     width: 40px;
     height: 40px;
     flex: 0 0 auto;
-    margin-top: auto;
-    border: 1px solid #d9e2ee;
-    border-radius: 12px;
-    background: #f6f8fc;
+    margin: 0;
+    border: 0;
+    border-radius: 11px;
+    background: transparent;
     color: #415a7a;
-    box-shadow: 0 2px 8px rgba(25, 43, 72, 0.05);
+    box-shadow: none;
   }
 
   .nb-grid .panel.collapsed .panel-head > .icon-btn:hover {
@@ -4543,6 +4538,158 @@ main.container:has(> .nb-shell) {
     background: #eaf2ff;
     color: var(--primary);
     transform: translateY(-1px);
+  }
+
+  .panel-rail {
+    position: absolute;
+    inset: 64px 0 0;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 8px;
+    overflow: hidden auto;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(6px);
+    transition: opacity 140ms ease,
+      transform 240ms cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0s linear 240ms;
+  }
+
+  .panel.collapsed .panel-rail {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: none;
+    transition-delay: 180ms, 150ms, 0s;
+  }
+
+  .rail-action,
+  .rail-source {
+    position: relative;
+    display: grid;
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    place-items: center;
+    padding: 0;
+    border: 1px solid transparent;
+    border-radius: 12px;
+    color: #425675;
+    transition: color 160ms ease, background-color 160ms ease,
+      border-color 160ms ease, transform 160ms ease;
+  }
+
+  .rail-action svg,
+  .rail-source svg {
+    width: 21px;
+    height: 21px;
+  }
+
+  .rail-action:hover:not(:disabled) {
+    border-color: #c8d7ea;
+    background: #f2f6fc;
+    color: var(--primary);
+    transform: translateY(-1px);
+  }
+
+  .rail-action:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  .rail-add-source {
+    background: transparent;
+    color: #1e385b;
+  }
+
+  .rail-source-list {
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    padding-top: 4px;
+    border-top: 1px solid #edf1f6;
+  }
+
+  .rail-source {
+    border-color: #e0e7f0;
+    background: #f8fafd;
+    color: #60728d;
+  }
+
+  .rail-source.selected {
+    border-color: #c7d9f4;
+    background: #eef4ff;
+    color: var(--primary);
+  }
+
+  .rail-source.error {
+    border-color: #f2cbc7;
+    background: #fff4f2;
+    color: var(--red);
+  }
+
+  .rail-status-dot {
+    position: absolute;
+    right: 4px;
+    bottom: 4px;
+    width: 7px;
+    height: 7px;
+    border: 2px solid #ffffff;
+    border-radius: 50%;
+    background: var(--primary);
+    box-shadow: 0 0 0 1px rgba(11, 99, 246, 0.16);
+  }
+
+  .studio-panel-rail {
+    gap: 12px;
+  }
+
+  .rail-tool {
+    width: 44px;
+    height: 52px;
+    flex-basis: 52px;
+    overflow: visible;
+    border-radius: 12px;
+  }
+
+  .rail-tool::after {
+    position: absolute;
+    right: 3px;
+    bottom: 2px;
+    content: "+";
+    font-size: 0.72rem;
+    font-weight: 800;
+  }
+
+  .rail-flashcards {
+    background: #f8f1e8;
+    color: #8b6a20;
+  }
+
+  .rail-quiz {
+    background: #e7f5fb;
+    color: #08749a;
+  }
+
+  .rail-audio {
+    background: #eef2ff;
+    color: #315fae;
+  }
+}
+
+.panel-rail {
+  display: none;
+}
+
+@media (min-width: 991px) {
+  .panel-rail {
+    display: flex;
   }
 }
 
