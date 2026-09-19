@@ -4220,10 +4220,12 @@ body:has(.library-shell) > .header-product .top-nav a[aria-current="page"] {
 }
 
 .library-shell .create-card {
+  display: block;
   border-color: #ccd8e8;
   border-style: solid;
   background: rgba(255, 255, 255, 0.88);
   color: #1b3152;
+  text-align: center;
 }
 
 .library-shell .create-card::before {
@@ -4236,17 +4238,28 @@ body:has(.library-shell) > .header-product .top-nav a[aria-current="page"] {
 }
 
 .library-shell .plus-circle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
   width: 58px;
   height: 58px;
   background: #eaf1ff;
+  transform: translate(-50%, -50%);
   transition: color 180ms ease, background-color 180ms ease,
     transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.library-shell .create-card > span:not(.plus-circle) {
+  position: absolute;
+  right: 18px;
+  bottom: 26px;
+  left: 18px;
 }
 
 .library-shell .create-card:hover .plus-circle {
   background: var(--primary);
   color: #ffffff;
-  transform: rotate(90deg) scale(1.04);
+  transform: translate(-50%, -50%) rotate(90deg) scale(1.04);
 }
 
 .library-shell .nb-top {
