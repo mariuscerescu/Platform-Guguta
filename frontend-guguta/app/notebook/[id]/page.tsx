@@ -1146,6 +1146,64 @@ export default function NotebookPage() {
             >
               <AudioIcon />
             </button>
+            {(flashcardDecks?.length || quizzes?.length || audioOverviews?.length || notes?.length) ? (
+              <div className="rail-created-list" aria-label="Materiale create">
+                {flashcardDecks?.map((deck) => (
+                  <button
+                    type="button"
+                    key={deck.id}
+                    className={`rail-action rail-created rail-created-flashcards ${deck.status}`}
+                    onClick={() => deck.status === "ready" && void openDeck(deck.id, "all")}
+                    disabled={deck.status !== "ready"}
+                    tabIndex={studioCollapsed ? 0 : -1}
+                    aria-label={`Deschide ${deck.title || "setul de flashcards"}`}
+                    title={deck.title || "Flashcards"}
+                  >
+                    <CardsIcon />
+                  </button>
+                ))}
+                {quizzes?.map((quiz) => (
+                  <button
+                    type="button"
+                    key={quiz.id}
+                    className={`rail-action rail-created rail-created-quiz ${quiz.status}`}
+                    onClick={() => quiz.status === "ready" && void openQuiz(quiz.id)}
+                    disabled={quiz.status !== "ready"}
+                    tabIndex={studioCollapsed ? 0 : -1}
+                    aria-label={`Deschide ${quiz.title || "quiz-ul"}`}
+                    title={quiz.title || "Quiz"}
+                  >
+                    <QuizIcon />
+                  </button>
+                ))}
+                {audioOverviews?.map((overview) => (
+                  <button
+                    type="button"
+                    key={overview.id}
+                    className={`rail-action rail-created rail-created-audio ${overview.status}`}
+                    onClick={() => setStudioCollapsed(false)}
+                    tabIndex={studioCollapsed ? 0 : -1}
+                    aria-label={`Arată ${overview.title || "rezumatul audio"}`}
+                    title={overview.title || "Audio Overview"}
+                  >
+                    <AudioIcon />
+                  </button>
+                ))}
+                {notes?.map((note) => (
+                  <button
+                    type="button"
+                    key={note.id}
+                    className="rail-action rail-created rail-created-note"
+                    onClick={() => setStudioCollapsed(false)}
+                    tabIndex={studioCollapsed ? 0 : -1}
+                    aria-label={`Arată ${note.title || "notița"}`}
+                    title={note.title || "Notiță"}
+                  >
+                    <PencilIcon />
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </div>
           <div className="panel-body studio-body">
             <section

@@ -35,7 +35,7 @@ mobile Studio tab. No page errors were reported.
 | Library hierarchy | Quiet header, tabs and controls above the notebook grid | Header, title, actions, tabs, filters and grid have the same visual order | Passed |
 | Notebook cards | Large calm cards with soft color coding and metadata | Guguță cards use blue, mint and violet surfaces, clear titles and material counts | Passed |
 | Workspace shell | One title bar and three tall rounded panels | Duplicate global header removed; Materiale, Conversație and Studio fill the viewport | Passed |
-| Collapsed side panels | Narrow rounded rails with the panel control at the top and compact actions below | Materiale exposes upload and source icons; Studio exposes the available creation tools; rotated labels are removed | Passed |
+| Collapsed side panels | Narrow rounded rails with the panel control at the top and compact actions below | Materiale exposes upload and source icons; Studio exposes creation tools and existing generated materials; rotated labels are removed | Passed |
 | Chat focus | Central panel receives the largest width and a bottom composer | Conversation remains the dominant panel with a floating rounded composer | Passed |
 | Studio tools | Compact colored action tiles in a two-column grid | Flashcards, Quiz and Audio Overview use distinct tints and readable labels | Passed |
 | Typography | Compact UI chrome with clear title/body/caption hierarchy | Titles, panel labels, metadata and controls use deliberate sizes and weights | Passed |

@@ -4681,6 +4681,56 @@ main.container:has(> .nb-shell) {
     background: #eef2ff;
     color: #315fae;
   }
+
+  .rail-created-list {
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    padding-top: 12px;
+    border-top: 1px solid #e5ebf3;
+  }
+
+  .rail-created {
+    border-color: #dfe6ef;
+    background: #ffffff;
+    box-shadow: 0 2px 7px rgba(25, 43, 72, 0.045);
+  }
+
+  .rail-created:hover:not(:disabled) {
+    border-color: #b9cce6;
+    background: #f7faff;
+  }
+
+  .rail-created-flashcards {
+    color: #9a4b45;
+  }
+
+  .rail-created-quiz {
+    color: #08749a;
+  }
+
+  .rail-created-audio {
+    color: #315fae;
+  }
+
+  .rail-created-note {
+    color: #17724d;
+  }
+
+  .rail-created.queued,
+  .rail-created.generating,
+  .rail-created.generating_script,
+  .rail-created.synthesizing {
+    opacity: 0.55;
+  }
+
+  .rail-created.failed {
+    border-color: #f0cbc7;
+    background: #fff5f3;
+    color: var(--red);
+  }
 }
 
 .panel-rail {
