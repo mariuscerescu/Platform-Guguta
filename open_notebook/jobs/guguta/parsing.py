@@ -1,9 +1,9 @@
 """Text extraction and segmentation for the Guguță pipeline (GHID §6.2).
 
 Extraction returns text units with locators (page for PDF, section index for
-plain text). A scanned PDF without usable text is reported explicitly — it is
-never presented as a ready source (A24). Chunking keeps char offsets so
-citations can point back to the locator.
+plain text). The legacy pypdf path reports a scanned PDF explicitly; production
+can replace it with the selective LiteParse + PP-OCRv5 extractor. Chunking
+keeps char offsets so citations can point back to the locator.
 """
 
 from __future__ import annotations
@@ -68,7 +68,7 @@ def detect_kind(data: bytes, declared_ext: Optional[str]) -> str:
 
 
 def extract_pdf(data: bytes) -> tuple[list[TextUnit], int]:
-    """Extract per-page text from a PDF. Raises for scanned/empty PDFs (A24)."""
+    """Legacy native-text extraction. Raises for scanned/empty PDFs (A24)."""
     try:
         from pypdf import PdfReader
     except ImportError as exc:  # pragma: no cover
@@ -221,12 +221,18 @@ def segment(
     position = 0
     for unit in units:
         text_value = unit.text
+        context_prefix = _page_context_prefix(unit.locator)
         start = 0
         n = len(text_value)
         while start < n:
             end = min(start + chunk_size_chars, n)
             piece = text_value[start:end].strip()
             if piece:
+                # Composite PDF pages can span several chunks. Repeat their
+                # page identity so every chunk remains retrievable by printed
+                # page number, not only the first one.
+                if context_prefix and not piece.startswith(context_prefix):
+                    piece = f"{context_prefix}\n\n{piece}"
                 chunks.append(
                     Chunk(
                         text=piece,
@@ -241,3 +247,13 @@ def segment(
                 break
             start = end - overlap_chars
     return chunks
+
+
+def _page_context_prefix(locator: dict[str, object]) -> str:
+    if locator.get("block_type") != "page" or "page" not in locator:
+        return ""
+    prefix = f"[Pagina PDF: {locator['page']}"
+    printed_page = locator.get("printed_page")
+    if printed_page is not None:
+        prefix += f"; pagina tipărită: {printed_page}"
+    return prefix + "]"

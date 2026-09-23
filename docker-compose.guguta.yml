@@ -45,6 +45,33 @@ services:
     command: ["alembic", "upgrade", "head"]
     restart: "no"
 
+  ppocr:
+    build:
+      context: .
+      dockerfile: docker/guguta/ppocrv5.Dockerfile
+    runtime: nvidia
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${GUGUTA_PPOCR_GPU:-1}
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      PPOCR_DEVICE: gpu:0
+      PPOCR_MIN_CONFIDENCE: ${GUGUTA_PPOCR_MIN_CONFIDENCE:-0.35}
+      PPOCR_MAX_IMAGE_MIB: "25"
+      PADDLE_PDX_CACHE_HOME: /models/paddlex
+    volumes:
+      - ppocr_models:/models
+    shm_size: 1gb
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8003/readyz').read()"
+      interval: 20s
+      timeout: 10s
+      retries: 20
+      start_period: 300s
+    restart: unless-stopped
+
   api:
     env_file:
       - .env.guguta.local
@@ -88,6 +115,9 @@ services:
       GUGUTA_DATABASE_URL_WORKER: postgresql+psycopg://guguta_worker:${GUGUTA_PG_WORKER_PASSWORD:-guguta_dev_worker}@db:5432/guguta
       GUGUTA_STORAGE_ROOT: /data/guguta_storage
       GUGUTA_JOB_WORKER_NAME: guguta-worker-1
+      GUGUTA_PDF_PARSER: liteparse_ppocr
+      GUGUTA_PPOCR_BASE_URL: http://ppocr:8003
+      GUGUTA_PDF_OCR_EVERY_PAGE: ${GUGUTA_PDF_OCR_EVERY_PAGE:-true}
     volumes:
       - guguta_storage:/data/guguta_storage
     depends_on:
@@ -95,6 +125,8 @@ services:
         condition: service_healthy
       migrator:
         condition: service_completed_successfully
+      ppocr:
+        condition: service_healthy
     command: ["python", "-m", "open_notebook.jobs.guguta.worker"]
     restart: unless-stopped
 
@@ -113,6 +145,4 @@ services:
 volumes:
   guguta_pg_data:
   guguta_storage:
-
-
-
+  ppocr_models:

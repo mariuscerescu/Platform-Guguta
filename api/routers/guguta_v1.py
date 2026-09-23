@@ -493,6 +493,23 @@ sources_router = APIRouter(
 )
 
 
+# ---------------------------------------------------------------------------
+# Speech to text (Romanian Parakeet)
+# ---------------------------------------------------------------------------
+
+speech_router = APIRouter(prefix="/api/v1/speech", tags=["speech"])
+
+
+@speech_router.post("/transcriptions")
+async def transcribe_speech(request: Request, file: UploadFile) -> dict[str, str]:
+    get_actor(request)
+    return await request.app.state.guguta_speech.transcribe(
+        stream=file.file,
+        filename=file.filename,
+        content_type=file.content_type,
+    )
+
+
 @sources_router.post("/file", status_code=201)
 async def upload_source(
     notebook_id: uuid.UUID, request: Request, file: UploadFile

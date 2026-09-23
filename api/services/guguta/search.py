@@ -109,7 +109,10 @@ class SearchService:
                 or int(space["dimension"]) != self._provider.dimension):
                 raise OpenNotebookError("Providerul de embedding nu corespunde spațiului vectorial activ; reindexare necesară.")
             space_id = space["id"]
-            qvecs = list(await invoke(self._provider.embed, clean_queries))
+            # Instruction-aware models distinguish retrieval queries from
+            # corpus documents. Legacy providers keep the plain embed method.
+            embed_queries = getattr(self._provider, "embed_queries", self._provider.embed)
+            qvecs = list(await invoke(embed_queries, clean_queries))
         ranked_lists: list[list[RetrievedChunk]] = []
         async with actor_connection(self._engine, actor_id) as conn:
             for query, qvec in zip(clean_queries, qvecs):

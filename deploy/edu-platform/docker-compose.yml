@@ -105,6 +105,127 @@ services:
       start_period: 180s
     restart: unless-stopped
 
+  # --- Recunoaștere vocală românească, Parakeet 110M (NeMo) ---------------
+  # Runtime-ul NeMo este instalat o singură dată pe gazdă și montat read-only;
+  # cache-ul Hugging Face rămâne într-un volum privat și persistent.
+  parakeet-asr:
+    build:
+      context: ../..
+      dockerfile: docker/guguta/asr.Dockerfile
+    runtime: nvidia
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${GUGUTA_PARAKEET_ASR_GPU:-0}
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      HF_HOME: /models/huggingface
+      NEMO_CACHE_DIR: /models/nemo
+      PARAKEET_ASR_MODEL_ID: gabrielpirlo/Sped_ParakeetRomanian_110M_TDT-CTC
+      PARAKEET_ASR_MODEL_FILE: SpeD-ParakeetRo_110M_TDT-CTC.nemo
+      PARAKEET_ASR_DEVICE: cuda:0
+      PARAKEET_ASR_MAX_AUDIO_MIB: "15"
+    volumes:
+      - ${GUGUTA_PARAKEET_ASR_RUNTIME_ROOT:-/home/jupyter-marius/Parakeet-ASR}:/opt/parakeet-runtime:ro
+      - parakeet_asr_models:/models
+      - ../../scripts/guguta_parakeet_asr_server.py:/srv/guguta_parakeet_asr_server.py:ro
+    command:
+      - /opt/parakeet-runtime/.venv/bin/python
+      - -m
+      - uvicorn
+      - guguta_parakeet_asr_server:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8001"
+    shm_size: 1gb
+    healthcheck:
+      test:
+        - CMD
+        - /opt/parakeet-runtime/.venv/bin/python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/healthz').read()"
+      interval: 20s
+      timeout: 5s
+      retries: 15
+      start_period: 240s
+    restart: unless-stopped
+
+  # --- Retrieval multilingual local: Qwen3 Embedding + Reranker 0.6B ------
+  # Ambele modele stau într-un singur proces privat pe GPU 0. Reviziile sunt
+  # fixate, iar cache-ul Hugging Face persistă separat de imagine.
+  qwen-retrieval:
+    build:
+      context: ../..
+      dockerfile: docker/guguta/retrieval.Dockerfile
+    runtime: nvidia
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${GUGUTA_QWEN_RETRIEVAL_GPU:-0}
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      HF_HOME: /models/huggingface
+      HF_HUB_DISABLE_PROGRESS_BARS: "1"
+      TRANSFORMERS_VERBOSITY: error
+      QWEN_RETRIEVAL_DEVICE: cuda:0
+      QWEN_EMBEDDING_MODEL: ${GUGUTA_LOCAL_EMBEDDING_MODEL:-Qwen/Qwen3-Embedding-0.6B}
+      QWEN_EMBEDDING_REVISION: ${GUGUTA_LOCAL_EMBEDDING_REVISION:-97b0c614be4d77ee51c0cef4e5f07c00f9eb65b3}
+      QWEN_RERANK_MODEL: ${GUGUTA_LOCAL_RERANK_MODEL:-Qwen/Qwen3-Reranker-0.6B}
+      QWEN_RERANK_REVISION: ${GUGUTA_LOCAL_RERANK_REVISION:-e61197ed45024b0ed8a2d74b80b4d909f1255473}
+      QWEN_RETRIEVAL_MAX_LENGTH: "2048"
+      QWEN_EMBEDDING_BATCH_SIZE: "16"
+      QWEN_RERANK_BATCH_SIZE: "2"
+    volumes:
+      - ${GUGUTA_QWEN_RETRIEVAL_RUNTIME_ROOT:-/home/jupyter-marius/Parakeet-ASR}:/opt/qwen-runtime:ro
+      - qwen_retrieval_models:/models
+      - ../../scripts/guguta_qwen_retrieval_server.py:/srv/guguta_qwen_retrieval_server.py:ro
+    command:
+      - /opt/qwen-runtime/.venv/bin/python
+      - -m
+      - uvicorn
+      - guguta_qwen_retrieval_server:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8002"
+    shm_size: 1gb
+    healthcheck:
+      test:
+        - CMD
+        - /opt/qwen-runtime/.venv/bin/python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/healthz').read()"
+      interval: 20s
+      timeout: 5s
+      retries: 15
+      start_period: 300s
+    restart: unless-stopped
+
+  # --- OCR local rapid pentru acoperirea vizuală a fiecărei pagini -----------
+  # LiteParse păstrează textul nativ; fiecare pagină este randată și verificată
+  # și de PP-OCRv5 Mobile pe GPU 1 pentru textul inclus în imagini.
+  ppocr:
+    build:
+      context: ../..
+      dockerfile: docker/guguta/ppocrv5.Dockerfile
+    runtime: nvidia
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${GUGUTA_PPOCR_GPU:-1}
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      PPOCR_DEVICE: gpu:0
+      PPOCR_MIN_CONFIDENCE: ${GUGUTA_PPOCR_MIN_CONFIDENCE:-0.35}
+      PPOCR_MAX_IMAGE_MIB: "25"
+      PADDLE_PDX_CACHE_HOME: /models/paddlex
+    volumes:
+      - ppocr_models:/models
+    shm_size: 1gb
+    healthcheck:
+      test:
+        - CMD
+        - python3
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8003/readyz').read()"
+      interval: 20s
+      timeout: 10s
+      retries: 20
+      start_period: 300s
+    restart: unless-stopped
+
   # --- API (FastAPI, doar /api/v1 + /healthz, /readyz, /versionz) ---
   api:
     build:
@@ -117,6 +238,8 @@ services:
     environment:
       <<: *db-dsns
       GUGUTA_STORAGE_ROOT: /data/guguta_storage
+      GUGUTA_PARAKEET_ASR_BASE_URL: http://parakeet-asr:8001
+      GUGUTA_LOCAL_RETRIEVAL_BASE_URL: http://qwen-retrieval:8002
     volumes:
       - guguta_storage:/data/guguta_storage
     healthcheck:
@@ -134,6 +257,8 @@ services:
         condition: service_healthy
       migrator:
         condition: service_completed_successfully
+      qwen-retrieval:
+        condition: service_healthy
     restart: unless-stopped
 
   # --- Worker pentru procesarea materialelor (embedding, extragere text) ---
@@ -149,6 +274,14 @@ services:
       <<: *db-dsns
       GUGUTA_STORAGE_ROOT: /data/guguta_storage
       GUGUTA_JOB_WORKER_NAME: guguta-worker-1
+      GUGUTA_LOCAL_RETRIEVAL_BASE_URL: http://qwen-retrieval:8002
+      GUGUTA_PDF_PARSER: liteparse_ppocr
+      GUGUTA_PPOCR_BASE_URL: http://ppocr:8003
+      GUGUTA_PPOCR_TIMEOUT_SECONDS: ${GUGUTA_PPOCR_TIMEOUT_SECONDS:-120}
+      GUGUTA_PDF_OCR_DPI: ${GUGUTA_PDF_OCR_DPI:-120}
+      GUGUTA_PDF_OCR_EVERY_PAGE: ${GUGUTA_PDF_OCR_EVERY_PAGE:-true}
+      GUGUTA_PDF_OCR_RENDER_BATCH_PAGES: ${GUGUTA_PDF_OCR_RENDER_BATCH_PAGES:-10}
+      GUGUTA_PDF_OCR_CONCURRENCY: ${GUGUTA_PDF_OCR_CONCURRENCY:-10}
     volumes:
       - guguta_storage:/data/guguta_storage
     command: ["python", "-m", "open_notebook.jobs.guguta.worker"]
@@ -158,6 +291,10 @@ services:
       migrator:
         condition: service_completed_successfully
       moss-tts:
+        condition: service_healthy
+      qwen-retrieval:
+        condition: service_healthy
+      ppocr:
         condition: service_healthy
     restart: unless-stopped
 
@@ -184,3 +321,6 @@ services:
 volumes:
   guguta_pg_data:
   guguta_storage:
+  parakeet_asr_models:
+  qwen_retrieval_models:
+  ppocr_models:

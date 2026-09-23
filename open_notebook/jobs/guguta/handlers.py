@@ -1,7 +1,7 @@
 """Job handler: material_version processing pipeline (GHID §6.2).
 
-Steps: verify target → read bytes from private storage → extract text with
-locators (A24 for scanned PDFs) → segment → ensure the active embedding space
+Steps: verify target → read bytes from private storage → extract native/OCR text
+with locators → segment → ensure the active embedding space
 → publish artifact + chunks + embeddings + source status atomically → mark
 the job complete (lease-checked).
 
@@ -23,6 +23,7 @@ from open_notebook.database.guguta.engine import actor_connection, system_connec
 from open_notebook.exceptions import OpenNotebookError
 from open_notebook.jobs.guguta import parsing
 from open_notebook.jobs.guguta.embeddings import EmbeddingProvider
+from open_notebook.jobs.guguta.pdf_pipeline import PdfExtractor
 from open_notebook.jobs.guguta.queue import (
     ClaimedJob,
     LeaseStale,
@@ -91,6 +92,7 @@ async def process_material_version(
     *,
     chunk_size_chars: int = 2000,
     overlap_chars: int = 200,
+    pdf_extractor: PdfExtractor | None = None,
 ) -> None:
     assert job.target_type == "material_version"
     mv_id = job.target_id
@@ -128,7 +130,18 @@ async def process_material_version(
             data = (target["text_content"] or "").encode("utf-8")
         else:
             data = storage.read_bytes(target["storage_key"])
-        units, page_count = await asyncio.to_thread(parsing.extract_units, detected_kind, data)
+        parser_name = PARSER
+        parser_version = PARSER_VERSION
+        units: list[parsing.TextUnit]
+        page_count: int | None
+        if detected_kind == "pdf" and pdf_extractor is not None:
+            units, page_count = await pdf_extractor.extract(data)
+            parser_name = pdf_extractor.parser_name
+            parser_version = pdf_extractor.parser_version
+        else:
+            units, page_count = await asyncio.to_thread(
+                parsing.extract_units, detected_kind, data
+            )
         chunks = parsing.segment(
             units, chunk_size_chars=chunk_size_chars, overlap_chars=overlap_chars
         )
@@ -192,7 +205,7 @@ async def process_material_version(
                     " status, result_checksum, completed_at)"
                     " VALUES (:id, :mv, :p, :pv, :c, :cv, :cs, :co, 'complete', :sum, now())"
                 ),
-                {"id": artifact_id, "mv": mv_id, "p": PARSER, "pv": PARSER_VERSION,
+                {"id": artifact_id, "mv": mv_id, "p": parser_name, "pv": parser_version,
                  "c": CHUNKER, "cv": CHUNKER_VERSION, "cs": chunk_size_chars,
                  "co": overlap_chars, "sum": checksum},
             )

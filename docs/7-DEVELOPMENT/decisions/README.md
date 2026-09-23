@@ -49,5 +49,11 @@ What this makes easier, what it makes harder, what to watch. (bullets)
 | [ADR-005](ADR-005-release-confidence-process.md) | Releases pass a risk-based confidence process, gated on the real image | Accepted |
 | [ADR-006](ADR-006-migration-granularity.md) | Migration granularity follows merge granularity, not release granularity | Accepted |
 | [ADR-007](ADR-007-optin-runtimes.md) | Heavy extraction runtimes (Docling, Crawl4AI local) are opt-in, installed at startup | Accepted |
+| [ADR-008](ADR-008-grounded-multi-query-chat.md) | Source-grounded chat with multi-query retrieval | Accepted |
+| [ADR-009](ADR-009-private-local-asr-service.md) | Romanian speech recognition runs as a private local service | Accepted |
+| [ADR-010](ADR-010-private-local-qwen-retrieval.md) | Multilingual retrieval runs on private local Qwen models | Accepted |
+| [ADR-011](ADR-011-hybrid-local-pdf-parsing.md) | PDF ingestion uses LiteParse with selective PaddleOCR-VL | Superseded by ADR-012 |
+| [ADR-012](ADR-012-ppocrv5-gpu-pdf-ocr.md) | Scanned PDF OCR uses PP-OCRv5 Mobile on GPU | Superseded by ADR-013 |
+| [ADR-013](ADR-013-full-page-pdf-text-coverage.md) | Every PDF page combines native text with visual OCR | Accepted |
 | [PDR-001](PDR-001-single-user-first.md) | Single-user first; don't preclude multi-user | Accepted |
 | [PDR-002](PDR-002-provider-agnostic-core.md) | Provider-agnostic core by default | Accepted |

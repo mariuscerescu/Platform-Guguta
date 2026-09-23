@@ -40,6 +40,7 @@ from api.routers.guguta_v1 import (
     search_router,
     shares_router,
     sources_router,
+    speech_router,
 )
 from api.services.guguta.admin import AdminService
 from api.services.guguta.audio_overviews import AudioOverviewService
@@ -85,6 +86,11 @@ from api.services.guguta.sources import (
     SourceNotFound,
     SourcesService,
     SourceValidation,
+)
+from api.services.guguta.speech import (
+    SpeechService,
+    SpeechUnavailable,
+    SpeechValidation,
 )
 from open_notebook.auth.guguta.actor import ActorDenied
 from open_notebook.auth.guguta.oidc import OidcError, SignedStateCodec
@@ -149,11 +155,16 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
         max_sources_per_notebook=config.max_sources_per_notebook,
         quota_mib_per_user=config.quota_mib_per_user,
     )
-    from open_notebook.ai.guguta.openrouter import OpenRouterReranker
+    if config.rerank_provider == "openrouter":
+        from open_notebook.ai.guguta.openrouter import OpenRouterReranker
 
-    reranker = (
-        OpenRouterReranker(config) if config.rerank_provider == "openrouter" else None
-    )
+        reranker = OpenRouterReranker(config)
+    elif config.rerank_provider == "local":
+        from open_notebook.ai.guguta.local_retrieval import LocalReranker
+
+        reranker = LocalReranker(config)
+    else:
+        reranker = None
     app.state.guguta_search = SearchService(
         engine,
         embedding_provider,
@@ -173,6 +184,11 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
     )
     app.state.guguta_flashcards = FlashcardService(engine, config)
     app.state.guguta_quizzes = QuizService(engine, config)
+    app.state.guguta_speech = SpeechService(
+        config.parakeet_asr_base_url,
+        timeout_seconds=config.parakeet_asr_timeout_seconds,
+        max_audio_mib=config.parakeet_asr_max_audio_mib,
+    )
     app.state.guguta_catalog = CatalogService(
         engine, quota_mib_per_user=config.quota_mib_per_user
     )
@@ -284,6 +300,7 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
     app.include_router(sources_router)
     app.include_router(jobs_router)
     app.include_router(search_router)
+    app.include_router(speech_router)
     app.include_router(chat_router)
     app.include_router(notes_router)
     app.include_router(audio_overviews_router)
@@ -309,6 +326,25 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
     async def invalid_input(request: Request, exc: InvalidInputError) -> JSONResponse:
         return _error(
             "invalid", str(exc), 422, request.headers.get("x-request-id", "-")
+        )
+
+    @app.exception_handler(SpeechValidation)
+    async def speech_validation(
+        request: Request, exc: SpeechValidation
+    ) -> JSONResponse:
+        return _error(
+            "invalid_audio", str(exc), 422, request.headers.get("x-request-id", "-")
+        )
+
+    @app.exception_handler(SpeechUnavailable)
+    async def speech_unavailable(
+        request: Request, exc: SpeechUnavailable
+    ) -> JSONResponse:
+        return _error(
+            "speech_unavailable",
+            str(exc),
+            503,
+            request.headers.get("x-request-id", "-"),
         )
 
     @app.exception_handler(OidcError)

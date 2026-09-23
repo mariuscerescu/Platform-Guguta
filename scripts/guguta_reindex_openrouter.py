@@ -12,16 +12,23 @@ import uuid
 
 from sqlalchemy import text
 
-from open_notebook.ai.guguta.openrouter import OpenRouterEmbeddingProvider
 from open_notebook.database.guguta.config import GugutaConfig
 from open_notebook.database.guguta.engine import create_migrator_engine
+from open_notebook.jobs.guguta.embeddings import get_provider
 
 
 async def reindex(config: GugutaConfig) -> int:
-    if config.embedding_provider != "openrouter":
-        raise ValueError("Select GUGUTA_EMBEDDING_PROVIDER=openrouter")
+    if config.embedding_provider not in ("openrouter", "local"):
+        raise ValueError("Select a real GUGUTA_EMBEDDING_PROVIDER")
     engine = create_migrator_engine(config)
-    provider = OpenRouterEmbeddingProvider(config)
+    provider = get_provider(
+        config.embedding_provider, config.embedding_dimension, config
+    )
+    batch_size = (
+        config.local_embedding_batch_size
+        if config.embedding_provider == "local"
+        else config.openrouter_embedding_batch_size
+    )
     try:
         async with engine.begin() as conn:
             row = (await conn.execute(text(
@@ -41,7 +48,7 @@ async def reindex(config: GugutaConfig) -> int:
                     "SELECT c.id,c.text FROM chunks c WHERE NOT EXISTS"
                     " (SELECT 1 FROM embeddings e WHERE e.chunk_id=c.id AND e.embedding_space_id=:s)"
                     " ORDER BY c.id LIMIT :lim"
-                ), {"s": space_id, "lim": config.openrouter_embedding_batch_size})).all()
+                ), {"s": space_id, "lim": batch_size})).all()
             if not chunks:
                 break
             vectors = await provider.embed([c.text for c in chunks])

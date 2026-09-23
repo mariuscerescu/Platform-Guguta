@@ -82,6 +82,15 @@ export function AudioIcon(props: IconProps) {
   );
 }
 
+export function MicrophoneIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <rect x="9" y="3" width="6" height="12" rx="3" />
+      <path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7" />
+    </IconBase>
+  );
+}
+
 export function UploadIcon(props: IconProps) {
   return (
     <IconBase {...props}>

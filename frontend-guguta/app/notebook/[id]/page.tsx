@@ -8,11 +8,13 @@ import {
   withoutReferenceMarkers,
 } from "../../../lib/features";
 import SourceUploader from "../../components/SourceUploader";
+import MarkdownContent from "../../components/MarkdownContent";
 import {
   AudioIcon,
   CardsIcon,
   ChatIcon,
   MaterialsIcon,
+  MicrophoneIcon,
   PencilIcon,
   PanelToggleIcon,
   PlusIcon,
@@ -126,6 +128,10 @@ export default function NotebookPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [citations, setCitations] = useState<Record<string, Citation[]>>({});
   const [draft, setDraft] = useState("");
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const [speechMessage, setSpeechMessage] = useState<string | null>(null);
+  const [chatMessage, setChatMessage] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [srcCollapsed, setSrcCollapsed] = useState(false);
@@ -175,6 +181,30 @@ export default function NotebookPage() {
   const [createdShare,setCreatedShare]=useState<CreatedShare|null>(null);
   const [shares,setShares]=useState<ShareItem[]>([]);
   const [copiedShare,setCopiedShare]=useState<"link"|"code"|null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingStreamRef = useRef<MediaStream | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const componentAliveRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      componentAliveRef.current = false;
+      const recorder = mediaRecorderRef.current;
+      if (recorder && recorder.state !== "inactive") recorder.stop();
+      recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!speechMessage) return;
+    const timeout = window.setTimeout(() => setSpeechMessage(null), 4500);
+    return () => window.clearTimeout(timeout);
+  }, [speechMessage]);
+  useEffect(() => {
+    if (!chatMessage) return;
+    const timeout = window.setTimeout(() => setChatMessage(null), 6500);
+    return () => window.clearTimeout(timeout);
+  }, [chatMessage]);
   useEffect(() => {
     if (!sending) {
       setElapsed(0);
@@ -314,6 +344,7 @@ export default function NotebookPage() {
     if (!content || sessionId === null) return;
     setSending(true);
     setError(null);
+    setChatMessage(null);
     // optimist: mesajul utilizatorului apare instant; serverul îl salvează
     // oricum în faza 1, deci rămâne vizibil și pe eșec (A26)
     setMessages((prev) => [
@@ -396,12 +427,98 @@ export default function NotebookPage() {
         err instanceof DOMException && err.name === "AbortError"
           ? "Generarea durează prea mult. Reîncearcă peste câteva momente."
           : (err as Error).message;
-      setError(message);
+      setChatMessage(message);
       await loadMessages().catch(() => undefined);
     } finally {
       window.clearTimeout(timeout);
       setStreaming(null);
       setSending(false);
+    }
+  }
+
+  async function transcribeRecording(blob: Blob, mimeType: string) {
+    if (blob.size === 0) return;
+    setTranscribing(true);
+    setSpeechMessage(null);
+    try {
+      const form = new FormData();
+      const extension = mimeType.includes("ogg") ? "ogg" : mimeType.includes("mp4") ? "m4a" : "webm";
+      form.append("file", blob, `inregistrare.${extension}`);
+      const csrf = getCsrf();
+      const response = await fetch(`${API_BASE}/api/v1/speech/transcriptions`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: csrf ? { "X-Guguta-CSRF": csrf } : {},
+        body: form,
+      });
+      const payload = (await response.json().catch(() => ({}))) as {
+        text?: string;
+        message?: string;
+      };
+      if (!response.ok) {
+        throw new ApiError(
+          response.status,
+          "speech_transcription",
+          payload.message ?? "Nu am putut transcrie înregistrarea.",
+        );
+      }
+      const text = payload.text?.trim();
+      if (text) {
+        setDraft((current) => [current.trim(), text].filter(Boolean).join(" "));
+      }
+    } catch (err) {
+      setSpeechMessage((err as Error).message || "Nu am putut transcrie înregistrarea.");
+    } finally {
+      setTranscribing(false);
+    }
+  }
+
+  async function toggleRecording() {
+    const current = mediaRecorderRef.current;
+    if (current && current.state === "recording") {
+      current.stop();
+      setRecording(false);
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      setSpeechMessage("Browserul tău nu permite înregistrarea audio.");
+      return;
+    }
+
+    try {
+      setSpeechMessage(null);
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const preferredTypes = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/mp4"];
+      const mimeType = preferredTypes.find((type) => MediaRecorder.isTypeSupported(type));
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      recordingStreamRef.current = stream;
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+      };
+      recorder.onstop = () => {
+        const actualType = recorder.mimeType || mimeType || "audio/webm";
+        const blob = new Blob(audioChunksRef.current, { type: actualType });
+        audioChunksRef.current = [];
+        stream.getTracks().forEach((track) => track.stop());
+        recordingStreamRef.current = null;
+        mediaRecorderRef.current = null;
+        if (componentAliveRef.current) {
+          setRecording(false);
+          void transcribeRecording(blob, actualType);
+        }
+      };
+      recorder.start(250);
+      setRecording(true);
+    } catch (err) {
+      recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
+      recordingStreamRef.current = null;
+      mediaRecorderRef.current = null;
+      setRecording(false);
+      const denied = err instanceof DOMException && err.name === "NotAllowedError";
+      setSpeechMessage(denied ? "Permite accesul la microfon pentru a dicta întrebarea." : "Microfonul nu a putut fi pornit.");
     }
   }
 
@@ -1034,7 +1151,11 @@ export default function NotebookPage() {
               )}
               {messages.map((m) => (
                 <div key={m.id} className={`msg ${m.role}`}>
-                  {m.role === "assistant" ? answerText(m.content) : m.content}
+                  {m.role === "assistant" ? (
+                    <MarkdownContent content={answerText(m.content)} />
+                  ) : (
+                    m.content
+                  )}
                   {SHOW_ANSWER_REFERENCES &&
                     (citations[m.id] ?? []).map((c, i) => (
                       <span className="citation" key={i}>
@@ -1048,7 +1169,9 @@ export default function NotebookPage() {
               ))}
               {streaming !== null && (
                 <div className="msg assistant streaming">
-                  {answerText(streaming)}
+                  {streaming !== "" && (
+                    <MarkdownContent content={answerText(streaming)} />
+                  )}
                   {streaming === "" && (
                     <span className="muted">
                       {elapsed < 15 ? "Se generează…" : `Se generează… ${elapsed}s`}
@@ -1059,15 +1182,21 @@ export default function NotebookPage() {
               <div ref={bottomRef} />
             </div>
             <div className="composer">
+              {speechMessage || chatMessage ? (
+                <p className="composer-notice" role="status" aria-live="polite">
+                  {speechMessage ?? chatMessage}
+                </p>
+              ) : null}
               <textarea
                 id="draft"
+                className={speechMessage || chatMessage ? "has-composer-notice" : undefined}
                 placeholder={
                   sessionId === null
                     ? "Se pregătește conversația…"
                     : "Pune o întrebare despre materiale…"
                 }
                 value={draft}
-                disabled={sessionId === null}
+                disabled={sessionId === null || transcribing}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey) {
@@ -1076,6 +1205,17 @@ export default function NotebookPage() {
                   }
                 }}
               />
+              <button
+                type="button"
+                className={`mic-btn ${recording ? "recording" : ""}`}
+                onClick={() => void toggleRecording()}
+                disabled={!recording && (sending || transcribing || sessionId === null)}
+                aria-label={recording ? "Oprește înregistrarea" : "Începe dictarea"}
+                aria-pressed={recording}
+                title={recording ? "Oprește și transcrie" : transcribing ? "Se transcrie…" : "Dictează întrebarea"}
+              >
+                {transcribing ? <span className="mic-loader" aria-hidden="true" /> : <MicrophoneIcon />}
+              </button>
               <button
                 className="send-btn"
                 onClick={() => void send()}

@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import logging
 import math
 import re
 from typing import Any, Sequence
@@ -18,10 +19,19 @@ from open_notebook.ai.guguta.chat import SYSTEM_PROMPT, ChatAnswer
 from open_notebook.exceptions import ExternalServiceError
 
 PROMPT_VERSION = "guguta-openrouter-grounded-3"
+logger = logging.getLogger("guguta.openrouter")
 
 
 class OpenRouterError(ExternalServiceError):
     """Sanitized upstream failure, safe for the job status/API."""
+
+
+class _InvalidChatResponse(ValueError):
+    """Internal validation failure with a safe, content-free reason code."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
 
 
 async def invoke(method: Any, *args: Any) -> Any:
@@ -252,19 +262,62 @@ class OpenRouterChatProvider:
             }
                                             for i, c in enumerate(context_chunks)],
         }, ensure_ascii=False)})
-        data = await self._client.post("chat/completions", {
-            "model": self.model_name,
-            "messages": messages,
-            "max_tokens": self._max_tokens,
-            "temperature": 0,
-            "response_format": {"type": "json_object"},
-            "reasoning": {"enabled": False},
-        })
+        for attempt in range(2):
+            request_messages = messages
+            if attempt:
+                # Do not echo the rejected provider output back into the model.
+                # Re-run the grounded request with a stricter, content-free
+                # reminder and validate the replacement with the same rules.
+                repair = (
+                    "Răspunsul anterior nu a respectat contractul. Încearcă din nou. "
+                    "Returnează un singur obiect JSON complet, fără Markdown, cu answer "
+                    "șir nevid și cited listă de indici întregi de la 0. Pentru fiecare "
+                    "indice i din cited, answer trebuie să conțină marcajul [i+1]. Nu "
+                    "include indici sau marcaje care nu corespund fragmentelor primite."
+                )
+                request_messages = [
+                    {"role": "system", "content": instruction + " " + repair},
+                    *messages[1:],
+                ]
+            data = await self._client.post("chat/completions", {
+                "model": self.model_name,
+                "messages": request_messages,
+                "max_tokens": self._max_tokens,
+                "temperature": 0,
+                "response_format": {"type": "json_object"},
+                "reasoning": {"enabled": False},
+            })
+            try:
+                return self._validated_answer(data, len(context_chunks))
+            except _InvalidChatResponse as exc:
+                logger.warning(
+                    "chat_response_rejected model=%s attempt=%d reason=%s",
+                    self.model_name,
+                    attempt + 1,
+                    exc.reason,
+                )
+        raise OpenRouterError(
+            "Răspuns AI invalid sau incomplet; răspunsul nu a fost publicat."
+        ) from None
+
+    def _validated_answer(self, data: dict[str, Any], context_count: int) -> ChatAnswer:
+        """Validate and normalize a provider completion without weakening grounding."""
         try:
             choice = data["choices"][0]
-            if choice.get("finish_reason") != "stop":
-                raise ValueError()
+        except (KeyError, IndexError, TypeError):
+            raise _InvalidChatResponse("missing_choice") from None
+        if not isinstance(choice, dict):
+            raise _InvalidChatResponse("invalid_choice")
+        finish_reason = choice.get("finish_reason")
+        if finish_reason != "stop":
+            safe_finish = finish_reason if isinstance(finish_reason, str) else "missing"
+            safe_finish = re.sub(r"[^A-Za-z0-9_-]", "_", safe_finish[:32])
+            raise _InvalidChatResponse(f"finish_reason_{safe_finish}")
+        try:
             raw = choice["message"]["content"].strip()
+        except (KeyError, TypeError, AttributeError):
+            raise _InvalidChatResponse("missing_content") from None
+        try:
             if raw.startswith("```json") and raw.endswith("```"):
                 raw = raw[7:-3].strip()
             elif raw.startswith("```") and raw.endswith("```"):
@@ -275,46 +328,92 @@ class OpenRouterChatProvider:
                 if start >= 0 and end > start:
                     raw = raw[start:end + 1]
             obj = json.loads(raw)
-            answer, cited = obj["answer"], obj["cited"]
-            if not isinstance(answer, str) or not answer.strip() or not isinstance(cited, list):
-                raise ValueError()
-            if not context_chunks:
+        except (TypeError, json.JSONDecodeError):
+            raise _InvalidChatResponse("invalid_json") from None
+        if not isinstance(obj, dict):
+            raise _InvalidChatResponse("invalid_object")
+        answer, cited_raw = obj.get("answer"), obj.get("cited")
+        if not isinstance(answer, str) or not answer.strip():
+            raise _InvalidChatResponse("invalid_answer")
+        if not isinstance(cited_raw, list):
+            raise _InvalidChatResponse("invalid_cited_list")
+
+        cited: list[int] = []
+        for value in cited_raw:
+            if type(value) is int:
+                cited.append(value)
+            elif isinstance(value, str) and value.isascii() and value.isdigit():
+                cited.append(int(value))
+            else:
+                raise _InvalidChatResponse("invalid_cited_index_type")
+
+        if not context_count:
+            try:
                 answer = re.sub(r"\s*\[\d{1,2}\]", "", answer).strip()
-                cited = []
-            if any(type(i) is not int or not 0 <= i < len(context_chunks) for i in cited):
-                raise ValueError()
+            except (TypeError, re.error):
+                raise _InvalidChatResponse("invalid_answer") from None
+            cited = []
+        else:
             cited = list(dict.fromkeys(cited))
-            marker_numbers = [int(i) for i in re.findall(r"\[(\d+)\]", answer)]
-            markers = {i - 1 for i in marker_numbers}
-            if context_chunks and markers != set(cited):
-                # Some reasoning models emit zero-based markers ([0]) even when
-                # instructed to show human-facing one-based citations. Accept
-                # only when the marker set exactly matches cited indexes, then
-                # normalize the visible answer to [1], [2], ... .
-                if set(marker_numbers) == set(cited):
-                    for idx in sorted(set(cited), reverse=True):
-                        answer = answer.replace(f"[{idx}]", f"[{idx + 1}]")
-                    markers = {idx for idx in cited}
-                # Some models provide cited=[...] in JSON but omit inline
-                # markers. Preserve the validated citation list and append
-                # the visible markers for the user and citation validator.
-                elif not marker_numbers and cited:
+            all_marker_numbers = [int(i) for i in re.findall(r"\[(\d+)\]", answer)]
+            # Years and other large bracketed numbers are ordinary answer text,
+            # not citations. Small out-of-range markers are almost certainly a
+            # broken citation and remain a hard validation failure.
+            if any(context_count < number <= 99 for number in all_marker_numbers):
+                raise _InvalidChatResponse("marker_out_of_range")
+            marker_numbers = [
+                number for number in all_marker_numbers
+                if number == 0 or 1 <= number <= context_count
+            ]
+            marker_indexes = {number - 1 for number in marker_numbers if number > 0}
+            cited_set = set(cited)
+            cited_in_range = all(0 <= index < context_count for index in cited)
+            if marker_indexes != cited_set or not cited_in_range:
+                marker_set = set(marker_numbers)
+                if marker_set == cited_set and 0 in marker_set and cited_in_range:
+                    # Rare zero-based visible markers: [0] -> [1].
+                    answer = re.sub(
+                        r"\[(\d+)\]",
+                        lambda match: (
+                            f"[{int(match.group(1)) + 1}]"
+                            if int(match.group(1)) in cited_set else match.group(0)
+                        ),
+                        answer,
+                    )
+                    marker_indexes = cited_set
+                elif (
+                    marker_set == cited_set
+                    and marker_set
+                    and all(1 <= index <= context_count for index in cited)
+                ):
+                    # Common one-based cited array: visible [1] plus cited [1].
+                    # Preserve the correct human marker and normalize JSON to 0.
+                    cited = list(dict.fromkeys(number - 1 for number in marker_numbers))
+                    cited_set = set(cited)
+                    marker_indexes = cited_set
+                elif not marker_numbers and cited and cited_in_range:
                     answer = answer.rstrip() + " " + " ".join(
                         f"[{idx + 1}]" for idx in cited
                     )
-                    markers = set(cited)
-                if markers != set(cited):
-                    raise ValueError()
+                    marker_indexes = cited_set
+                if marker_indexes != cited_set:
+                    reason = (
+                        "cited_index_out_of_range"
+                        if not cited_in_range else "citation_marker_mismatch"
+                    )
+                    raise _InvalidChatResponse(reason)
+
+        try:
             usage = data.get("usage", {})
             pt, ct = usage.get("prompt_tokens"), usage.get("completion_tokens")
             cost = usage.get("cost")
             if any(v is not None and (type(v) is not int or v < 0) for v in (pt, ct)):
-                raise ValueError()
+                raise _InvalidChatResponse("invalid_token_usage")
             if cost is not None and (type(cost) not in (int, float) or not math.isfinite(cost) or cost < 0):
-                raise ValueError()
+                raise _InvalidChatResponse("invalid_cost_usage")
             return ChatAnswer(answer.strip(), cited, self.model_name, pt, ct, cost, PROMPT_VERSION)
-        except (KeyError, IndexError, TypeError, ValueError, AttributeError):
-            raise OpenRouterError("Răspuns AI invalid sau incomplet; răspunsul nu a fost publicat.") from None
+        except (AttributeError, TypeError):
+            raise _InvalidChatResponse("invalid_usage") from None
 
     def generate_stream(self, question: str, context_chunks: Sequence[Any],
                         history: Sequence[dict[str, str]]) -> Any:

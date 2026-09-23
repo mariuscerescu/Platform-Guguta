@@ -1327,9 +1327,109 @@ main.container {
   background: var(--surface);
   border: 1px solid var(--border);
   box-shadow: 0 8px 22px rgba(20, 45, 85, 0.06);
+  white-space: normal;
 }
 
 .msg.streaming { color: var(--text-secondary); }
+
+.markdown-content > :first-child { margin-top: 0; }
+.markdown-content > :last-child { margin-bottom: 0; }
+
+.markdown-content p,
+.markdown-content ul,
+.markdown-content ol,
+.markdown-content blockquote,
+.markdown-content pre,
+.markdown-content .markdown-table-wrap {
+  margin: 0.65em 0;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4 {
+  margin: 0.9em 0 0.4em;
+  color: var(--text);
+  line-height: 1.25;
+}
+
+.markdown-content h1 { font-size: 1.3rem; }
+.markdown-content h2 { font-size: 1.18rem; }
+.markdown-content h3,
+.markdown-content h4 { font-size: 1.05rem; }
+
+.markdown-content ul,
+.markdown-content ol {
+  padding-left: 1.45rem;
+}
+
+.markdown-content li + li { margin-top: 0.25em; }
+.markdown-content li > p { margin: 0.25em 0; }
+
+.markdown-content blockquote {
+  padding: 0.15em 0 0.15em 0.85em;
+  border-left: 3px solid #a9c6f6;
+  color: var(--text-secondary);
+}
+
+.markdown-content code {
+  padding: 0.12em 0.32em;
+  border-radius: 5px;
+  background: #eef3fa;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 0.88em;
+}
+
+.markdown-content pre {
+  max-width: 100%;
+  padding: 12px 14px;
+  overflow-x: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: #f6f8fc;
+}
+
+.markdown-content pre code {
+  padding: 0;
+  background: transparent;
+}
+
+.markdown-content a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.markdown-content .markdown-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.markdown-content table {
+  width: 100%;
+  min-width: 420px;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+
+.markdown-content th,
+.markdown-content td {
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.markdown-content th { background: var(--surface-soft); }
+
+.markdown-content .katex-display {
+  max-width: 100%;
+  margin: 0.75em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
 
 .citation {
   display: block;
@@ -4839,7 +4939,7 @@ main.container:has(> .nb-shell) {
 
 .composer textarea {
   min-height: 66px;
-  padding: 17px 64px 15px 17px;
+  padding: 17px 112px 15px 17px;
   border-color: #cbd6e5;
   border-radius: 16px;
   box-shadow: 0 6px 18px rgba(35, 57, 91, 0.06);
@@ -4857,6 +4957,70 @@ main.container:has(> .nb-shell) {
 
 .composer .send-btn:hover:not(:disabled) {
   transform: translate(2px, -50%);
+}
+
+.composer .mic-btn {
+  position: absolute;
+  right: 72px;
+  top: 50%;
+  width: 40px;
+  height: 40px;
+  border: 1px solid #c7d6e9;
+  border-radius: 12px;
+  background: #f7f9fc;
+  color: #536987;
+  transform: translateY(-50%);
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.composer .mic-btn:hover:not(:disabled) {
+  border-color: #77a6f7;
+  background: #eef4ff;
+  color: var(--primary);
+}
+
+.composer .mic-btn.recording {
+  border-color: #dc3f4f;
+  background: #dc3f4f;
+  color: #fff;
+  animation: mic-pulse 1.35s ease-in-out infinite;
+}
+
+.composer .mic-btn svg { width: 20px; height: 20px; }
+
+.composer .composer-notice {
+  position: absolute;
+  z-index: 1;
+  top: 20px;
+  left: 29px;
+  right: 122px;
+  margin: 0;
+  overflow: hidden;
+  color: #b42335;
+  font-size: 0.76rem;
+  font-weight: 650;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.composer textarea.has-composer-notice {
+  padding-top: 34px;
+}
+
+.mic-loader {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #c7d6e9;
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+}
+
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 63, 79, 0.28); }
+  50% { box-shadow: 0 0 0 7px rgba(220, 63, 79, 0); }
 }
 
 .studio-body {

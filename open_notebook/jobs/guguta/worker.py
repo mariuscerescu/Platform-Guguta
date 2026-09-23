@@ -17,6 +17,10 @@ from open_notebook.jobs.guguta.audio_overviews import process_audio_overview
 from open_notebook.jobs.guguta.embeddings import get_provider
 from open_notebook.jobs.guguta.flashcards import process_flashcard_deck
 from open_notebook.jobs.guguta.handlers import process_material_version
+from open_notebook.jobs.guguta.pdf_pipeline import (
+    HybridPdfExtractor,
+    PpOcrClient,
+)
 from open_notebook.jobs.guguta.queue import claim
 from open_notebook.jobs.guguta.quizzes import process_quiz
 from open_notebook.storage.guguta.filesystem import FilesystemStorage
@@ -30,6 +34,21 @@ class Worker:
         self._engine = create_engine_for_role(config, "worker")
         self._storage = FilesystemStorage(config.storage_root)
         self._provider = get_provider(config.embedding_provider, config.embedding_dimension, config)
+        self._pdf_extractor = None
+        if config.pdf_parser == "liteparse_ppocr":
+            self._pdf_extractor = HybridPdfExtractor(
+                PpOcrClient(
+                    config.ppocr_base_url,
+                    timeout_seconds=config.ppocr_timeout_seconds,
+                ),
+                max_pages=config.max_pdf_pages,
+                dpi=config.pdf_ocr_dpi,
+                liteparse_timeout_seconds=config.liteparse_timeout_seconds,
+                ocr_every_page=config.pdf_ocr_every_page,
+                route_complex_layout=config.pdf_ocr_complex_layout,
+                render_batch_pages=config.pdf_ocr_render_batch_pages,
+                ocr_concurrency=config.pdf_ocr_concurrency,
+            )
         self._stopping = asyncio.Event()
 
     async def process_one(self) -> bool:
@@ -66,6 +85,7 @@ class Worker:
                     job,
                     chunk_size_chars=self._config.chunk_size_chars,
                     overlap_chars=self._config.chunk_overlap_chars,
+                    pdf_extractor=getattr(self, "_pdf_extractor", None),
                 )
             elif job.job_type == "generate_audio_overview":
                 await process_audio_overview(
@@ -116,6 +136,9 @@ class Worker:
         self._stopping.set()
 
     async def aclose(self) -> None:
+        pdf_extractor = getattr(self, "_pdf_extractor", None)
+        if pdf_extractor is not None:
+            await pdf_extractor.aclose()
         await self._engine.dispose()
 
 

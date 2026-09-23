@@ -14,6 +14,10 @@ const nextConfig: NextConfig = {
   // chat total (300s) + marjă.
   experimental: {
     proxyTimeout: 320_000,
+    // Next 15 buffers rewritten request bodies and otherwise keeps only the
+    // first 10 MB.  The product accepts files up to 25 MiB; leave room for
+    // multipart headers while staying aligned with nginx's 32 MB ceiling.
+    middlewareClientMaxBodySize: "32mb",
   },
   // Same-origin proxy: the browser talks only to the frontend origin, so the
   // session cookie (SameSite=Lax) flows without CORS. The API base is the

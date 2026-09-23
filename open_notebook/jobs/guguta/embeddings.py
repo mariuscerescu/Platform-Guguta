@@ -56,4 +56,7 @@ def get_provider(name: str, dimension: int, config: Any = None) -> EmbeddingProv
     if name == "openrouter" and config is not None:
         from open_notebook.ai.guguta.openrouter import OpenRouterEmbeddingProvider
         return OpenRouterEmbeddingProvider(config)
+    if name == "local" and config is not None:
+        from open_notebook.ai.guguta.local_retrieval import LocalEmbeddingProvider
+        return LocalEmbeddingProvider(config)
     raise ValueError(f"provider de embedding necunoscut: {name}")

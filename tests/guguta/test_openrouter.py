@@ -110,6 +110,66 @@ async def test_chat_without_materials_abstains_and_strips_markers():
 
 
 @pytest.mark.asyncio
+async def test_chat_keeps_bracketed_year_when_context_exists():
+    response = {
+        "choices": [{"finish_reason": "stop", "message": {"content": json.dumps({
+            "answer": "Conform materialului [1], reforma a început în [1992].",
+            "cited": [0],
+        })}}],
+    }
+    p = OpenRouterChatProvider(
+        config(),
+        transport=httpx.MockTransport(lambda r: httpx.Response(200, json=response)),
+    )
+    answer = await p.generate("q", [SimpleNamespace(text="reforma")], [])
+    assert answer.cited == [0]
+    assert "[1]" in answer.content and "[1992]" in answer.content
+
+
+@pytest.mark.asyncio
+async def test_chat_normalizes_one_based_cited_array():
+    response = {
+        "choices": [{"finish_reason": "stop", "message": {"content": json.dumps({
+            "answer": "Răspunsul verificat este aici [1].",
+            "cited": [1],
+        })}}],
+    }
+    p = OpenRouterChatProvider(
+        config(),
+        transport=httpx.MockTransport(lambda r: httpx.Response(200, json=response)),
+    )
+    answer = await p.generate(
+        "q", [SimpleNamespace(text="primul")], []
+    )
+    assert answer.cited == [0]
+    assert answer.content.endswith("[1].")
+
+
+@pytest.mark.asyncio
+async def test_chat_repairs_first_invalid_completion_once():
+    calls = []
+
+    def response(request):
+        body = json.loads(request.content)
+        calls.append(body)
+        content = (
+            "not json" if len(calls) == 1
+            else json.dumps({"answer": "Răspuns verificat [1].", "cited": [0]})
+        )
+        return httpx.Response(200, json={
+            "choices": [{"finish_reason": "stop", "message": {"content": content}}],
+        })
+
+    p = OpenRouterChatProvider(config(), transport=httpx.MockTransport(response))
+    answer = await p.generate("q", [SimpleNamespace(text="dovadă")], [])
+    assert answer.content == "Răspuns verificat [1]."
+    assert answer.cited == [0]
+    assert len(calls) == 2
+    assert "Răspunsul anterior nu a respectat contractul" in calls[1]["messages"][0]["content"]
+    assert len([m for m in calls[1]["messages"] if m["role"] == "system"]) == 1
+
+
+@pytest.mark.asyncio
 async def test_query_planner_uses_history_and_returns_distinct_queries():
     def response(request):
         body = json.loads(request.content)

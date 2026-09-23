@@ -22,8 +22,11 @@ container frontend  (Next.js, construit cu basePath=/edu-platform, port 3001)
   ▼
 container api  (FastAPI, port 5055, /api/v1 + /healthz)
   ├──► container db    (PostgreSQL 17 + pgvector, port 5432)
+  ├──► container parakeet-asr (GPU 0, dictare românească, rețea privată)
+  ├──► container qwen-retrieval (GPU 0, embeddings + reranking, rețea privată)
   └──► container worker (materiale + rezumate audio)
-            └──► container moss-tts (GPU 1, voce românească, rețea privată)
+            ├──► container moss-tts (GPU 1, voce românească, rețea privată)
+            └──► container ppocr (GPU 1, OCR PDF română/engleză, rețea privată)
 ```
 
 De ce trece totul prin frontend: browserul vorbește cu o singură origine, deci
@@ -37,6 +40,9 @@ au port în afara rețelei Docker.
 | `api` | 5055 | — | logica aplicației |
 | `worker` | — | — | procesare asincronă |
 | `moss-tts` | 8000 | — | sinteză vocală românească privată |
+| `parakeet-asr` | 8001 | — | transcriere vocală românească privată |
+| `qwen-retrieval` | 8002 | — | Qwen3 embedding + reranking multilingual privat |
+| `ppocr` | 8003 | — | PP-OCRv5 Mobile pentru acoperirea vizuală a fiecărei pagini PDF |
 | `db` | 5432 | — | date + vectori |
 
 ---
@@ -99,7 +105,42 @@ existentă. Verifică doar:
 | `GUGUTA_CORS_ORIGINS` | `["https://tineri.math.md"]` | altfel API-ul răspunde **403** la orice acțiune cu cookie |
 | `GUGUTA_OPENROUTER_API_KEY` | cheia ta | fără ea API-ul refuză pornirea |
 | `GUGUTA_OPENROUTER_CHAT_MODEL` | modelul dorit | modelul de chat |
-| `GUGUTA_EMBEDDING_DIMENSION` | `2048` | obligatoriu 2048 pentru Nemotron, altfel API-ul refuză pornirea |
+| `GUGUTA_EMBEDDING_PROVIDER` | `local` | păstrează textele de retrieval pe server |
+| `GUGUTA_EMBEDDING_DIMENSION` | `1024` | dimensiunea completă Qwen3-Embedding-0.6B |
+| `GUGUTA_RERANK_PROVIDER` | `local` | folosește Qwen3-Reranker-0.6B pe GPU |
+| `GUGUTA_PARAKEET_ASR_RUNTIME_ROOT` | director cu `.venv` NeMo | runtime-ul CUDA montat read-only în serviciul ASR |
+| `GUGUTA_QWEN_RETRIEVAL_RUNTIME_ROOT` | director cu `.venv` PyTorch | runtime-ul CUDA montat read-only în serviciul Qwen |
+| `GUGUTA_PDF_PARSER` | `liteparse_ppocr` | activează extracția nativă LiteParse și OCR-ul local |
+| `GUGUTA_PPOCR_GPU` | `1` | GPU-ul fizic oferit serviciului PP-OCRv5 |
+| `GUGUTA_PPOCR_MIN_CONFIDENCE` | `0.35` | elimină liniile OCR cu încredere foarte mică |
+| `GUGUTA_PPOCR_TIMEOUT_SECONDS` | `120` | limita unei cereri OCR, inclusiv timpul petrecut în coada GPU |
+| `GUGUTA_PDF_OCR_DPI` | `120` | rezoluție validată pentru manuale, păstrând textul exercițiilor |
+| `GUGUTA_PDF_OCR_EVERY_PAGE` | `true` | verifică vizual fiecare pagină și combină OCR-ul cu textul nativ |
+
+Runtime-ul ASR se creează o singură dată pe gazdă (în afara repository-ului):
+
+```bash
+python3.12 -m venv /opt/parakeet-asr/.venv
+/opt/parakeet-asr/.venv/bin/pip install \
+  --extra-index-url https://download.pytorch.org/whl/cu128 \
+  'torch>=2.7,<2.9' 'torchaudio>=2.7,<2.9' \
+  'nemo_toolkit[asr]>=2.4,<3' 'fastapi>=0.115,<1' \
+  'uvicorn[standard]>=0.30,<1' 'python-multipart>=0.0.20,<0.1'
+```
+
+Serviciul Qwen poate folosi același runtime dacă acesta are
+`transformers>=4.51`; alternativ, creează unul separat:
+
+```bash
+python3.12 -m venv /opt/qwen-retrieval/.venv
+/opt/qwen-retrieval/.venv/bin/pip install \
+  --extra-index-url https://download.pytorch.org/whl/cu128 \
+  'torch>=2.7,<2.9' 'transformers>=4.51,<5' \
+  'fastapi>=0.115,<1' 'uvicorn[standard]>=0.30,<1'
+```
+
+La prima pornire, cele două checkpoint-uri fixate sunt descărcate în volumul
+`qwen_retrieval_models`; actualizarea unei revizii cere reindexare atomică.
 
 Dacă vrei alte secrete: rulează `python3 gen-env.py` pe mașina de dezvoltare
 (scriptul preia cheia OpenRouter din `.env.guguta.local` și rescrie `.env`), apoi
@@ -116,9 +157,11 @@ copiază fișierul pe server. Pentru un singur secret nou, oriunde:
 docker compose up -d --build
 ```
 
-La prima rulare: descarcă imaginile de bază, construiește cele trei imagini ale
-aplicației (migrator, api/worker, frontend — câteva minute), pornește baza de
-date, aplică migrările și abia apoi pornește API-ul, worker-ul și frontend-ul.
+La prima rulare: descarcă imaginile de bază și modelele locale, construiește
+imaginile aplicației și pornește serviciile în ordinea dependențelor. Modelele
+PP-OCRv5 Mobile rămân în volumul `ppocr_models`; prima pornire poate dura
+câteva minute. Workerul devine
+disponibil numai după ce `/readyz` confirmă încărcarea modelului OCR.
 
 ```bash
 docker compose ps -a       # db/api/worker/frontend = running, migrator = exited (0)
@@ -159,6 +202,10 @@ Două detalii care, dacă lipsesc, produc exact două simptome clasice:
   prefixul `/edu-platform`, iar aplicația răspunde 404 (ea așteaptă calea întreagă).
 - `client_max_body_size 32m;` — implicit nginx taie la **1 MiB**, deci orice
   material urcat dă `413 Request Entity Too Large`.
+- `experimental.middlewareClientMaxBodySize: "32mb"` în configurația Next.js
+  — Next 15 păstrează implicit doar primii **10 MB** ai unui request proxiat;
+  fără această aliniere PDF-urile mai mari ajung trunchiate la API și upload-ul
+  se termină cu `socket hang up`.
 
 Blocul din acest director a fost probat cu un nginx real (`nginx:1.27-alpine`)
 pus în fața stack-ului containerizat, cu fișierul livrat inclus nemodificat:
@@ -202,7 +249,7 @@ referințe.
 ## 6. Operare curentă
 
 ```bash
-docker compose logs -f api worker       # urmărește API-ul și procesarea
+docker compose logs -f api worker ppocr  # API, ingestie și OCR
 docker compose restart api worker       # repornire simplă
 docker compose up -d --build            # după modificări de cod sau de .env
 docker compose down                     # oprește (volumele rămân)
@@ -245,11 +292,14 @@ docker run --rm -v guguta-edu_guguta_storage:/data -v "$PWD":/backup alpine \
 | Pagina se încarcă fără stiluri, linkurile duc la rădăcina domeniului | build fără `basePath` | `docker compose build --no-cache frontend` |
 | `403 origin_rejected` la încărcare/chat | `GUGUTA_CORS_ORIGINS` nu conține exact `https://tineri.math.md` | corectează `.env`, `docker compose up -d api worker` |
 | `413` la urcarea unui material | `client_max_body_size` implicit (1 MiB) | adaugă `client_max_body_size 32m;` în `location` |
+| Upload-ul eșuează doar peste 10 MB, cu `socket hang up` în frontend | limita implicită a proxy-ului Next 15 | setează `experimental.middlewareClientMaxBodySize: "32mb"` și reconstruiește frontend-ul |
 | Răspunsul de chat apare dintr-o dată, la final | nginx ține răspunsul în buffer | `proxy_buffering off;` în `location` |
 | API-ul nu pornește și scrie `unsafe configuration: ...` | configurație de producție incompletă (secret scurt, origine http, provider `mock`) | mesajul spune exact ce lipsește |
 | `GUGUTA_OPENROUTER_API_KEY is required` | cheia lipsește din `.env` | completează și `docker compose up -d` |
 | `Nemotron embeddings require ... 2048` | dimensiune greșită | `GUGUTA_EMBEDDING_DIMENSION=2048` |
 | Upload-ul rămâne „în procesare" | worker-ul nu rulează | `docker compose logs worker`, apoi `docker compose up -d worker` |
+| PDF-ul scanat rămâne în procesare sau OCR-ul răspunde 503 | modelul OCR încă se descarcă ori GPU-ul nu are memorie liberă | `docker compose logs ppocr`; verifică `nvidia-smi` și volumul `ppocr_models` |
+| PDF-urile digitale sunt procesate prea lent | modul de acoperire completă verifică fiecare pagină prin OCR | setează explicit `GUGUTA_PDF_OCR_EVERY_PAGE=false` pentru modul selectiv; paginile scanate vor continua să fie rutate |
 | `502` la autentificare | API-ul nu răspunde | `docker compose ps`, `docker compose logs api` |
 
 ---
