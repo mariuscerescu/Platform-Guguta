@@ -14,6 +14,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
+from api.routers.guguta_v1 import _audio_download_response
 from open_notebook.ai.guguta.audio_overview import (
     MossTtsClient,
     concatenate_wav,
@@ -78,6 +79,49 @@ def test_audio_helpers_split_and_join() -> None:
     combined, duration = concatenate_wav([_wav(), _wav()])
     assert combined.startswith(b"RIFF")
     assert 0.07 <= duration <= 0.09
+
+
+def test_audio_download_response_supports_browser_byte_ranges() -> None:
+    data = b"RIFF0123456789"
+
+    complete = _audio_download_response(data, "audio/wav", "Lecție.wav", None)
+    assert complete.status_code == 200
+    assert complete.body == data
+    assert complete.headers["accept-ranges"] == "bytes"
+    assert complete.headers["content-length"] == str(len(data))
+
+    bounded = _audio_download_response(
+        data, "audio/wav", "Lecție.wav", "bytes=4-7"
+    )
+    assert bounded.status_code == 206
+    assert bounded.body == b"0123"
+    assert bounded.headers["content-range"] == f"bytes 4-7/{len(data)}"
+    assert bounded.headers["content-length"] == "4"
+
+    open_ended = _audio_download_response(
+        data, "audio/wav", "Lecție.wav", "bytes=10-"
+    )
+    assert open_ended.status_code == 206
+    assert open_ended.body == data[10:]
+
+    suffix = _audio_download_response(
+        data, "audio/wav", "Lecție.wav", "bytes=-4"
+    )
+    assert suffix.status_code == 206
+    assert suffix.body == data[-4:]
+
+
+@pytest.mark.parametrize(
+    "range_header",
+    ["items=0-1", "bytes=99-", "bytes=5-4", "bytes=0-1,3-4", "bytes=-0"],
+)
+def test_audio_download_response_rejects_invalid_ranges(range_header: str) -> None:
+    data = b"RIFF0123456789"
+    response = _audio_download_response(data, "audio/wav", "audio.wav", range_header)
+    assert response.status_code == 416
+    assert response.body == b""
+    assert response.headers["accept-ranges"] == "bytes"
+    assert response.headers["content-range"] == f"bytes */{len(data)}"
 
 
 @pytest.mark.asyncio
@@ -165,7 +209,18 @@ async def test_audio_overview_end_to_end(
     )
     assert audio.status_code == 200
     assert audio.headers["content-type"].startswith("audio/wav")
+    assert audio.headers["accept-ranges"] == "bytes"
     assert audio.content.startswith(b"RIFF")
+
+    partial = await audio_client.get(
+        f"/api/v1/notebooks/{notebook['id']}/audio-overviews/{overview_id}/audio",
+        cookies=_cookies(auth),
+        headers={"Range": "bytes=0-3"},
+    )
+    assert partial.status_code == 206
+    assert partial.content == b"RIFF"
+    assert partial.headers["content-range"] == f"bytes 0-3/{len(audio.content)}"
+    assert partial.headers["content-length"] == "4"
 
     deleted = await audio_client.delete(
         f"/api/v1/notebooks/{notebook['id']}/audio-overviews/{overview_id}",

@@ -902,6 +902,81 @@ def get_audio_overviews_service(request: Request) -> Any:
     return request.app.state.guguta_audio_overviews
 
 
+def _parse_audio_byte_range(value: str, total_size: int) -> tuple[int, int]:
+    """Parse one RFC 7233 byte range and return its inclusive bounds.
+
+    Browsers issue a single range while seeking in an HTML audio element. We
+    intentionally reject multipart ranges because the player does not need
+    them and a multipart response would require a different response body.
+    """
+
+    unit, separator, raw_range = value.partition("=")
+    if separator != "=" or unit.strip().lower() != "bytes":
+        raise ValueError("unsupported range unit")
+    if total_size <= 0 or "," in raw_range:
+        raise ValueError("range is not satisfiable")
+
+    start_raw, dash, end_raw = raw_range.strip().partition("-")
+    if dash != "-":
+        raise ValueError("invalid range")
+    start_raw = start_raw.strip()
+    end_raw = end_raw.strip()
+
+    if start_raw:
+        if not start_raw.isdigit() or (end_raw and not end_raw.isdigit()):
+            raise ValueError("invalid range bounds")
+        start = int(start_raw)
+        if start >= total_size:
+            raise ValueError("range starts beyond the resource")
+        end = int(end_raw) if end_raw else total_size - 1
+        if end < start:
+            raise ValueError("range ends before it starts")
+        return start, min(end, total_size - 1)
+
+    if not end_raw.isdigit():
+        raise ValueError("invalid suffix range")
+    suffix_size = int(end_raw)
+    if suffix_size <= 0:
+        raise ValueError("empty suffix range")
+    return max(total_size - suffix_size, 0), total_size - 1
+
+
+def _audio_download_response(
+    data: bytes,
+    mime: str,
+    filename: str,
+    range_header: str | None,
+) -> Response:
+    """Return a complete or partial audio response suitable for seeking."""
+
+    from urllib.parse import quote
+
+    safe_name = filename.replace('"', "").replace("\r", "").replace("\n", "")
+    ascii_name = safe_name.encode("ascii", "replace").decode("ascii")
+    headers = {
+        "Accept-Ranges": "bytes",
+        "Content-Disposition": (
+            f"inline; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(safe_name)}"
+        ),
+    }
+    if range_header is None:
+        return Response(content=data, media_type=mime, headers=headers)
+
+    try:
+        start, end = _parse_audio_byte_range(range_header, len(data))
+    except ValueError:
+        headers["Content-Range"] = f"bytes */{len(data)}"
+        return Response(status_code=416, headers=headers)
+
+    headers["Content-Range"] = f"bytes {start}-{end}/{len(data)}"
+    return Response(
+        content=data[start : end + 1],
+        status_code=206,
+        media_type=mime,
+        headers=headers,
+    )
+
+
 @audio_overviews_router.post("", status_code=202)
 async def create_audio_overview(
     notebook_id: uuid.UUID, body: AudioOverviewCreate, request: Request
@@ -939,22 +1014,15 @@ async def get_audio_overview(
 async def download_audio_overview(
     notebook_id: uuid.UUID, overview_id: uuid.UUID, request: Request
 ) -> Response:
-    from urllib.parse import quote
-
     actor = get_actor(request)
     data, mime, filename = await get_audio_overviews_service(request).download(
         actor, notebook_id, overview_id
     )
-    safe_name = filename.replace('"', "").replace("\r", "").replace("\n", "")
-    ascii_name = safe_name.encode("ascii", "replace").decode("ascii")
-    return Response(
-        content=data,
-        media_type=mime,
-        headers={
-            "Content-Disposition": (
-                f"inline; filename=\"{ascii_name}\"; filename*=UTF-8''{quote(safe_name)}"
-            )
-        },
+    return _audio_download_response(
+        data,
+        mime,
+        filename,
+        request.headers.get("range"),
     )
 
 

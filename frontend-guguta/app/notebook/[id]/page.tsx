@@ -1407,7 +1407,12 @@ export default function NotebookPage() {
                     onClick={() => deck.status === "ready" && void openDeck(deck.id)}
                     disabled={deck.status !== "ready"}
                   >
-                    <span className="flashcard-deck-icon" aria-hidden="true">▣</span>
+                    <span
+                      className="flashcard-deck-icon created-material-icon created-material-icon-cards"
+                      aria-hidden="true"
+                    >
+                      <CardsIcon />
+                    </span>
                     <span>
                       <strong>{deck.title || "Flashcards"}</strong>
                       <small>
@@ -1439,7 +1444,13 @@ export default function NotebookPage() {
               {quizzes?.map((quiz)=>(
                 <article className="flashcard-deck-card" key={quiz.id}>
                   <button type="button" className="flashcard-deck-open" disabled={quiz.status!=="ready"} onClick={()=>quiz.status==="ready"&&void openQuiz(quiz.id)}>
-                    <span className="flashcard-deck-icon" aria-hidden="true">?</span><span><strong>{quiz.title||"Quiz"}</strong><small>{quiz.status==="ready"?`${quiz.question_count} întrebări · ${quiz.difficulty==="easy"?"Ușor":quiz.difficulty==="hard"?"Dificil":"Mediu"}`:quiz.status==="failed"?"Generarea a eșuat":"Se generează în fundal…"}</small></span>
+                    <span
+                      className="flashcard-deck-icon created-material-icon created-material-icon-quiz"
+                      aria-hidden="true"
+                    >
+                      <QuizIcon />
+                    </span>
+                    <span><strong>{quiz.title||"Quiz"}</strong><small>{quiz.status==="ready"?`${quiz.question_count} întrebări · ${quiz.difficulty==="easy"?"Ușor":quiz.difficulty==="hard"?"Dificil":"Mediu"}`:quiz.status==="failed"?"Generarea a eșuat":"Se generează în fundal…"}</small></span>
                   </button>
                   <button type="button" className="audio-overview-delete" onClick={()=>void removeQuiz(quiz)} aria-label="Șterge quiz-ul"><TrashIcon /></button>
                   {quiz.status==="failed"&&<div className="flashcard-deck-error"><p className="error-text">{quiz.error_detail||"Generarea a eșuat."}</p><button className="pill small" onClick={()=>void retryQuiz(quiz.id)}>Reîncearcă</button></div>}
@@ -1449,10 +1460,11 @@ export default function NotebookPage() {
               {audioOverviews?.map((overview) => (
                 <article className="audio-overview-card" key={overview.id}>
                   <div className="audio-overview-head">
-                    <span className="audio-overview-icon" aria-hidden="true">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                        <path d="M5 9v6M9 6v12M13 4v16M17 7v10M21 10v4" strokeLinecap="round" />
-                      </svg>
+                    <span
+                      className="audio-overview-icon created-material-icon created-material-icon-audio"
+                      aria-hidden="true"
+                    >
+                      <AudioIcon />
                     </span>
                     <div className="audio-overview-title">
                       <strong>{overview.title || "Rezumat audio"}</strong>

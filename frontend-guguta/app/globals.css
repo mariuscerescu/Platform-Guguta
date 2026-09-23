@@ -744,11 +744,11 @@ main.container {
   top: calc(100% + 6px);
   right: 0;
   z-index: 30;
-  min-width: 194px;
+  min-width: 172px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 6px;
+  gap: 1px;
+  padding: 4px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface);
@@ -762,12 +762,13 @@ main.container {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  gap: 10px;
-  padding: 9px 10px;
+  gap: 8px;
+  padding: 8px 9px;
   border-radius: var(--radius);
   background: transparent;
   color: var(--text);
   font-size: 0.92rem;
+  text-align: left;
 }
 
 .menu-pop button:hover:not(:disabled) { background: var(--surface-hover); }
@@ -3497,15 +3498,23 @@ main.container:has(> .nb-shell) {
 }
 
 .library-shell .nb-card .menu-pop {
-  text-align: right;
+  text-align: left;
 }
 
 .library-shell .nb-card .menu-pop > button {
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 .library-shell .nb-card .menu-rename input {
-  text-align: right;
+  text-align: left;
+}
+
+/* Meniul deschis trebuie să iasă din card și să rămână peste cardurile din
+   rândurile următoare, inclusiv pe mobil. Cardurile stau în mod normal cu
+   overflow ascuns pentru decor; îl relaxăm numai cât dropdown-ul este activ. */
+.library-shell .nb-card:has(.menu-pop) {
+  z-index: 50;
+  overflow: visible;
 }
 
 .segmented button {
@@ -5081,11 +5090,38 @@ main.container:has(> .nb-shell) {
   color: #315fae;
 }
 
+.future-tool .studio-tool-icon {
+  color: #315fae;
+}
+
 .future-tool:nth-child(2) .studio-tool-icon {
   color: #17724d;
 }
 
 .future-tool:nth-child(3) .studio-tool-icon {
+  color: #8a4487;
+}
+
+/* Rezultatele create refolosesc iconițele și paleta instrumentelor de mai sus,
+   ca același tip de material să aibă aceeași identitate în ambele secțiuni. */
+.created-material-icon {
+  background: rgba(255, 255, 255, 0.74);
+}
+
+.created-material-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.created-material-icon-cards {
+  color: #315fae;
+}
+
+.created-material-icon-quiz {
+  color: #17724d;
+}
+
+.created-material-icon-audio {
   color: #8a4487;
 }
 
@@ -5101,6 +5137,18 @@ main.container:has(> .nb-shell) {
   border: 1px dashed #dce3ed;
   border-radius: 14px;
   background: #fafbfd;
+}
+
+.studio-results:has(> .studio-empty) {
+  flex: 1 1 0;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-content: stretch;
+}
+
+.studio-results > .studio-empty {
+  height: 100%;
+  min-height: 0;
 }
 
 .studio-strong {
@@ -5140,11 +5188,30 @@ main.container:has(> .nb-shell) {
 }
 
 @media (max-width: 990px) {
+  body:has(.nb-shell) {
+    height: 100dvh;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
   body:has(.nb-shell) > .header-product {
     display: none;
   }
 
+  main.container:has(> .nb-shell) {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .nb-shell {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+
   .nb-header {
+    flex: 0 0 auto;
     min-height: 68px;
   }
 
@@ -5152,11 +5219,28 @@ main.container:has(> .nb-shell) {
     margin-inline: 4px;
   }
 
+  .mobile-workspace-nav {
+    flex: 0 0 auto;
+    margin-top: 10px;
+    margin-bottom: 10px;
+  }
+
   .nb-grid,
   .nb-grid.src-collapsed,
   .nb-grid.studio-collapsed,
   .nb-grid.src-collapsed.studio-collapsed {
+    flex: 1 1 0;
     height: auto;
+    min-height: 0;
+    padding-top: 0;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+    overflow: hidden;
+  }
+
+  .nb-grid .panel,
+  .nb-grid .panel.collapsed {
+    height: 100%;
+    min-height: 0;
   }
 
   .library-shell .library-empty-copy {
