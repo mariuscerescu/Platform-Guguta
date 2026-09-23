@@ -186,13 +186,18 @@ async def test_audio_overview_end_to_end(
 
     created = await audio_client.post(
         f"/api/v1/notebooks/{notebook['id']}/audio-overviews",
-        json={"format": "brief", "source_ids": [source_id]},
+        json={
+            "format": "brief",
+            "source_ids": [source_id],
+            "instructions": "Concentrează-te pe rolul luminii.",
+        },
         cookies=_cookies(auth),
         headers=_headers(auth),
     )
     assert created.status_code == 202, created.text
     overview_id = created.json()["id"]
     assert created.json()["status"] == "queued"
+    assert created.json()["instructions"] == "Concentrează-te pe rolul luminii."
 
     assert await audio_worker.process_one()
     items = await audio_client.get(
@@ -202,6 +207,7 @@ async def test_audio_overview_end_to_end(
     assert items.status_code == 200
     assert items.json()[0]["id"] == overview_id
     assert items.json()[0]["status"] == "ready"
+    assert items.json()[0]["instructions"] == "Concentrează-te pe rolul luminii."
 
     audio = await audio_client.get(
         f"/api/v1/notebooks/{notebook['id']}/audio-overviews/{overview_id}/audio",

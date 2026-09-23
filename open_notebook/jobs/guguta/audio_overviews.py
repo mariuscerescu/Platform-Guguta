@@ -46,12 +46,12 @@ async def _load_input(
     actor_id: uuid.UUID,
     overview_id: uuid.UUID,
     max_chars: int,
-) -> tuple[str, list[dict[str, str]]]:
+) -> tuple[str, str | None, list[dict[str, str]]]:
     async with actor_connection(engine, actor_id) as conn:
         overview = (
             await conn.execute(
                 text(
-                    "SELECT format, selected_source_ids FROM audio_overviews "
+                    "SELECT format, instructions, selected_source_ids FROM audio_overviews "
                     "WHERE id = :id FOR UPDATE"
                 ),
                 {"id": overview_id},
@@ -92,7 +92,7 @@ async def _load_input(
             sources.append({"name": str(row["local_name"]), "text": content})
     if not sources:
         raise ValueError("Materialele selectate nu conțin text procesat.")
-    return str(overview["format"]), sources
+    return str(overview["format"]), overview["instructions"], sources
 
 
 async def process_audio_overview(
@@ -115,14 +115,14 @@ async def process_audio_overview(
     stored_key: str | None = None
     try:
         await _set_status(engine, job.actor_id, job.target_id, "generating_script")
-        format_name, sources = await _load_input(
+        format_name, instructions, sources = await _load_input(
             engine,
             job.actor_id,
             job.target_id,
             config.audio_overview_max_source_chars,
         )
         script = await AudioScriptGenerator(config).generate(
-            format_name=format_name, sources=sources
+            format_name=format_name, instructions=instructions, sources=sources
         )
         async with actor_connection(engine, job.actor_id) as conn:
             await conn.execute(

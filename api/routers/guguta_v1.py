@@ -890,6 +890,7 @@ async def save_answer_as_note(
 class AudioOverviewCreate(BaseModel):
     format: str = Field(pattern="^(brief|deep_dive)$")
     source_ids: list[uuid.UUID] = Field(min_length=1, max_length=20)
+    instructions: str | None = Field(default=None, max_length=4000)
 
 
 audio_overviews_router = APIRouter(
@@ -987,6 +988,7 @@ async def create_audio_overview(
         notebook_id,
         format_name=body.format,
         source_ids=body.source_ids,
+        instructions=body.instructions,
     )
 
 

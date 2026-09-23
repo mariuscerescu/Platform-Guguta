@@ -45,6 +45,7 @@ class AudioOverviewService:
         *,
         format_name: str,
         source_ids: list[uuid.UUID],
+        instructions: str | None,
     ) -> dict[str, Any]:
         if format_name not in ("brief", "deep_dive"):
             raise InvalidInputError("Formatul audio nu este acceptat.")
@@ -79,8 +80,8 @@ class AudioOverviewService:
             await conn.execute(
                 text(
                     "INSERT INTO audio_overviews "
-                    "(id, notebook_id, created_by, format, selected_source_ids, status) "
-                    "VALUES (:id, :n, :actor, :format, CAST(:sources AS jsonb), 'queued')"
+                    "(id, notebook_id, created_by, format, selected_source_ids, instructions, status) "
+                    "VALUES (:id, :n, :actor, :format, CAST(:sources AS jsonb), :instructions, 'queued')"
                 ),
                 {
                     "id": overview_id,
@@ -88,6 +89,7 @@ class AudioOverviewService:
                     "actor": actor.actor_id,
                     "format": format_name,
                     "sources": json.dumps([str(value) for value in unique_ids]),
+                    "instructions": (instructions or "").strip() or None,
                 },
             )
             job_id = await enqueue(
@@ -104,7 +106,7 @@ class AudioOverviewService:
             row = (
                 await conn.execute(
                     text(
-                        "SELECT id, notebook_id, format, selected_source_ids, status, "
+                        "SELECT id, notebook_id, format, selected_source_ids, instructions, status, "
                         "title, duration_seconds, error_detail, created_at, updated_at, "
                         "completed_at FROM audio_overviews WHERE id = :id"
                     ),
@@ -122,7 +124,7 @@ class AudioOverviewService:
             rows = (
                 await conn.execute(
                     text(
-                        "SELECT ao.id, ao.notebook_id, ao.format, ao.selected_source_ids, "
+                        "SELECT ao.id, ao.notebook_id, ao.format, ao.selected_source_ids, ao.instructions, "
                         "ao.status, ao.title, ao.duration_seconds, ao.error_detail, "
                         "ao.created_at, ao.updated_at, ao.completed_at, "
                         "(SELECT pj.id FROM processing_jobs pj "

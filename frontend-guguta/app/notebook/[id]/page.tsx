@@ -52,6 +52,7 @@ interface AudioOverview {
   notebook_id: string;
   format: "brief" | "deep_dive";
   selected_source_ids: string[];
+  instructions?: string | null;
   status: "queued" | "generating_script" | "synthesizing" | "ready" | "failed";
   title?: string | null;
   duration_seconds?: number | null;
@@ -142,6 +143,7 @@ export default function NotebookPage() {
   const [audioModalOpen, setAudioModalOpen] = useState(false);
   const [audioFormat, setAudioFormat] = useState<"brief" | "deep_dive">("brief");
   const [audioSourceIds, setAudioSourceIds] = useState<string[]>([]);
+  const [audioInstructions, setAudioInstructions] = useState("");
   const [audioSubmitting, setAudioSubmitting] = useState(false);
   const [deletingAudioId, setDeletingAudioId] = useState<string | null>(null);
   const [flashcardModalOpen, setFlashcardModalOpen] = useState(false);
@@ -614,6 +616,7 @@ export default function NotebookPage() {
       .map((source) => source.id);
     setAudioSourceIds(readyIds);
     setAudioFormat("brief");
+    setAudioInstructions("");
     setAudioModalOpen(true);
   }
 
@@ -633,7 +636,11 @@ export default function NotebookPage() {
       const created = await api<AudioOverview>(
         "POST",
         `/api/v1/notebooks/${nbId}/audio-overviews`,
-        { format: audioFormat, source_ids: audioSourceIds },
+        {
+          format: audioFormat,
+          source_ids: audioSourceIds,
+          instructions: audioInstructions.trim() || null,
+        },
       );
       setAudioOverviews((current) => [created, ...(current ?? [])]);
       setAudioModalOpen(false);
@@ -920,8 +927,8 @@ export default function NotebookPage() {
   return (
     <div className="nb-shell">
       <header className="nb-header">
-        <a href={withBase("/app")} className="nb-brand wordmark" aria-label="Guguță — Carnetele mele">
-          <span>Guguță</span>
+        <a href={withBase("/app")} className="nb-brand wordmark" aria-label="Platforma educațională Guguță" title="Platforma educațională Guguță">
+          <span>Platforma educațională Guguță</span>
         </a>
         <span className="nb-brand-divider" aria-hidden="true" />
         <div className="nb-title-area">
@@ -1702,7 +1709,7 @@ export default function NotebookPage() {
             <div className="audio-modal-heading">
               <div>
                 <h2 id="audio-overview-title">Creează un Audio Overview</h2>
-                <p className="muted">O singură voce explică materialele în limba română.</p>
+                <p className="muted">Explicația materialelor tale în limba română</p>
               </div>
               <button
                 type="button"
@@ -1777,10 +1784,15 @@ export default function NotebookPage() {
               </div>
             </fieldset>
 
-            <p className="audio-local-note">
-              Vocea este generată local cu MOSS-TTS. Procesarea continuă în fundal;
-              poți închide această fereastră.
-            </p>
+            <label className="flashcard-instructions">
+              <span>Pe ce să se concentreze explicația?</span>
+              <textarea
+                value={audioInstructions}
+                onChange={(event) => setAudioInstructions(event.target.value)}
+                maxLength={4000}
+                placeholder="Opțional: concepte-cheie, comparații, exemple sau întrebări de clarificat…"
+              />
+            </label>
             <div className="modal-actions">
               <button
                 type="button"

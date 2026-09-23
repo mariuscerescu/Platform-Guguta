@@ -63,8 +63,8 @@ export default function SiteHeader() {
 
   return (
     <header className={headerClass}>
-      <a href={withBase("/")} className="wordmark" aria-label="Guguță">
-        <span>Guguță</span>
+      <a href={withBase("/")} className="wordmark" aria-label="Platforma educațională Guguță" title="Platforma educațională Guguță">
+        <span>Platforma educațională Guguță</span>
       </a>
       <nav className="top-nav" aria-label="Navigare principală">
         {isProductPage && (

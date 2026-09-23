@@ -9,7 +9,7 @@ type AuthUser = { display_name: string };
 
 type AuthEntryLinkProps = {
   className?: string;
-  /** Eticheta butonului (ex. „Deschide Guguță"). */
+  /** Eticheta butonului (ex. „Accesează materialele din platformă"). */
   children: ReactNode;
   /** Unde ajunge utilizatorul autentificat. */
   next?: string;

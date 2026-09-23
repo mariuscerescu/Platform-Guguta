@@ -884,6 +884,7 @@ class AudioOverview(GugutaBase):
     )
     format: Mapped[str] = mapped_column(String(32), nullable=False)
     selected_source_ids: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
+    instructions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(
         String(32), nullable=False, default="queued", server_default="queued"
     )

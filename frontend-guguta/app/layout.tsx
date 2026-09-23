@@ -5,9 +5,9 @@ import "./globals.css";
 import SiteHeader from "./components/SiteHeader";
 
 export const metadata: Metadata = {
-  title: "Guguță — Carnete digitale",
+  title: "Platforma educațională Guguță",
   description:
-    "Platforma Guguță: carnete digitale pentru elevii Republicii Moldova.",
+    "Platforma educațională Guguță pentru elevii Republicii Moldova.",
 };
 
 export default function RootLayout({

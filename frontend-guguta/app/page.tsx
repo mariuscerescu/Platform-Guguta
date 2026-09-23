@@ -3,19 +3,16 @@ import { withBase } from "../lib/paths";
 
 export default function LandingPage() {
   return (
-    <section className="landing-card" aria-labelledby="hero-title">
+    <section className="landing-card" aria-label="Platforma educațională Guguță">
       <div className="landing-hero">
         <div className="hero-copy">
-          <h1 id="hero-title">
-            Învață cu <span>materialele</span>
-          </h1>
           <p>
             Carnete digitale care te ajută să înțelegi mai ușor, să pui
             întrebări și să înveți din propriile tale materiale școlare, cu
             ajutorul inteligenței artificiale.
           </p>
           <div className="hero-actions">
-            <AuthEntryLink className="primary-action">Deschide Guguță</AuthEntryLink>
+            <AuthEntryLink className="primary-action">Accesează materialele din platformă</AuthEntryLink>
           </div>
           <div className="hero-benefits" aria-label="Avantaje">
             <div className="benefit">

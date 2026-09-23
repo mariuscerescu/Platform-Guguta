@@ -1928,16 +1928,6 @@ main.container {
   white-space: nowrap;
 }
 
-.audio-local-note {
-  margin: -4px 0 18px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  background: #f4f8fe;
-  color: var(--text-secondary);
-  font-size: 0.8rem;
-  line-height: 1.45;
-}
-
 .error-text {
   color: var(--red);
   font-weight: 700;
@@ -5344,4 +5334,32 @@ main.container:has(> .nb-shell) {
   .nb-grid .panel-head > .icon-btn {
     transition: none;
   }
+}
+
+/* Numele complet al platformei rămâne vizibil și în antetele înguste. */
+.wordmark { line-height: 1.18; }
+
+@media (max-width: 720px) {
+  .header:not(.header-product) .wordmark {
+    font-size: clamp(1.15rem, 5vw, 1.5rem);
+  }
+
+  .header-product {
+    flex-wrap: wrap;
+    padding-block: 8px;
+  }
+
+  .header-product .wordmark {
+    flex: 1 1 100%;
+    font-size: 1.15rem;
+  }
+
+  .header-product .top-nav { margin-left: 0; }
+
+  .nb-header { flex-wrap: wrap; }
+  .nb-brand {
+    flex: 1 1 100%;
+    font-size: 1.05rem;
+  }
+  .nb-brand-divider { display: none; }
 }
