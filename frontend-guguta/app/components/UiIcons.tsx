@@ -39,6 +39,24 @@ export function MaterialsIcon(props: IconProps) {
   );
 }
 
+export function BookIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <path d="M12 6c-2.3-1.5-5-1.8-8-1.5v14c3-.3 5.7 0 8 1.5 2.3-1.5 5-1.8 8-1.5v-14c-3-.3-5.7 0-8 1.5Z" />
+      <path d="M12 6v14" />
+    </IconBase>
+  );
+}
+
+export function VideoIcon(props: IconProps) {
+  return (
+    <IconBase {...props}>
+      <rect x="3" y="5" width="18" height="14" rx="2.5" />
+      <path d="m10 9 5 3-5 3V9Z" fill="currentColor" stroke="none" />
+    </IconBase>
+  );
+}
+
 export function ChatIcon(props: IconProps) {
   return (
     <IconBase {...props}>

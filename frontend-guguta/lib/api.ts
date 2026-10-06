@@ -178,6 +178,7 @@ export interface Notebook {
   description?: string | null;
   status: string;
   origin: string;
+  current_template_version_id?: string | null;
   context_revision: number;
   created_at?: string;
   source_count?: number;
@@ -193,6 +194,9 @@ export interface Source {
   status_detail?: string | null;
   selected_for_chat: boolean;
   material_version_id: string;
+  source_kind?: string;
+  mime_type?: string;
+  original_name?: string | null;
 }
 
 export interface CatalogTemplate {
@@ -203,6 +207,7 @@ export interface CatalogTemplate {
   class_level?: string | null;
   discipline?: string | null;
   current_version?: number | null;
+  current_version_id?: string | null;
   material_count: number;
 }
 

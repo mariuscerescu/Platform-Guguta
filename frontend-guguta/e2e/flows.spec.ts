@@ -29,8 +29,7 @@ async function login(page: Page, name: string) {
     throw new Error(`dev-login a eșuat: ${resp.status()} ${resp.url()}`);
   }
   await page.waitForURL("**/app");
-  // session must actually work before the test proceeds — the homepage
-  // renders the "Carnetele mele" heading even when NOT authenticated
+  // Wait for the authenticated session before using notebook actions.
   await page.waitForFunction(
     async () => {
       const r = await fetch("/guguta-api/api/v1/auth/me", {
@@ -58,7 +57,8 @@ test.describe.serial("Fluxuri Guguță E2E", () => {
 
   test("P02 · creare carnet și navigare în carnet", async ({ page }) => {
     await login(page, `E2E User ${UNIQUE}`);
-    await page.getByRole("button", { name: "+ Carnet nou" }).click();
+    await page.getByRole("button", { name: "Carnet nou" }).click();
+    await page.getByRole("button", { name: "Creează carnet" }).click();
     await page.waitForURL(/\/notebook\/[0-9a-f-]+$/);
     notebookUrl = page.url();
     await expect(page.getByRole("tab", { name: "Materiale" })).toBeVisible();
@@ -260,12 +260,12 @@ test.describe.serial("Fluxuri Guguță E2E", () => {
     page.once("dialog", (d) => void d.accept());
     await page.getByRole("button", { name: "Șterge" }).click();
     await page.waitForURL("**/app");
-    await expect(page.getByRole("heading", { name: "Carnetele mele" })).toBeVisible();
+    await expect(page.getByRole("tab", { name: "Carnetele mele" })).toBeVisible();
   });
 
   test("P13 · catalogul școlar: chip și căutare", async ({ page }) => {
     await login(page, `E2E Catalog ${UNIQUE}`);
-    await page.getByRole("button", { name: "Carnete școlare" }).click();
+    await page.getByRole("tab", { name: "Carnete școlare" }).click();
     await expect(
       page.getByRole("heading", { name: "Carnete școlare" }),
     ).toBeVisible();

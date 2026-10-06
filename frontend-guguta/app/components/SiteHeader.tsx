@@ -66,16 +66,6 @@ export default function SiteHeader() {
       <a href={withBase("/")} className="wordmark" aria-label="Platforma educațională Guguță" title="Platforma educațională Guguță">
         <span>Platforma educațională Guguță</span>
       </a>
-      <nav className="top-nav" aria-label="Navigare principală">
-        {isProductPage && (
-          <a href={withBase("/app")} aria-current={isLibraryPage ? "page" : undefined}>
-            Carnetele mele
-          </a>
-        )}
-        <a href={withBase("/import")} aria-current={isImportPage ? "page" : undefined}>
-          Importă
-        </a>
-      </nav>
       {isLanding && (
         <div className="header-actions">
           <AuthEntryLink className="header-login" next="/app">

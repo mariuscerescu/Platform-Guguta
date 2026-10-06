@@ -11,6 +11,7 @@ import SourceUploader from "../../components/SourceUploader";
 import MarkdownContent from "../../components/MarkdownContent";
 import {
   AudioIcon,
+  BookIcon,
   CardsIcon,
   ChatIcon,
   MaterialsIcon,
@@ -22,6 +23,7 @@ import {
   ShareIcon,
   StudioIcon,
   TrashIcon,
+  VideoIcon,
 } from "../../components/UiIcons";
 import { withBase, API_BASE } from "../../../lib/paths";
 
@@ -112,6 +114,29 @@ type MobilePanel = "materials" | "chat" | "studio";
  */
 function answerText(text: string): string {
   return SHOW_ANSWER_REFERENCES ? text : withoutReferenceMarkers(text);
+}
+
+type SourceIconType = "book" | "quiz" | "audio" | "video" | "document";
+
+function sourceIconType(source: Source): SourceIconType {
+  const mime = (source.mime_type ?? "").toLowerCase();
+  const name = source.local_name.toLowerCase();
+  const original = (source.original_name ?? "").toLowerCase();
+  if (mime.startsWith("audio/") || /\.(mp3|wav|m4a|ogg)$/.test(original) || /^(audio|înregistrare audio)\b/.test(name)) return "audio";
+  if (mime.startsWith("video/") || /\.(mp4|webm|mov)$/.test(original) || /^(lecție video|video)\b/.test(name)) return "video";
+  if (/(?:test|quiz|evaluare|exerciți|exerciti|fișă de lucru|fisa de lucru)/.test(name)) return "quiz";
+  if (mime === "application/pdf" || original.endsWith(".pdf") || /^(manual|carte)\b/.test(name)) return "book";
+  return "document";
+}
+
+function SourceTypeIcon({ source }: { source: Source }) {
+  switch (sourceIconType(source)) {
+    case "book": return <BookIcon />;
+    case "quiz": return <QuizIcon />;
+    case "audio": return <AudioIcon />;
+    case "video": return <VideoIcon />;
+    default: return <MaterialsIcon />;
+  }
 }
 
 export default function NotebookPage() {
@@ -1044,7 +1069,7 @@ export default function NotebookPage() {
                   className={`rail-source ${source.selected_for_chat ? "selected" : ""} ${source.status}`}
                   title={source.local_name}
                 >
-                  <MaterialsIcon />
+                  <SourceTypeIcon source={source} />
                   {source.status === "processing" && <span className="rail-status-dot" />}
                 </span>
               ))}
@@ -1075,11 +1100,8 @@ export default function NotebookPage() {
                       }
                     />
                   </label>
-                  <span className="src-doc">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
-                      <path d="M7 3h7l4 4v14H7z" strokeLinejoin="round" />
-                      <path d="M14 3v4h4" strokeLinejoin="round" />
-                    </svg>
+                  <span className={`src-doc source-type-${sourceIconType(s)}`} title={sourceIconType(s) === "book" ? "Carte / PDF" : sourceIconType(s) === "quiz" ? "Test" : sourceIconType(s) === "audio" ? "Audio" : sourceIconType(s) === "video" ? "Video" : "Document"}>
+                    <SourceTypeIcon source={s} />
                   </span>
                   <span className="src-name" title={s.local_name}>{s.local_name}</span>
                   {/* Cât timp workerul procesează, fișierul primește doar

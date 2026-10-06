@@ -1,13 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, me, CatalogTemplate, Notebook } from "../../lib/api";
 import NotebookMenu from "../components/NotebookMenu";
 import { withBase, API_BASE } from "../../lib/paths";
 
 type Tab = "mine" | "school";
 type View = "tiles" | "rows";
-type Sort = "recent" | "title";
+type Sort = "recent" | "title" | "class";
 interface ImportPreview { snapshot_id:string; title:string; description?:string|null; material_count:number; materials:string[]; expires_at?:string|null; }
 
 /* minimal SVG icons — no emoji (design decision) */
@@ -62,6 +62,21 @@ function NotebookIcon({ origin }: { origin: string }) {
   return <IconDoc />;
 }
 
+function classNumber(level: string | null | undefined, title: string): number {
+  const roman: Record<string, number> = { I: 1, II: 2, III: 3, IV: 4, V: 5, VI: 6, VII: 7, VIII: 8, IX: 9, X: 10, XI: 11, XII: 12 };
+  const candidates = [
+    /^(?:clasa\s+)?(?:a\s+)?(\d{1,2}|[IVX]+)(?:\s*[-–]\s*a)?$/i.exec(level?.trim() ?? "")?.[1],
+    /\bclasa\s+(?:a\s+)?(\d{1,2}|[IVX]+)\b/i.exec(title)?.[1],
+  ];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const raw = candidate.toUpperCase();
+    const number = roman[raw] ?? Number(raw);
+    if (Number.isInteger(number) && number > 0) return number;
+  }
+  return Number.MAX_SAFE_INTEGER;
+}
+
 function formatDate(iso?: string) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -84,6 +99,8 @@ export default function HomePage() {
   const [search, setSearch] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const createMenuRef = useRef<HTMLDivElement>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [importToken, setImportToken] = useState("");
   const [importing, setImporting] = useState(false);
@@ -117,7 +134,32 @@ export default function HomePage() {
     })();
   }, [loadNotebooks]);
 
+  useEffect(() => {
+    if (!createMenuOpen) return;
+    function closeOnOutsideClick(event: MouseEvent) {
+      if (!createMenuRef.current?.contains(event.target as Node)) setCreateMenuOpen(false);
+    }
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setCreateMenuOpen(false);
+    }
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [createMenuOpen]);
+
+  function openImport() {
+    setCreateMenuOpen(false);
+    setImportOpen(true);
+    setImportPreview(null);
+    setImportedNotebookId(null);
+    setImportToken("");
+  }
+
   async function createNotebook() {
+    setCreateMenuOpen(false);
     setCreating(true);
     setError(null);
     try {
@@ -148,6 +190,22 @@ export default function HomePage() {
     }
   }
 
+  function openSchoolTemplate(template: CatalogTemplate) {
+    if (!authed) {
+      window.location.href = withBase("/login");
+      return;
+    }
+    const owned = notebooks?.find((notebook) =>
+      notebook.origin === "school" &&
+      notebook.current_template_version_id === template.current_version_id
+    );
+    if (owned) {
+      window.location.href = withBase(`/notebook/${owned.id}`);
+      return;
+    }
+    void instantiate(template.id);
+  }
+
   async function importPackage() {
     if (!importToken.trim()) return;
     setImporting(true);
@@ -175,7 +233,14 @@ export default function HomePage() {
   const filtered = useMemo(() => {
     if (tab === "school" || !notebooks) return null;
     const q = search.trim().toLowerCase();
-    const sorted = [...notebooks].sort((a, b) => {
+    const sorted = notebooks.filter((notebook) =>
+      notebook.origin !== "school" && !(
+        notebook.origin === "template" &&
+        notebooks.some((school) => school.origin === "school" &&
+          school.current_template_version_id &&
+          school.current_template_version_id === notebook.current_template_version_id)
+      )
+    ).sort((a, b) => {
       // Fixate sus: ordinea de fixare (cea mai recent fixată deasupra) are
       // prioritate față de sortarea aleasă; restul rămân sortate ca înainte.
       if (a.pinned && b.pinned) {
@@ -185,7 +250,11 @@ export default function HomePage() {
       } else if (a.pinned !== b.pinned) {
         return a.pinned ? -1 : 1;
       }
-      if (sort === "title") return a.title.localeCompare(b.title, "ro");
+      if (sort === "class") {
+        const byClass = classNumber(null, a.title) - classNumber(null, b.title);
+        if (byClass) return byClass;
+      }
+      if (sort === "title" || sort === "class") return a.title.localeCompare(b.title, "ro");
       return (b.created_at ?? "").localeCompare(a.created_at ?? "");
     });
     return q ? sorted.filter((n) => n.title.toLowerCase().includes(q)) : sorted;
@@ -195,44 +264,46 @@ export default function HomePage() {
     if (tab !== "school" || !catalog) return null;
     const q = search.trim().toLowerCase();
     const sorted = [...catalog].sort((a, b) => {
-      if (sort === "title") return a.title.localeCompare(b.title, "ro");
-      return 0;
+      const byClass = classNumber(a.class_level, a.title) - classNumber(b.class_level, b.title);
+      return byClass || a.title.localeCompare(b.title, "ro");
     });
     return q ? sorted.filter((t) => t.title.toLowerCase().includes(q)) : sorted;
-  }, [catalog, tab, search, sort]);
+  }, [catalog, tab, search]);
 
   const loadingCards = Array.from({ length: 4 }, (_, i) => i);
 
   return (
     <div className="library-shell">
-      <section className="library-heading" aria-labelledby="library-title">
-        <div>
-          <h1 id="library-title">Carnetele mele</h1>
-          <p>Organizează materialele, continuă conversațiile și creează resurse de studiu.</p>
-        </div>
+      <section className="library-heading" aria-label="Acțiuni pentru carnete">
         <div className="library-primary-actions">
-          <button
-            className="library-import-btn"
-            onClick={() => {setImportOpen(true);setImportPreview(null);setImportedNotebookId(null);setImportToken("");}}
-            disabled={!authed}
-            title="Importă un carnet primit prin link sau cod"
-          >
-            <IconDownload />
-            <span>Importă carnet</span>
-          </button>
-          <button
-            className="create-btn"
-            onClick={createNotebook}
-            disabled={creating || !authed}
-          >
-            <IconPlus />
-            <span>{creating ? "Se creează…" : "Carnet nou"}</span>
-          </button>
+          <div className="library-create-menu" ref={createMenuRef}>
+            <button
+              type="button"
+              className="create-btn library-create-trigger"
+              aria-expanded={createMenuOpen}
+              aria-controls="create-notebook-options"
+              onClick={() => setCreateMenuOpen((open) => !open)}
+              disabled={creating || !authed}
+            >
+              <IconPlus />
+              <span>{creating ? "Se creează…" : "Carnet nou"}</span>
+            </button>
+            {createMenuOpen && (
+              <div className="library-create-options" id="create-notebook-options">
+                <button type="button" onClick={() => void createNotebook()}>
+                  <IconPlus />
+                  <span>Creează carnet</span>
+                </button>
+                <button type="button" onClick={openImport}>
+                  <IconDownload />
+                  <span>Importă carnet</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-      </section>
-
-      {/* Toolbar — navigare stânga; căutare, vedere și sortare dreapta. */}
-      <div className="toolbar">
+        {/* Filele și instrumentele folosesc același rând cu butonul de creare. */}
+        <div className="toolbar">
         <div className="library-tabs" role="tablist" aria-label="Tipul carnetelor">
           <button
             role="tab"
@@ -295,14 +366,17 @@ export default function HomePage() {
         </div>
         <select
           className="select-pill"
-          value={sort}
+          value={tab === "school" ? "class" : sort}
           onChange={(e) => setSort(e.target.value as Sort)}
           aria-label="Sortare"
+          disabled={tab === "school"}
         >
-          <option value="recent">Cele mai recente</option>
-          <option value="title">După titlu</option>
+          {tab === "mine" && <option value="recent">Cele mai recente</option>}
+          {tab === "mine" && <option value="title">După titlu</option>}
+          <option value="class">După clasă</option>
         </select>
-      </div>
+        </div>
+      </section>
 
       {error && <p className="error-text" style={{ padding: "0 24px" }}>{error}</p>}
 
@@ -449,24 +523,7 @@ export default function HomePage() {
       {tab === "school" && (
         <>
           <h2 className="section-title">Carnete școlare</h2>
-          {authed === null ? (
-            <div className="grid-cards" aria-label="Se încarcă catalogul școlar">
-              {loadingCards.map((i) => (
-                <div className="nb-card skeleton-card" key={i}>
-                  <span className="skeleton-icon" />
-                  <span className="skeleton-line wide" />
-                  <span className="skeleton-line" />
-                </div>
-              ))}
-            </div>
-          ) : !authed ? (
-            <div className="empty-state">
-              <p>Autentifică-te ca să poți începe un carnet din catalogul școlar.</p>
-              <a href={withBase("/login")} className="create-btn" style={{ display: "inline-flex" }}>
-                Autentificare
-              </a>
-            </div>
-          ) : catalogFiltered === null ? (
+          {catalogFiltered === null ? (
             <div className="grid-cards" aria-label="Se încarcă catalogul școlar">
               {loadingCards.map((i) => (
                 <div className="nb-card skeleton-card" key={i}>
@@ -480,20 +537,61 @@ export default function HomePage() {
             <div className="empty-state">
               <p>Catalogul școlar nu are încă carnete publicate.</p>
             </div>
+          ) : view === "rows" ? (
+            <table className="nb-table" aria-label="Carnete școlare">
+              <thead>
+                <tr>
+                  <th className="col-title">Titlu</th>
+                  <th>Materiale</th>
+                  <th>Clasa</th>
+                  <th>Disciplina</th>
+                  <th className="col-menu" />
+                </tr>
+              </thead>
+              <tbody>
+                {catalogFiltered.map((template) => (
+                  <tr
+                    key={template.id}
+                    tabIndex={importing ? -1 : 0}
+                    aria-disabled={importing || undefined}
+                    onClick={() => !importing && openSchoolTemplate(template)}
+                    onKeyDown={(event) => {
+                      if ((event.key === "Enter" || event.key === " ") && !importing) {
+                        event.preventDefault();
+                        openSchoolTemplate(template);
+                      }
+                    }}
+                    title={template.description ?? template.title}
+                  >
+                    <td className="col-title">
+                      <span className="nb-icon-sm"><IconBook /></span>
+                      <span className="table-title">{template.title}</span>
+                    </td>
+                    <td>
+                      {template.material_count}{" "}
+                      {template.material_count === 1 ? "material" : "materiale"}
+                    </td>
+                    <td>{template.class_level ?? "—"}</td>
+                    <td>{template.discipline ?? "—"}</td>
+                    <td className="col-menu" />
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           ) : (
-            <div
-              className="grid-cards"
-              style={view === "rows" ? { gridTemplateColumns: "1fr" } : undefined}
-            >
+            <div className="grid-cards">
               {catalogFiltered.map((t) => (
                 <div
                   className="nb-card"
                   key={t.id}
                   role="button"
                   tabIndex={0}
-                  onClick={() => !importing && instantiate(t.id)}
+                  onClick={() => !importing && openSchoolTemplate(t)}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter" && !importing) void instantiate(t.id);
+                    if ((e.key === "Enter" || e.key === " ") && !importing) {
+                      e.preventDefault();
+                      openSchoolTemplate(t);
+                    }
                   }}
                   title={t.description ?? t.title}
                 >
@@ -507,7 +605,11 @@ export default function HomePage() {
                       {t.material_count} materiale
                     </p>
                     <p className="nb-meta" style={{ marginTop: 8 }}>
-                      Se creează o copie personală, editabilă independent.
+                      {!authed
+                        ? "Autentifică-te pentru a începe."
+                        : notebooks?.some((notebook) => notebook.origin === "school" && notebook.current_template_version_id === t.current_version_id)
+                          ? "Deschide carnetul școlar."
+                          : "Se creează o copie personală, editabilă independent."}
                     </p>
                   </div>
                 </div>
