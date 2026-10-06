@@ -4,12 +4,15 @@ import json
 import uuid
 
 import pytest
+from httpx import MockTransport, Response
 from sqlalchemy import text
 
 from api.services.guguta.chat_agent import NotebookChatAgent
 from api.services.guguta.pdf_evidence import PdfPageEvidence
 from open_notebook.ai.guguta.chat import ChatAnswer
+from open_notebook.ai.guguta.openrouter import OpenRouterChatProvider
 from open_notebook.auth.guguta.actor import ActorContext
+from open_notebook.database.guguta.config import GugutaConfig
 from open_notebook.storage.guguta.filesystem import FilesystemStorage
 from tests.guguta.test_chat_agent import turn
 from tests.guguta.test_materials_worker import _cookies, _headers
@@ -19,6 +22,107 @@ from tests.guguta.test_search_chat import worker as worker_fixture
 
 client = client_fixture
 worker = worker_fixture
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("streaming", [False, True])
+async def test_tutoring_followup_saves_uncited_answer_with_previous_page_context(
+    client, worker, streaming
+):
+    data = await _setup_notebook_with_pdf(
+        client,
+        worker,
+        "Tutor " + uuid.uuid4().hex[:8],
+        "Exercise 3: complete the hands on each clock in the picture.",
+    )
+    nb = data["notebook"]["id"]
+    app = client._transport.app
+    service = app.state.guguta_chat
+    stages = []
+
+    def response(request):
+        body = json.loads(request.content)
+        if "tools" in body:
+            stages.append("tools")
+            return Response(
+                200,
+                json={
+                    "choices": [
+                        {
+                            "finish_reason": "stop",
+                            "message": {"content": None},
+                        }
+                    ]
+                },
+            )
+        payload = json.loads(body["messages"][-1]["content"])
+        assert payload["untrusted_source_fragments"][0]["locator"]["page"] == 1
+        stages.append("review" if "untrusted_draft" in payload else "generation")
+        if payload["question"] == "pagina PDF 1":
+            paragraph = {"text": "Complete the clock hands.", "source_ids": ["F1"]}
+        else:
+            paragraph = {"text": "În engleză: It's nine o'clock.", "source_ids": []}
+        return Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "finish_reason": "stop",
+                        "message": {
+                            "content": json.dumps({"paragraphs": [paragraph]}),
+                        },
+                    }
+                ]
+            },
+        )
+
+    service._provider = OpenRouterChatProvider(
+        GugutaConfig(
+            _env_file=None,
+            openrouter_api_key="synthetic-tutor-key",
+            chat_answer_review=True,
+        ),
+        transport=MockTransport(response),
+    )
+    auth = {"cookies": _cookies(data["auth"]), "headers": _headers(data["auth"])}
+    session = (
+        await client.post(
+            f"/api/v1/notebooks/{nb}/sessions",
+            json={},
+            **auth,
+        )
+    ).json()["id"]
+    path = f"/api/v1/notebooks/{nb}/sessions/{session}/messages"
+    first = await client.post(path, json={"content": "pagina PDF 1"}, **auth)
+    assert first.status_code == 200, first.text
+    service._agent = NotebookChatAgent(app.state.guguta_search, None)
+    result = await client.post(
+        path + ("/stream" if streaming else ""),
+        json={"content": "cum va fi în engleză ora 9 fix?"},
+        **auth,
+    )
+    assert result.status_code == 200, result.text
+    if streaming:
+        events = [
+            json.loads(line[6:])
+            for line in result.text.splitlines()
+            if line.startswith("data: ")
+        ]
+        assert not any(e["event"] == "error" for e in events), events
+        saved = next(e for e in events if e["event"] == "done")
+    else:
+        saved = result.json()
+    messages = (await client.get(path, **auth)).json()
+    assert messages[-1]["content"] == "În engleză: It's nine o'clock."
+    assert messages[-1]["status"] == "complete"
+    citations = (
+        await client.get(
+            path + f"/{saved['assistant_message_id']}/citations",
+            **auth,
+        )
+    ).json()
+    assert citations == [] and saved["cited"] == 0
+    assert stages == ["generation", "review", "tools", "generation", "review"]
 
 
 @pytest.mark.asyncio

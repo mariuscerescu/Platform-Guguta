@@ -121,7 +121,13 @@ Fluxul țintă: autentificare → verificare carnet/selecție → recuperare de 
 
 Pentru PDF se păstrează numărul paginii fizice atunci când parserul îl furnizează; numărul tipărit poate fi diferit. Pentru DOCX/TXT se citează fragmentul/secțiunea, iar pentru PPTX slide-ul dacă este disponibil. Pagini și referințe inexistente nu se inventează. Validarea tehnică a ID-ului nu dovedește că afirmația este susținută: corectitudinea se evaluează și pedagogic.
 
-Nu se activează căutarea liberă pe internet sau un mod general implicit. Fără materiale eligibile, interfața cere adăugarea/selectarea lor. Nu se trimite întregul manual doar pentru că există un mod upstream „full content”; strategia și bugetul se validează pe manuale lungi.
+Tutorele poate explica, traduce și preda reguli generale chiar dacă acestea nu
+apar în fragmentele recuperate sau nu există materiale eligibile. Citează numai
+afirmațiile susținute de materiale și nu inventează conținutul documentelor ori
+datele unui exercițiu. Cererile explicite de răspuns exclusiv din materiale
+respectă această limită; lipsa dovezilor este semnalată. Vezi ADR-017.
+
+Nu se activează căutarea liberă pe internet. Nu se trimite întregul manual doar pentru că există un mod upstream „full content”; strategia și bugetul se validează pe manuale lungi.
 
 Sesiunile rămân private. Istoricul durabil, memoria de execuție, cache-urile, streamingul, exportul și eventualele joburi de chat trebuie să respecte aceeași proprietate și revizie de context.
 

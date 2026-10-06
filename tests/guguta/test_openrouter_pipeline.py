@@ -101,7 +101,7 @@ async def run_pipeline(guguta_db, tmp_path, monkeypatch, live):
             assert citations and all(str(c["notebook_source_id"]) != source_ids[2] for c in citations)
             async with actor_connection(app.state.guguta_engine, uuid.UUID(login.json()["id"])) as conn:
                 row = (await conn.execute(text("SELECT model,prompt_tokens,completion_tokens,prompt_version FROM chat_messages WHERE id=:id"), {"id": uuid.UUID(answer["id"])})).mappings().one()
-            assert row["model"] == cfg.openrouter_chat_model and row["prompt_version"] == "guguta-openrouter-grounded-9"
+            assert row["model"] == cfg.openrouter_chat_model and row["prompt_version"] == "guguta-openrouter-grounded-10"
             assert row["prompt_tokens"] > 0 and row["completion_tokens"] > 0
             if not live:
                 assert answer["content"].endswith("[2] [1]")

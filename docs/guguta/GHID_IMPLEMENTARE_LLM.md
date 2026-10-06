@@ -283,6 +283,13 @@ Definește bugetele pentru istoric, fragmente, prompt și răspuns. Nu tăia în
 
 Promptul de sistem trebuie să definească rolul educațional, clasa, limba, citările și comportamentul când sursele nu sunt suficiente. Instrucțiunile din fișiere nu pot modifica permisiuni sau activa instrumente.
 
+Tutorele poate folosi cunoștințe generale pentru traduceri, gramatică, definiții,
+explicații, exemple și metode de rezolvare, fără să ceară ca regula să apară în
+material. Paragrafele respective nu primesc citări inventate. Afirmațiile despre
+conținutul unei pagini, imaginile sau enunțul unui exercițiu și cererile exclusiv
+din surse necesită dovezi autorizate. Generarea și verificarea răspunsului
+respectă aceeași regulă; vezi ADR-017.
+
 Nu promite că promptul singur previne prompt injection. În MVP nu activa instrumente cu efect extern ori acces liber la filesystem/web. Datele sunt autorizate înainte de a ajunge la model.
 
 Validează citările: identificator în setul furnizat, asociere locală validă, versiune și locator real. Pentru afirmații verifică susținerea prin evaluări umane/automate separate. Nu fabrica pagini pentru DOCX.

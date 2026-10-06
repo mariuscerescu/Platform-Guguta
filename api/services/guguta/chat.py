@@ -59,7 +59,7 @@ class SourcesRequired(OpenNotebookError):
 
     Păstrat pentru contractul de erori al API-ului, dar **nu mai este ridicat**:
     întrebarea se acceptă și fără materiale selectate, iar răspunsul de atunci
-    declară lipsa dovezilor și nu conține citări.
+    poate explica din cunoștințe generale fără citări inventate.
     """
 
 
@@ -160,7 +160,7 @@ class ChatService:
                 )
 
             # Întrebarea se salvează și fără dovezi; furnizorul răspunde atunci
-            # cu o abținere utilă, nu cu fapte din memoria modelului.
+            # educațional fără citări, ori cere datele concrete care lipsesc.
             seq = (
                 await conn.execute(
                     text("SELECT coalesce(max(seq), 0) + 1 FROM chat_messages WHERE session_id = :sid"),
@@ -511,7 +511,7 @@ class ChatService:
             if context_revision != revision:
                 raise IdempotencyConflict("Materialele s-au schimbat în timpul căutării; repetă întrebarea.")
             # Ca și pe fluxul cu streaming, întrebarea trece și fără dovezi;
-            # răspunsul este o abținere fără citări.
+            # tutorele poate explica fără a inventa citări sau date de exercițiu.
 
             # F07: the model context includes only messages generated under the
             # CURRENT revision. Older messages stay visible in UI history but

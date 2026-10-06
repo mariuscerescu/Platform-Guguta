@@ -4,6 +4,10 @@
 
 Accepted — 2026-09-18
 
+The blanket general-knowledge prohibition below is superseded by
+[ADR-017](ADR-017-source-aware-educational-tutor.md) for educational tutoring.
+Document-specific claims and explicit source-only requests remain grounded.
+
 ## Context
 
 The chat previously retrieved with the literal user question and, when no

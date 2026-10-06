@@ -113,7 +113,7 @@ async def test_server_renders_dense_citations_in_first_use_order():
     assert answer.cited == [2, 0]
     assert answer.prompt_tokens == 91 and answer.completion_tokens == 12
     assert answer.estimated_cost == 0
-    assert answer.prompt_version == "guguta-openrouter-grounded-9"
+    assert answer.prompt_version == "guguta-openrouter-grounded-10"
 
 
 @pytest.mark.asyncio
@@ -129,22 +129,69 @@ async def test_inline_labels_do_not_define_citations_or_rewrite_math():
 
 
 @pytest.mark.asyncio
-async def test_without_materials_returns_uncited_abstention():
+async def test_without_materials_accepts_uncited_educational_answer():
     def response(request):
         body = json.loads(request.content)
         payload = json.loads(body["messages"][-1]["content"])
         assert payload["untrusted_source_fragments"] == []
         sources_schema = body["response_format"]["json_schema"]["schema"]["properties"]["paragraphs"]["items"]["properties"]["source_ids"]
         assert sources_schema["maxItems"] == 0
-        assert "nu răspunde din cunoștințele generale" in body["messages"][0]["content"]
         return httpx.Response(200, json=completion(document(
-            "Dovezile relevante lipsesc. Adaugă un material.", [],
+            "Gravitația este atracția dintre corpuri care au masă.", [],
         )))
     provider = OpenRouterChatProvider(config(chat_answer_review=True),
                                       transport=httpx.MockTransport(response))
     answer = await provider.generate("Ce este gravitația?", [], [])
     assert answer.cited == []
-    assert answer.content == "Dovezile relevante lipsesc. Adaugă un material."
+    assert answer.content == "Gravitația este atracția dintre corpuri care au masă."
+
+
+@pytest.mark.asyncio
+async def test_general_translation_remains_uncited_after_review_with_page_context():
+    calls = []
+    translated = document("În engleză: It's nine o'clock.", [])
+
+    def response(request):
+        body = json.loads(request.content)
+        payload = json.loads(body["messages"][-1]["content"])
+        calls.append(payload)
+        assert payload["untrusted_source_fragments"][0]["id"] == "F1"
+        if "untrusted_draft" in payload:
+            assert payload["untrusted_draft"] == translated
+        return httpx.Response(200, json=completion(translated))
+
+    provider = OpenRouterChatProvider(
+        config(chat_answer_review=True), transport=httpx.MockTransport(response),
+    )
+    answer = await provider.generate(
+        "cum va fi în engleză ora 9 fix?",
+        [SimpleNamespace(text="Exercise 3: draw clock hands.", locator={"page": 68})],
+        [],
+    )
+    assert len(calls) == 2 and "untrusted_draft" in calls[1]
+    assert answer.content == "În engleză: It's nine o'clock."
+    assert answer.cited == []
+
+
+@pytest.mark.asyncio
+async def test_mixed_teaching_answer_only_cites_the_material_fact():
+    mixed = {"paragraphs": [
+        {"text": "Exercițiul cere să completezi acele ceasurilor.", "source_ids": ["F1"]},
+        {"text": "Pentru o oră exactă, folosești o'clock.", "source_ids": []},
+    ]}
+    provider = OpenRouterChatProvider(
+        config(chat_answer_review=True),
+        transport=httpx.MockTransport(lambda r: httpx.Response(200, json=completion(mixed))),
+    )
+    answer = await provider.generate(
+        "Ce cere exercițiul și cum exprim o oră exactă în engleză?",
+        [SimpleNamespace(text="Complete the clock hands.")], [],
+    )
+    assert answer.content == (
+        "Exercițiul cere să completezi acele ceasurilor. [1]\n\n"
+        "Pentru o oră exactă, folosești o'clock."
+    )
+    assert answer.cited == [0]
 
 
 @pytest.mark.asyncio
