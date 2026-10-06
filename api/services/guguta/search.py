@@ -14,7 +14,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from open_notebook.ai.guguta.openrouter import invoke
@@ -102,7 +102,7 @@ def _or_tsquery(query: str) -> str:
 
 @dataclass(frozen=True)
 class RetrievedChunk:
-    chunk_id: uuid.UUID
+    chunk_id: uuid.UUID | None
     text: str
     locator: dict[str, Any]
     notebook_source_id: uuid.UUID
@@ -125,6 +125,92 @@ class SearchService:
         self._engine = engine
         self._provider = vector_provider
         self._max_vector_distance = max_vector_distance
+
+    async def context_revision(
+        self, actor_id: uuid.UUID, notebook_id: uuid.UUID,
+    ) -> int | None:
+        """Read the current authorized notebook revision for an agent run."""
+        async with actor_connection(self._engine, actor_id) as conn:
+            return (await conn.execute(text(
+                "SELECT context_revision FROM digital_notebooks WHERE id=:nb"
+            ), {"nb": notebook_id})).scalar_one_or_none()
+
+    async def list_sources(
+        self, actor_id: uuid.UUID, notebook_id: uuid.UUID,
+    ) -> list[dict[str, Any]]:
+        """List only ready, selected sources visible to this actor."""
+        async with actor_connection(self._engine, actor_id) as conn:
+            rows = (await conn.execute(text(
+                "SELECT ns.id AS source_id,ns.local_name,sa.mime_type "
+                "FROM notebook_sources ns "
+                "JOIN material_versions mv ON mv.id=ns.material_version_id "
+                "LEFT JOIN source_assets sa ON sa.id=mv.source_asset_id "
+                "WHERE ns.notebook_id=:nb AND ns.selected_for_chat "
+                "AND ns.status='ready' ORDER BY ns.created_at,ns.id LIMIT 20"
+            ), {"nb": notebook_id})).mappings().all()
+        return [{"source_id": str(r["source_id"]), "name": r["local_name"],
+                 "mime_type": r["mime_type"]} for r in rows]
+
+    async def open_page(
+        self, actor_id: uuid.UUID, notebook_id: uuid.UUID,
+        source_id: uuid.UUID, page_number: int, *, page_kind: str = "page",
+    ) -> list[RetrievedChunk]:
+        """Read one exact page in one selected source; never guess offsets.
+
+        PDF pages without indexed text can still be opened as visual evidence.
+        Their citations have no chunk_id, retaining the original source/page.
+        """
+        if page_kind not in ("page", "printed_page") or type(page_number) is not int or page_number < 1:
+            raise ValueError("Identificatorul paginii este invalid.")
+        async with actor_connection(self._engine, actor_id) as conn:
+            source = (await conn.execute(text(
+                "SELECT ns.local_name,mv.id AS mv_id,sa.mime_type "
+                "FROM notebook_sources ns "
+                "JOIN material_versions mv ON mv.id=ns.material_version_id "
+                "LEFT JOIN source_assets sa ON sa.id=mv.source_asset_id "
+                "WHERE ns.notebook_id=:nb AND ns.id=:source "
+                "AND ns.selected_for_chat AND ns.status='ready'"
+            ), {"nb": notebook_id, "source": source_id})).mappings().first()
+            if source is None:
+                return []
+            rows = (await conn.execute(text(
+                "SELECT c.id,c.text,c.locator FROM chunks c "
+                "JOIN processing_artifacts pa ON pa.id=c.artifact_id "
+                "WHERE pa.material_version_id=:mv AND pa.status='complete' "
+                "AND c.locator->>:field=:page ORDER BY c.position,c.id LIMIT 8"
+            ), {"mv": source["mv_id"], "field": page_kind,
+                "page": str(page_number)})).mappings().all()
+        if rows:
+            return [RetrievedChunk(
+                r["id"], r["text"], r["locator"], source_id, source["mv_id"],
+                source["local_name"], 1.0, "locator",
+            ) for r in rows]
+        if page_kind == "page" and source["mime_type"] == "application/pdf":
+            return [RetrievedChunk(
+                None, "", {"page": page_number}, source_id, source["mv_id"],
+                source["local_name"], 1.0, "locator",
+            )]
+        return []
+
+    async def authorize_chunks(
+        self, actor_id: uuid.UUID, notebook_id: uuid.UUID,
+        chunks: list[RetrievedChunk],
+    ) -> list[RetrievedChunk]:
+        """Recheck source/version visibility before another model invocation."""
+        if not chunks:
+            return []
+        statement = text(
+            "SELECT ns.id,ns.material_version_id FROM notebook_sources ns "
+            "WHERE ns.notebook_id=:nb AND ns.id IN :sources "
+            "AND ns.selected_for_chat AND ns.status='ready'"
+        ).bindparams(bindparam("sources", expanding=True))
+        async with actor_connection(self._engine, actor_id) as conn:
+            rows = (await conn.execute(statement, {
+                "nb": notebook_id,
+                "sources": list({c.notebook_source_id for c in chunks}),
+            })).all()
+        allowed = set(rows)
+        return [c for c in chunks if (c.notebook_source_id, c.material_version_id) in allowed]
 
     async def search_notebook(
         self, actor_id: uuid.UUID, notebook_id: uuid.UUID, query: str, *,

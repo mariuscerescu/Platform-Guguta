@@ -19,7 +19,7 @@ import httpx
 from open_notebook.ai.guguta.chat import SYSTEM_PROMPT, ChatAnswer
 from open_notebook.exceptions import ExternalServiceError
 
-PROMPT_VERSION = "guguta-openrouter-grounded-8"
+PROMPT_VERSION = "guguta-openrouter-grounded-9"
 logger = logging.getLogger("guguta.openrouter")
 
 
@@ -205,6 +205,54 @@ class OpenRouterChatProvider:
         self._review_enabled = config.chat_answer_review
         self._client = OpenRouterClient(config, transport=transport)
 
+    async def choose_tools(
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Request native tool calls through the existing configured adapter.
+
+        The application executes validated allowlisted tools. Model prose is
+        discarded here; grounded answer generation remains a separate stage.
+        """
+        data = await self._client.post("chat/completions", {
+            "model": self.model_name, "messages": messages, "tools": tools,
+            "tool_choice": "auto", "max_tokens": min(1200, self._max_tokens),
+            "temperature": 0, "reasoning": {"enabled": False},
+            "provider": {"require_parameters": True},
+        })
+        try:
+            choice = data["choices"][0]
+            if choice["finish_reason"] not in ("stop", "tool_calls"):
+                raise ValueError()
+            calls = choice["message"].get("tool_calls") or []
+            if not isinstance(calls, list) or len(calls) > 4:
+                raise ValueError()
+            seen_ids = set()
+            cleaned = []
+            for call in calls:
+                call_id, function = call["id"], call["function"]
+                if (call.get("type") != "function" or not isinstance(call_id, str)
+                    or not 1 <= len(call_id) <= 200 or call_id in seen_ids
+                    or not isinstance(function["name"], str)
+                    or not re.fullmatch(r"[a-z_]{1,64}", function["name"])
+                    or not isinstance(function["arguments"], str)
+                    or len(function["arguments"]) > 4000):
+                    raise ValueError()
+                arguments = json.loads(function["arguments"])
+                if not isinstance(arguments, dict):
+                    raise ValueError()
+                seen_ids.add(call_id)
+                cleaned.append({"id": call_id, "type": "function", "function": {
+                    "name": function["name"], "arguments": json.dumps(arguments),
+                }})
+            if choice["finish_reason"] == "tool_calls" and not cleaned:
+                raise ValueError()
+            message = {"role": "assistant", "content": None}
+            if cleaned:
+                message["tool_calls"] = cleaned
+            return {"message": message, "usage": self._validated_usage(data)}
+        except (KeyError, IndexError, TypeError, ValueError):
+            raise OpenRouterError("Agentul AI a returnat un apel de unealtă invalid.") from None
+
     async def plan_queries(
         self, question: str, history: Sequence[dict[str, str]],
     ) -> list[str]:
@@ -271,7 +319,9 @@ class OpenRouterChatProvider:
             "Separă în paragrafe afirmațiile susținute de surse diferite. Poți cita "
             "mai multe fragmente pentru comparații sau contradicții. Dacă lista "
             "untrusted_source_fragments este vidă ori materialele nu oferă răspunsul, "
-            "spune exact că dovezile relevante lipsesc, propune următorul pas util, "
+            "spune concret ce dovezi relevante nu ai identificat în paginile "
+            "examinate, fără a afirma că întregul material nu conține informația; "
+            "propune următorul pas util, "
             "întoarce source_ids: [] în fiecare paragraf și nu răspunde din cunoștințele generale. "
             "Poți efectua calcule și deducții matematice din datele și regulile furnizate; "
             "nu refuza un calcul doar fiindcă rezultatul final nu este tipărit în manual. "
@@ -280,6 +330,13 @@ class OpenRouterChatProvider:
             "Răspunde la TOATE cerințele întrebării. Pentru localizare respectă exact pagina "
             "tipărită sau PDF și numărul exercițiului, fără a substitui altă pagină. "
             "Dacă există imagini ale paginilor, ele sunt dovezi din același material: "
+            "poți număra obiectele și interpreta ceasurile, tabelele și graficele "
+            "direct din ele chiar dacă rezultatul nu apare în textul OCR. "
+            "La numărarea obiectelor, verifică separat fiecare rând sau grup "
+            "vizual și însumează subtotalele; nu ghici după aspectul general. "
+            "La ceasuri diferențiază acul scurt al orelor de acul lung al minutelor. "
+            "Decupajele image_region arată numai regiunea indicată din pagina "
+            "originală: nu le considera pagini ori obiecte suplimentare. "
             "citește fracțiile, exponenții și schemele din imagine, deoarece textul OCR "
             "poate pierde simboluri sau ordinea lor. Imaginea originală are prioritate "
             "față de OCR în orice neconcordanță; nu reproduce formulele OCR corupte. "

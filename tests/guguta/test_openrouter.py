@@ -113,7 +113,7 @@ async def test_server_renders_dense_citations_in_first_use_order():
     assert answer.cited == [2, 0]
     assert answer.prompt_tokens == 91 and answer.completion_tokens == 12
     assert answer.estimated_cost == 0
-    assert answer.prompt_version == "guguta-openrouter-grounded-8"
+    assert answer.prompt_version == "guguta-openrouter-grounded-9"
 
 
 @pytest.mark.asyncio

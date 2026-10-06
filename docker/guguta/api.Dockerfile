@@ -26,6 +26,8 @@ RUN pip install --no-cache-dir \
     "liteparse==2.14.6" \
     "httpx>=0.27,<1" \
     "loguru>=0.7.2,<0.8" \
+    "langgraph==1.2.5" \
+    "langchain-core==1.4.7" \
     "python-dotenv>=1.2.2,<2"
 
 # Run as non-root (GHID §10.3); writable temp dirs declared below.
@@ -51,6 +53,7 @@ COPY api/services/guguta ./api/services/guguta
 COPY api/guguta_app.py api/guguta_app.py
 COPY scripts/guguta_reindex_openrouter.py scripts/guguta_reindex_openrouter.py
 COPY scripts/guguta_reindex_embeddings.py scripts/guguta_reindex_embeddings.py
+COPY scripts/guguta_agent_smoke.py scripts/guguta_agent_smoke.py
 
 # Build metadata (set via --build-arg from CI / docker build)
 ARG GUGUTA_COMMIT=unknown

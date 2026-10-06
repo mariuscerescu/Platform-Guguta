@@ -184,6 +184,15 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
             engine, FilesystemStorage(config.storage_root),
             max_pages=config.chat_pdf_image_max_pages,
         )
+    if config.chat_provider == "openrouter" and config.chat_agent_enabled:
+        from api.services.guguta.chat_agent import NotebookChatAgent
+
+        app.state.guguta_chat._agent = NotebookChatAgent(
+            app.state.guguta_search, app.state.guguta_chat._pdf_evidence,
+            max_rounds=config.chat_agent_max_rounds,
+            max_calls=config.chat_agent_max_tool_calls,
+            max_images=config.chat_agent_max_images,
+        )
     app.state.guguta_notes = NotesService(engine)
     app.state.guguta_audio_overviews = AudioOverviewService(
         engine, FilesystemStorage(config.storage_root)

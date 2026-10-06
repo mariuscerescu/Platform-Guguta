@@ -26,7 +26,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from api.services.guguta.search import RetrievedChunk, requested_page
-from open_notebook.ai.guguta.chat import ChatProvider
+from open_notebook.ai.guguta.chat import ChatAnswer, ChatProvider
 from open_notebook.ai.guguta.openrouter import invoke
 from open_notebook.auth.guguta.actor import ActorContext
 from open_notebook.database.guguta.engine import actor_connection
@@ -83,6 +83,7 @@ class ChatService:
         self._search = search
         self._provider = provider
         self._pdf_evidence = None
+        self._agent = None
         self._max_context_chars = max_context_chars
         self._max_history = max_history_messages
         # F09: a 'pending' generation older than this is recovered on retry
@@ -109,6 +110,7 @@ class ChatService:
             raise ChatValidation("Mesajul este vid.")
 
         # streaming nu folosește idempotency (faza 2 e incompletă până la done)
+        request_deadline = asyncio.get_running_loop().time() + self._total_timeout
 
         # Resolve follow-up references from the current-revision conversation
         # before retrieval. Provider calls remain outside DB transactions.
@@ -119,24 +121,19 @@ class ChatService:
             ), {"sid": session_id, "nb": notebook_id})).scalar_one_or_none()
             if snapshot is None:
                 raise ChatSessionNotFound()
-            history_rows = (await conn.execute(text(
-                "SELECT role, content FROM chat_messages WHERE session_id=:sid"
-                " AND context_revision=:rev ORDER BY seq DESC LIMIT :lim"
-            ), {"sid": session_id, "rev": int(snapshot),
-                "lim": self._max_history})).all()
-            history = [{"role": r[0], "content": r[1]} for r in reversed(history_rows)]
+            history = await self._history(conn, session_id, int(snapshot))
         try:
-            async with asyncio.timeout(self._total_timeout):
+            async with asyncio.timeout_at(request_deadline):
                 retrieval = await self._retrieve(
                     actor.actor_id, notebook_id, content, history,
                 )
+                context = self._budget(retrieval)
+                if self._pdf_evidence is not None:
+                    context = await self._pdf_evidence.enrich(actor.actor_id, notebook_id, context)
         except TimeoutError:
             raise ChatProviderUnavailable(
                 "Generarea a durat prea mult. Reîncercați peste câteva momente."
             ) from None
-        context = self._budget(retrieval)
-        if self._pdf_evidence is not None:
-            context = await self._pdf_evidence.enrich(actor.actor_id,notebook_id,context)
 
         # Phase 1 (single tx): validate session, save user message
         async with actor_connection(self._engine, actor.actor_id) as conn:
@@ -187,18 +184,21 @@ class ChatService:
             full_content = []
             answer = None
             loop = asyncio.get_running_loop()
-            deadline = loop.time() + self._total_timeout
+            deadline = request_deadline
             try:
                 yield json.dumps({"event": "user_saved", "user_message_id": str(user_msg_id)})
                 queue: asyncio.Queue[Any] = asyncio.Queue()
                 _STOP: dict[str, Any] = {"stop": True}
 
                 async def _pump() -> None:
-                    nonlocal answer
+                    nonlocal answer, context
                     try:
                         # Keep the complete validated answer on THIS request.
                         # A shared provider.last_cited can race across sessions.
-                        answer = await invoke(self._provider.generate,content,context,history)
+                        answer, context = await self._answer(
+                            actor.actor_id, notebook_id, content, context, history,
+                            context_revision=context_revision,
+                        )
                         for word in answer.content.split(" "):
                             await queue.put(word+" ")
                     except Exception as exc:  # propagate to the consumer
@@ -230,6 +230,7 @@ class ChatService:
                         yield json.dumps({"event": "token", "text": item})
                 finally:
                     pump_task.cancel()
+                    await asyncio.gather(pump_task, return_exceptions=True)
                 full_text = "".join(full_content).strip()
                 if not full_text:
                     raise ChatValidation("Răspunsul gol al modelului.")
@@ -465,15 +466,7 @@ class ChatService:
             ), {"sid": session_id, "nb": notebook_id})).scalar_one_or_none()
             if revision is None:
                 raise ChatSessionNotFound()
-            initial_history_rows = (await conn.execute(text(
-                "SELECT role, content FROM chat_messages WHERE session_id=:sid"
-                " AND context_revision=:rev ORDER BY seq DESC LIMIT :lim"
-            ), {"sid": session_id, "rev": int(revision),
-                "lim": self._max_history})).all()
-            initial_history = [
-                {"role": r[0], "content": r[1]}
-                for r in reversed(initial_history_rows)
-            ]
+            initial_history = await self._history(conn, session_id, int(revision))
         try:
             retrieval = await asyncio.wait_for(
                 self._retrieve(
@@ -485,7 +478,11 @@ class ChatService:
             raise ChatProviderUnavailable("Căutarea AI a depășit timpul de așteptare.") from None
         context = self._budget(retrieval)
         if self._pdf_evidence is not None:
-            context = await self._pdf_evidence.enrich(actor.actor_id,notebook_id,context)
+            try:
+                async with asyncio.timeout_at(deadline):
+                    context = await self._pdf_evidence.enrich(actor.actor_id, notebook_id, context)
+            except TimeoutError:
+                raise ChatProviderUnavailable("Încărcarea paginilor a depășit timpul de așteptare.") from None
 
         # Phase 1 (one transaction): lock session, validate, build context,
         # insert the user message + idempotency record. No AI call inside.
@@ -519,20 +516,7 @@ class ChatService:
             # F07: the model context includes only messages generated under the
             # CURRENT revision. Older messages stay visible in UI history but
             # never re-enter the prompt after a source change (A17).
-            history_rows = (
-                await conn.execute(
-                    text(
-                        "SELECT role, content FROM chat_messages WHERE session_id = :sid"
-                        " AND context_revision = :rev"
-                        " ORDER BY seq DESC LIMIT :lim"
-                    ),
-                    {"sid": session_id, "rev": context_revision,
-                     "lim": self._max_history},
-                )
-            ).all()
-            history = [
-                {"role": r[0], "content": r[1]} for r in reversed(history_rows)
-            ]
+            history = await self._history(conn, session_id, context_revision)
 
             seq = (
                 await conn.execute(
@@ -581,7 +565,7 @@ class ChatService:
 
         # Phase 2: generation OUTSIDE any DB transaction (GHID §4.5/§7).
         try:
-            answer = await asyncio.wait_for(invoke(self._provider.generate, content, context, history),
+            answer, context = await asyncio.wait_for(self._answer(actor.actor_id, notebook_id, content, context, history, context_revision=context_revision),
                                             timeout=max(0.001, deadline - asyncio.get_running_loop().time()))
         except Exception as exc:
             # A26 + F09: controlled provider failure. The user message remains
@@ -747,6 +731,49 @@ class ChatService:
                 {"a": actor.actor_id, "op": op, "k": key},
             )
 
+    async def _history(self, conn, session_id: uuid.UUID, revision: int) -> list[dict[str, Any]]:
+        """Restore source/page references alongside current-revision messages.
+
+        References are locator hints, never evidence. The agent reopens their
+        original pages and reauthorizes selection before another provider call.
+        """
+        rows = (await conn.execute(text(
+            "SELECT m.role,m.content,coalesce((SELECT jsonb_agg(jsonb_build_object("
+            "'source_id',c.notebook_source_id,'material_version_id',c.material_version_id,"
+            "'locator',c.locator) ORDER BY c.locator->'citation_number',c.created_at,c.id) FROM citations c "
+            "WHERE c.message_id=m.id AND c.notebook_source_id IS NOT NULL "
+            "AND c.material_version_id IS NOT NULL), '[]'::jsonb) AS source_refs "
+            "FROM chat_messages m WHERE m.session_id=:sid AND m.context_revision=:rev "
+            "AND m.status='complete' ORDER BY m.seq DESC LIMIT :lim"
+        ), {"sid": session_id, "rev": revision, "lim": self._max_history})).mappings().all()
+        return [dict(r) for r in reversed(rows)]
+
+    async def _answer(
+        self, actor_id: uuid.UUID, notebook_id: uuid.UUID, question: str,
+        context: list[RetrievedChunk], history: list[dict[str, Any]],
+        *, context_revision: int | None = None,
+    ) -> tuple[ChatAnswer, list[RetrievedChunk]]:
+        """Acquire adaptive evidence then use the existing citation validator."""
+        result = None
+        if self._agent is not None and callable(getattr(self._provider, "choose_tools", None)):
+            result = await self._agent.retrieve(
+                actor_id, notebook_id, self._provider, question, history, context,
+                expected_revision=context_revision,
+            )
+            context = self._budget(result.chunks)
+        answer = await invoke(self._provider.generate, question, context, history)
+        if result is not None:
+            usage = [*result.usage, (answer.prompt_tokens, answer.completion_tokens, answer.estimated_cost)]
+            totals = [sum(row[i] for row in usage if row[i] is not None)
+                      if any(row[i] is not None for row in usage) else None for i in range(3)]
+            answer = answer._replace(
+                prompt_tokens=totals[0], completion_tokens=totals[1], estimated_cost=totals[2],
+                prompt_version=answer.prompt_version + "-agent-1",
+            )
+            logger.info("chat_agent_complete rounds=%d tools=%d images=%d", len(result.usage),
+                        len(result.trace), sum(bool(c.image_url) for c in context))
+        return answer, context
+
     def _budget(self, retrieval: list[RetrievedChunk]) -> list[RetrievedChunk]:
         """Cap the context size; the budget is explicit, never silent (A26)."""
         kept: list[RetrievedChunk] = []
@@ -774,6 +801,10 @@ class ChatService:
             return await self._search.search_notebook(
                 actor_id,notebook_id,question,mode="both",limit=8,
             )
+        if self._agent is not None:
+            # The agent resolves follow-ups from saved page references and
+            # chooses its own queries. Avoid an additional fixed planner call.
+            return []
         planner = getattr(self._provider, "plan_queries", None)
         if callable(planner):
             try:

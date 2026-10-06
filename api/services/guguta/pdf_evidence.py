@@ -10,6 +10,7 @@ import asyncio
 import base64
 import io
 import logging
+import math
 import threading
 import uuid
 from collections import OrderedDict
@@ -44,6 +45,9 @@ class PdfPageEvidence:
     async def enrich(
         self, actor_id: uuid.UUID, notebook_id: uuid.UUID, chunks: list[RetrievedChunk]
     ) -> list[RetrievedChunk]:
+        # Incoming chunks may already contain a previous render. Authorization
+        # failures must clear those pixels too, including cache hits.
+        chunks = [replace(c, image_url=None) for c in chunks]
         source_ids = list(
             {c.notebook_source_id for c in chunks if c.locator.get("page")}
         )
@@ -133,14 +137,58 @@ class PdfPageEvidence:
                     text=(
                         f"Pagina PDF: {chunk.locator.get('page')}; "
                         f"pagina tipărită: {chunk.locator.get('printed_page')}. "
-                        "Redă exercițiul cerut direct din imaginea originală a acestei pagini. "
-                        "Păstrează exact fracțiile, formulele, schemele și toate subpunctele."
+                        "Examinează imaginea originală pentru cerința utilizatorului, "
+                        "inclusiv obiectele desenate, fracțiile, formulele și schemele."
                     ),
                 )
             output.append(chunk)
         return output
 
-    def _render(self, storage_key: str, page_number: int) -> bytes:
+    async def crop(
+        self, actor_id: uuid.UUID, notebook_id: uuid.UUID,
+        chunk: RetrievedChunk, region: tuple[float, float, float, float],
+    ) -> RetrievedChunk | None:
+        """Render a region from the original PDF after fresh authorization.
+
+        Coordinates use the full page, normalized from top-left. Re-rendering
+        the PDF gives small text more detail than resizing an existing PNG.
+        """
+        if (len(region) != 4 or any(not math.isfinite(v) or v < 0 or v > 1 for v in region)
+            or region[0] >= region[2] or region[1] >= region[3]):
+            raise ValueError("Regiunea imaginii este invalidă.")
+        page_number = chunk.locator.get("page")
+        if type(page_number) is not int or page_number < 1:
+            return None
+        async with actor_connection(self._engine, actor_id) as conn:
+            row = (await conn.execute(text(
+                "SELECT sa.storage_key FROM notebook_sources ns "
+                "JOIN material_versions mv ON mv.id=ns.material_version_id "
+                "JOIN source_assets sa ON sa.id=mv.source_asset_id "
+                "WHERE ns.notebook_id=:nb AND ns.id=:source "
+                "AND mv.id=:mv AND ns.selected_for_chat AND ns.status='ready' "
+                "AND sa.kind='file' AND sa.mime_type='application/pdf'"
+            ), {"nb": notebook_id, "source": chunk.notebook_source_id,
+                "mv": chunk.material_version_id})).scalar_one_or_none()
+        if row is None:
+            return None
+        try:
+            async with self._render_lock:
+                png = await asyncio.to_thread(self._render, row, page_number, region)
+        except Exception as exc:
+            logger.warning("PDF region evidence unavailable (%s)", type(exc).__name__)
+            return None
+        return replace(
+            chunk,
+            image_url="data:image/png;base64," + base64.b64encode(png).decode("ascii"),
+            locator={**chunk.locator, "image_region": list(region)},
+            text=(f"Decupaj din pagina PDF {page_number}, regiunea {region}. "
+                  "Coordonatele se raportează la pagina originală întreagă."),
+        )
+
+    def _render(
+        self, storage_key: str, page_number: int,
+        region: tuple[float, float, float, float] | None = None,
+    ) -> bytes:
         import pypdfium2
 
         data = self._storage.read_bytes(storage_key)
@@ -153,8 +201,14 @@ class PdfPageEvidence:
                 page = document[page_number - 1]
                 try:
                     width, height = page.get_size()
+                    crop = (0, 0, 0, 0)
                     scale = min(2.0, 2048 / max(width, height))
-                    bitmap = page.render(scale=scale)
+                    if region is not None:
+                        left, top, right, bottom = region
+                        crop = (width * left, height * (1 - bottom),
+                                width * (1 - right), height * top)
+                        scale = min(6.0, 2048 / max(width * (right-left), height * (bottom-top)))
+                    bitmap = page.render(scale=scale, crop=crop)
                     try:
                         output = io.BytesIO()
                         bitmap.to_pil().save(output, format="PNG")

@@ -121,6 +121,12 @@ class GugutaConfig(BaseSettings):
     chat_pdf_images: bool = False
     chat_pdf_image_max_pages: int = Field(default=4, ge=1, le=8)
     chat_answer_review: bool = False
+    # Request-local LangGraph agent. Existing mock/text-only deployments can
+    # retain the fixed retrieval path; enable with a tool-capable chat model.
+    chat_agent_enabled: bool = False
+    chat_agent_max_rounds: int = Field(default=4, ge=1, le=6)
+    chat_agent_max_tool_calls: int = Field(default=8, ge=1, le=12)
+    chat_agent_max_images: int = Field(default=6, ge=1, le=8)
     openrouter_timeout_seconds: float = Field(default=60, gt=0, le=300)
     openrouter_max_retries: int = Field(default=1, ge=0, le=3)
     openrouter_embedding_batch_size: int = Field(default=16, ge=1, le=32)
