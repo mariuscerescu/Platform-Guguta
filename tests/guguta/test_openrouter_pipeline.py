@@ -21,6 +21,7 @@ async def run_pipeline(guguta_db, tmp_path, monkeypatch, live):
         "database_url_worker": guguta_db["worker_dsn"],
         "storage_root": str(tmp_path / "storage"),
         "chat_provider": "openrouter", "embedding_provider": "openrouter",
+        "chat_answer_review": True,
         "embedding_dimension": 2048, "rerank_provider": "openrouter",
         "openrouter_api_key": GugutaConfig(_env_file=".env.guguta.local").openrouter_api_key
         if live else GugutaConfig(_env_file=None, openrouter_api_key="synthetic").openrouter_api_key,
@@ -29,8 +30,11 @@ async def run_pipeline(guguta_db, tmp_path, monkeypatch, live):
     worker = Worker(cfg)
     original = OpenRouterClient.post
     calls = []
+    chat_payloads = []
+    review_failures = 0
 
     async def post(client, endpoint, payload):
+        nonlocal review_failures
         # Regression: never retain an API/worker DB connection during external AI.
         assert app.state.guguta_engine.pool.checkedout() == 0
         assert getattr(worker._engine.pool, "checkedout")() == 0
@@ -43,7 +47,20 @@ async def run_pipeline(guguta_db, tmp_path, monkeypatch, live):
             assert all("NESELECTAT" not in doc for doc in payload["documents"])
             order = sorted(range(len(payload["documents"])), key=lambda i: "Fotosinteza" not in payload["documents"][i])
             return {"results": [{"index": i, "relevance_score": 1 - pos * 0.1} for pos, i in enumerate(order[:payload["top_n"]])]}
-        return {"choices": [{"finish_reason": "stop", "message": {"content": json.dumps({"answer": "Plantele folosesc lumina pentru fotosinteză [1].", "cited": [0]})}}], "usage": {"prompt_tokens": 80, "completion_tokens": 20, "cost": 0}}
+        content = json.loads(payload["messages"][-1]["content"])
+        if "untrusted_source_fragments" not in content:
+            return {"choices": [{"finish_reason": "stop", "message": {"content": '{"queries":["fotosinteza lumina"]}'}}]}
+        chat_payloads.append(content)
+        if "untrusted_draft" in content and review_failures:
+            review_failures -= 1
+            return {"choices": [{"finish_reason": "stop", "message": {"content": "invalid review"}}], "usage": {"prompt_tokens": 80, "completion_tokens": 20, "cost": 0}}
+        fragments = content["untrusted_source_fragments"]
+        assert len(fragments) == 2
+        paragraphs = [
+            {"text": fragments[1]["text"], "source_ids": ["F2"]},
+            {"text": fragments[0]["text"], "source_ids": ["F1", "F2"]},
+        ]
+        return {"choices": [{"finish_reason": "stop", "message": {"content": json.dumps({"paragraphs": paragraphs})}}], "usage": {"prompt_tokens": 80, "completion_tokens": 20, "cost": 0}}
 
     monkeypatch.setattr(OpenRouterClient, "post", post)
     old_space = None
@@ -84,8 +101,44 @@ async def run_pipeline(guguta_db, tmp_path, monkeypatch, live):
             assert citations and all(str(c["notebook_source_id"]) != source_ids[2] for c in citations)
             async with actor_connection(app.state.guguta_engine, uuid.UUID(login.json()["id"])) as conn:
                 row = (await conn.execute(text("SELECT model,prompt_tokens,completion_tokens,prompt_version FROM chat_messages WHERE id=:id"), {"id": uuid.UUID(answer["id"])})).mappings().one()
-            assert row["model"] == cfg.openrouter_chat_model and row["prompt_version"] == "guguta-openrouter-grounded-7"
+            assert row["model"] == cfg.openrouter_chat_model and row["prompt_version"] == "guguta-openrouter-grounded-8"
             assert row["prompt_tokens"] > 0 and row["completion_tokens"] > 0
+            if not live:
+                assert answer["content"].endswith("[2] [1]")
+                assert [c["locator"]["citation_number"] for c in citations] == [1, 2]
+                assert citations[0]["notebook_source_id"] == str(source_ids[1])
+                assert row["prompt_tokens"] == 160 and row["completion_tokens"] == 40
+                # Real SSE persistence with a malformed review: retry review
+                # only, then save the SAME text and dense citation ordinals.
+                review_failures = 1
+                before = len(chat_payloads)
+                stream_session = (await client.post(f"/api/v1/notebooks/{nb}/sessions", headers=headers, json={})).json()["id"]
+                stream_path = f"/api/v1/notebooks/{nb}/sessions/{stream_session}/messages"
+                streamed = await client.post(stream_path + "/stream", headers=headers,
+                                             json={"content": "De ce au plantele nevoie de lumină?"})
+                events = [json.loads(line[6:]) for line in streamed.text.splitlines() if line.startswith("data: ")]
+                assert not any(e["event"] == "error" for e in events), events
+                done = next(e for e in events if e["event"] == "done")
+                round_payloads = chat_payloads[before:]
+                assert len(round_payloads) == 3
+                assert "untrusted_draft" not in round_payloads[0]
+                assert round_payloads[1]["untrusted_draft"] == round_payloads[2]["untrusted_draft"]
+                saved = (await client.get(stream_path)).json()
+                assert [m["role"] for m in saved] == ["user", "assistant"]
+                assert "".join(e["text"] for e in events if e["event"] == "token").strip() == saved[-1]["content"]
+                stream_citations = (await client.get(stream_path + f"/{done['assistant_message_id']}/citations")).json()
+                assert [c["locator"]["citation_number"] for c in stream_citations] == [1, 2]
+                assert stream_citations[0]["chunk_id"] == citations[0]["chunk_id"]
+                # Two failed reviews must leave ONLY the user's message.
+                review_failures = 2
+                failed_session = (await client.post(f"/api/v1/notebooks/{nb}/sessions", headers=headers, json={})).json()["id"]
+                failed_path = f"/api/v1/notebooks/{nb}/sessions/{failed_session}/messages"
+                failed = await client.post(failed_path + "/stream", headers=headers,
+                                           json={"content": "De ce au plantele nevoie de lumină?"})
+                failed_events = [json.loads(line[6:]) for line in failed.text.splitlines() if line.startswith("data: ")]
+                assert any(e["event"] == "error" and "Verificarea AI" in e["message"] for e in failed_events)
+                assert not any(e["event"] in ("token", "done") for e in failed_events)
+                assert [m["role"] for m in (await client.get(failed_path)).json()] == ["user"]
             assert {e for e, _ in calls} == {"embeddings", "rerank", "chat/completions"}
             if live:
                 path = Path("docs/guguta/openrouter-live-results.json")

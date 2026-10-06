@@ -184,13 +184,28 @@ stored source text and embeddings are untouched and no migration is required.
 Visible citation markers use the ordered saved citation list, not sparse
 indexes into the hidden retrieval context. No migration is needed.
 
+Citation contract update (2026-10-06, ADR-015): the OpenRouter adapter requests
+paragraphs with `text` and `source_ids`, restricted to the current authorized
+fragment identifiers. Generation and review use this same representation.
+The server constructs dense citation numbers only after review succeeds.
+Generation and review each retry their own malformed completion at most once;
+a failed review never restarts generation or publishes the unreviewed draft.
+Requests require provider support for the supplied structured-output parameters.
+The chat prompt version is `guguta-openrouter-grounded-8`. No frontend change or
+database migration is required. This does not guarantee factual correctness or
+upstream availability. Validation: 172 automated tests passed, two skipped;
+six targeted real Gemma probes completed without format errors, including
+three repetitions of the previously rejected exercise transcription.
+
 The UI must not spin forever. Backend streaming now enforces the configured
 `GUGUTA_CHAT_TOTAL_TIMEOUT_SECONDS`, logs stream failures, and emits an `error`
 event when generation is too slow or invalid. The frontend also aborts a stuck
 stream after about 310 seconds and shows a clear error.
 
-For answers with no sources, the server strips citation markers like `[1]` but
-must not prepend the old fixed phrase:
+For answers without evidence, each paragraph must have an empty `source_ids`
+list; the server adds no citation markers. Ordinary mathematical bracketed
+numbers are preserved as text. The answer must abstain from unsupported facts
+and must not prepend the old fixed phrase:
 
 ```text
 Nu am materiale din carnet care să acopere întrebarea, așa că îți răspund din cunoștințele generale:

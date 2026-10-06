@@ -55,5 +55,7 @@ What this makes easier, what it makes harder, what to watch. (bullets)
 | [ADR-011](ADR-011-hybrid-local-pdf-parsing.md) | PDF ingestion uses LiteParse with selective PaddleOCR-VL | Superseded by ADR-012 |
 | [ADR-012](ADR-012-ppocrv5-gpu-pdf-ocr.md) | Scanned PDF OCR uses PP-OCRv5 Mobile on GPU | Superseded by ADR-013 |
 | [ADR-013](ADR-013-full-page-pdf-text-coverage.md) | Every PDF page combines native text with visual OCR | Accepted |
+| [ADR-014](ADR-014-exact-page-visual-evidence-chat.md) | Exact page retrieval and request-local visual evidence | Accepted |
+| [ADR-015](ADR-015-server-rendered-chat-citations.md) | Server-rendered citations and independent review retries | Accepted |
 | [PDR-001](PDR-001-single-user-first.md) | Single-user first; don't preclude multi-user | Accepted |
 | [PDR-002](PDR-002-provider-agnostic-core.md) | Provider-agnostic core by default | Accepted |
