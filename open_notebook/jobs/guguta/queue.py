@@ -9,11 +9,13 @@ from __future__ import annotations
 
 import secrets
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, Optional
 
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.engine import RowMapping
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from open_notebook.database.guguta.engine import system_connection
 
@@ -42,6 +44,43 @@ class ClaimedJob:
 DEFAULT_LEASE_SECONDS = 300
 DEFAULT_MAX_ATTEMPTS = 5
 DEFAULT_MAX_CONCURRENT_PER_USER = 2
+
+
+async def _mark_failed_material_sources(
+    conn: AsyncConnection, jobs: Sequence[RowMapping],
+) -> None:
+    """Publish terminal material errors in the job's transaction and RLS context.
+
+    The caller holds each job's row lock, so a manual retry cannot race the
+    source update. Other job types do not change source processing status.
+    """
+    material_jobs = [
+        job for job in jobs
+        if job["job_type"] == "process_material_version"
+        and job["target_type"] == "material_version"
+        and job["actor_id"] is not None
+    ]
+    if not material_jobs:
+        return
+    previous_actor = (
+        await conn.execute(text("SELECT current_setting('app.actor_id', true)"))
+    ).scalar_one()
+    for job in material_jobs:
+        await conn.execute(
+            text("SELECT set_config('app.actor_id', :actor, true)"),
+            {"actor": str(job["actor_id"])},
+        )
+        await conn.execute(
+            text(
+                "UPDATE notebook_sources SET status = 'error', status_detail = :error"
+                " WHERE material_version_id = :target AND status = 'processing'"
+            ),
+            {"target": job["target_id"], "error": job["last_error"]},
+        )
+    await conn.execute(
+        text("SELECT set_config('app.actor_id', :actor, true)"),
+        {"actor": previous_actor or ""},
+    )
 
 
 async def enqueue(
@@ -98,9 +137,10 @@ async def claim(
         # B06 sweep: only expire jobs whose lease has ALREADY lapsed or that
         # are queued past their budget. Active running jobs with valid leases
         # are never swept, even on their last attempt.
-        await conn.execute(
+        expired = (await conn.execute(
             text(
                 "UPDATE processing_jobs SET status = 'failed', completed_at = now(),"
+                " lease_token = NULL, lease_owner = NULL, lease_until = NULL,"
                 " last_error = coalesce(last_error, 'deadline depășit / încercări epuizate')"
                 " WHERE ("
                 "   status = 'queued' AND attempts >= max_attempts"
@@ -112,8 +152,10 @@ async def claim(
                 "   deadline IS NOT NULL AND deadline < now()"
                 "   AND status IN ('queued','claimed','running')"
                 " )"
+                " RETURNING job_type, target_type, target_id, actor_id, last_error"
             )
-        )
+        )).mappings().all()
+        await _mark_failed_material_sources(conn, expired)
         # B05: correct SQL precedence — the maxc filter applies to BOTH
         # branches because the OR is fully parenthesised before the AND.
         row = (
@@ -232,6 +274,9 @@ async def fail(
                     "    WHEN :perm THEN 'failed'"
                     "    WHEN attempts >= max_attempts THEN 'failed'"
                     "    ELSE 'queued' END,"
+                    "  completed_at = CASE"
+                    "    WHEN :perm OR attempts >= max_attempts THEN now()"
+                    "    ELSE NULL END,"
                     "  run_after = CASE"
                     "    WHEN :perm OR attempts >= max_attempts THEN run_after"
                     "    ELSE now() + make_interval(secs => LEAST("
@@ -241,7 +286,7 @@ async def fail(
                     " WHERE id = :id AND lease_token = :t"
                     "   AND status IN ('claimed','running')"
                     "   AND target_revision = :trev"
-                    " RETURNING status"
+                    " RETURNING status, job_type, target_type, target_id, actor_id, last_error"
                 ),
                 {
                     "err": error[:2000],
@@ -253,10 +298,12 @@ async def fail(
                     "perm": permanent,
                 },
             )
-        ).first()
+        ).mappings().first()
+        if row is not None and row["status"] == "failed":
+            await _mark_failed_material_sources(conn, [row])
     if row is None:
         raise LeaseStale("jobul nu a putut fi marcat eșuat: lease expirat")
-    return str(row[0])
+    return str(row["status"])
 
 
 async def cancel_for_target(    engine: AsyncEngine, target_type: str, target_id: uuid.UUID
@@ -284,7 +331,7 @@ async def requeue(
         result = await conn.execute(
             text(
                 "UPDATE processing_jobs SET status = 'queued', run_after = now(),"
-                " attempts = 0, last_error = NULL,"
+                " attempts = 0, last_error = NULL, completed_at = NULL, heartbeat_at = NULL,"
                 " lease_token = NULL, lease_owner = NULL, lease_until = NULL"
                 " WHERE id = :id AND actor_id = :actor"
                 "   AND status IN ('failed','cancelled')"

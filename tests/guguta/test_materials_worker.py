@@ -168,6 +168,183 @@ async def test_storage_rejects_traversal(tmp_path: Any) -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.parametrize("failure_stage", ["ocr", "publication"])
+async def test_exhausted_transient_failure_is_visible_and_retry_recovers(
+    client: AsyncClient, worker: Any, monkeypatch: Any, failure_stage: str,
+) -> None:
+    """A failed dependency must not leave the material processing forever."""
+    from sqlalchemy import text
+
+    from open_notebook.jobs.guguta import handlers
+    from open_notebook.jobs.guguta.pdf_pipeline import PdfPipelineUnavailable
+
+    await _drain(worker)
+    auth = await _login(client, f"Retry {uuid.uuid4().hex[:6]}")
+    nb = (await client.post(
+        "/api/v1/notebooks", json={"title": "Retry material"},
+        cookies=_cookies(auth), headers=_headers(auth),
+    )).json()
+    uploaded = (await client.post(
+        f"/api/v1/notebooks/{nb['id']}/sources/file",
+        files={"file": ("manual.pdf", _make_pdf(["A readable manual page."]), "application/pdf")},
+        cookies=_cookies(auth), headers=_headers(auth),
+    )).json()
+    job_id = uuid.UUID(uploaded["job_id"])
+    source_path = f"/api/v1/notebooks/{nb['id']}/sources/{uploaded['source']['id']}"
+    async with worker._engine.begin() as conn:
+        await conn.execute(
+            text("UPDATE processing_jobs SET max_attempts = 2 WHERE id = :id"),
+            {"id": job_id},
+        )
+
+    class OfflineOcr:
+        async def extract(self, data: bytes) -> Any:
+            raise PdfPipelineUnavailable("OCR temporarily unavailable")
+
+    async def unavailable_publication(*args: Any) -> Any:
+        raise RuntimeError("publication temporarily unavailable")
+
+    with monkeypatch.context() as patch:
+        if failure_stage == "ocr":
+            patch.setattr(worker, "_pdf_extractor", OfflineOcr(), raising=False)
+        else:
+            patch.setattr(handlers, "_ensure_embedding_space", unavailable_publication)
+        assert await worker.process_one()
+        source = (await client.get(source_path, cookies=_cookies(auth))).json()
+        job = (await client.get(f"/api/v1/jobs/{job_id}", cookies=_cookies(auth))).json()
+        assert source["status"] == "processing"
+        assert job["status"] == "queued"
+        assert job["completed_at"] is None
+
+        async with worker._engine.begin() as conn:
+            await conn.execute(
+                text("UPDATE processing_jobs SET run_after = now() WHERE id = :id"),
+                {"id": job_id},
+            )
+        assert await worker.process_one()
+        source = (await client.get(source_path, cookies=_cookies(auth))).json()
+        job = (await client.get(f"/api/v1/jobs/{job_id}", cookies=_cookies(auth))).json()
+        assert job["status"] == "failed" and job["attempts"] == 2
+        assert job["completed_at"] is not None
+        assert source["status"] == "error"
+        assert source["status_detail"] == job["last_error"]
+        assert "temporarily unavailable" in source["status_detail"]
+
+    retried = await client.post(
+        f"{source_path}/retry", cookies=_cookies(auth), headers=_headers(auth),
+    )
+    assert retried.status_code == 200 and retried.json()["requeued"] is True
+    job = (await client.get(f"/api/v1/jobs/{job_id}", cookies=_cookies(auth))).json()
+    assert job["status"] == "queued" and job["attempts"] == 0
+    assert job["completed_at"] is None
+    assert await worker.process_one()
+    source = (await client.get(source_path, cookies=_cookies(auth))).json()
+    assert source["status"] == "ready" and source["status_detail"] is None
+
+
+@pytest.mark.parametrize("expiry", ["lease", "attempts", "deadline"])
+async def test_queue_expiry_marks_material_error(
+    client: AsyncClient, worker: Any, expiry: str,
+) -> None:
+    """Worker death and deadlines also stop the source's processing spinner."""
+    from sqlalchemy import text
+
+    await _drain(worker)
+    auth = await _login(client, f"Expired {uuid.uuid4().hex[:6]}")
+    nb = (await client.post(
+        "/api/v1/notebooks", json={"title": "Expired material"},
+        cookies=_cookies(auth), headers=_headers(auth),
+    )).json()
+    uploaded = (await client.post(
+        f"/api/v1/notebooks/{nb['id']}/sources/text",
+        json={"text": "Text for an expired processing job.", "title": "Expired"},
+        cookies=_cookies(auth), headers=_headers(auth),
+    )).json()
+    updates = {
+        "lease": "status = 'running', attempts = max_attempts, lease_token = 'expired', "
+                 "lease_until = now() - interval '1 hour'",
+        "attempts": "attempts = max_attempts",
+        "deadline": "deadline = now() - interval '1 hour'",
+    }
+    async with worker._engine.begin() as conn:
+        await conn.execute(
+            text(f"UPDATE processing_jobs SET {updates[expiry]} WHERE id = :id"),
+            {"id": uuid.UUID(uploaded["job_id"])},
+        )
+    await worker.process_one()
+    source = (await client.get(
+        f"/api/v1/notebooks/{nb['id']}/sources/{uploaded['source']['id']}",
+        cookies=_cookies(auth),
+    )).json()
+    job = (await client.get(
+        f"/api/v1/jobs/{uploaded['job_id']}", cookies=_cookies(auth),
+    )).json()
+    assert job["status"] == "failed" and job["completed_at"] is not None
+    assert source["status"] == "error" and source["status_detail"] == job["last_error"]
+
+
+async def test_material_failure_rolls_back_job_and_source_together(
+    client: AsyncClient, worker: Any, monkeypatch: Any,
+) -> None:
+    from open_notebook.jobs.guguta import queue
+
+    await _drain(worker)
+    auth = await _login(client, f"Atomic {uuid.uuid4().hex[:6]}")
+    nb = (await client.post(
+        "/api/v1/notebooks", json={"title": "Atomic material"},
+        cookies=_cookies(auth), headers=_headers(auth),
+    )).json()
+    uploaded = (await client.post(
+        f"/api/v1/notebooks/{nb['id']}/sources/text",
+        json={"text": "Text for atomic failure handling.", "title": "Atomic"},
+        cookies=_cookies(auth), headers=_headers(auth),
+    )).json()
+    claimed = await queue.claim(worker._engine)
+    assert claimed is not None and str(claimed.id) == uploaded["job_id"]
+    original = queue._mark_failed_material_sources
+
+    async def interrupted_transaction(conn: Any, jobs: Any) -> None:
+        await original(conn, jobs)
+        raise RuntimeError("connection interrupted before commit")
+
+    with monkeypatch.context() as patch:
+        patch.setattr(queue, "_mark_failed_material_sources", interrupted_transaction)
+        with pytest.raises(RuntimeError, match="before commit"):
+            await queue.fail(
+                worker._engine, claimed.id, claimed.lease_token, "terminal error",
+                target_revision=claimed.target_revision, permanent=True,
+            )
+    source = (await client.get(
+        f"/api/v1/notebooks/{nb['id']}/sources/{uploaded['source']['id']}",
+        cookies=_cookies(auth),
+    )).json()
+    job = (await client.get(
+        f"/api/v1/jobs/{claimed.id}", cookies=_cookies(auth),
+    )).json()
+    assert source["status"] == "processing" and source["status_detail"] is None
+    assert job["status"] == "running" and job["last_error"] is None
+    await queue.fail(
+        worker._engine, claimed.id, claimed.lease_token, "terminal error",
+        target_revision=claimed.target_revision, permanent=True,
+    )
+    retried = await client.post(
+        f"/api/v1/notebooks/{nb['id']}/sources/{uploaded['source']['id']}/retry",
+        cookies=_cookies(auth), headers=_headers(auth),
+    )
+    assert retried.status_code == 200 and retried.json()["requeued"] is True
+    with pytest.raises(queue.LeaseStale):
+        await queue.fail(
+            worker._engine, claimed.id, claimed.lease_token, "stale failure",
+            target_revision=claimed.target_revision, permanent=True,
+        )
+    source = (await client.get(
+        f"/api/v1/notebooks/{nb['id']}/sources/{uploaded['source']['id']}",
+        cookies=_cookies(auth),
+    )).json()
+    assert source["status"] == "processing" and source["status_detail"] is None
+    assert await worker.process_one()
+
+
 async def test_upload_pdf_full_pipeline(client: AsyncClient, worker: Any) -> None:
     auth = await _login(client, f"Elev PDF {uuid.uuid4().hex[:6]}")
     nb = (

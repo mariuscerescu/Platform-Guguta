@@ -213,6 +213,22 @@ Nu am materiale din carnet care să acopere întrebarea, așa că îți răspund
 
 ## Verification Checklist
 
+PDF ingestion requires the `ppocr` service even when the API is healthy. Verify
+the container is running and its readiness endpoint is reachable from the worker:
+
+```bash
+sudo docker-compose --project-name guguta-edu -f deploy/edu-platform/docker-compose.yml ps ppocr worker
+sudo docker exec guguta-edu_worker_1 python -c "import urllib.request; print(urllib.request.urlopen('http://ppocr:8003/readyz').status)"
+```
+
+`restart: unless-stopped` does not restart an explicitly stopped OCR container.
+A deployment with `--no-deps` also does not start it. Start that existing service
+before retrying affected materials. Material errors are synchronized atomically
+with terminal job failures and expirations (ADR-016), so failed OCR or publication
+jobs show an error and permit manual retry instead of remaining `processing`.
+Do not restore a source that the user removed while investigating an incident
+without their instruction.
+
 After deployment or config changes:
 
 ```bash

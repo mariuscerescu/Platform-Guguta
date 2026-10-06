@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -158,14 +158,10 @@ async def process_material_version(
             raise parsing.ExtractionError("Embeddings invalide (vector gol sau de tip greșit).")
     except parsing.ExtractionError as exc:
         # Permanent: user-presentable error (A24, R42) — no blind retry.
-        # F10: the error write is lease-fenced and marks the job failed.
-        try:
-            await _mark_source_error(engine, actor_id, source_id, str(exc), job)
-        except LeaseStale:
-            logger.warning("eroarea sursei nu a putut fi scrisă (lease) %s", job.id)
+        await _fail_quietly(engine, job, str(exc), permanent=True)
         return
     except Exception as exc:  # transient (storage/provider/network)
-        await _fail_quietly(engine, job, f"eroare tranzitorie: {exc}", permanent=False, source_id=source_id)
+        await _fail_quietly(engine, job, f"eroare tranzitorie: {exc}", permanent=False)
         return
 
     # 3) Publish atomically WITH fencing (B04): ONE connection and transaction
@@ -251,7 +247,7 @@ async def process_material_version(
     except Exception as exc:
         # Duplicate-artifact race or transient DB error: distinguish.
         if "ux_artifacts_mv_parser" in str(exc):
-            await _fail_quietly(engine, job, "artefact deja publicat", permanent=True, source_id=source_id)
+            await _fail_quietly(engine, job, "artefact deja publicat", permanent=True)
             return
         await _fail_quietly(engine, job, f"publicare eșuată: {exc}", permanent=False)
         return
@@ -261,41 +257,6 @@ def _json(value: dict[str, Any]) -> str:
     import json
 
     return json.dumps(value, ensure_ascii=False)
-
-
-async def _mark_source_error(
-    engine: AsyncEngine, actor_id: uuid.UUID, source_id: uuid.UUID, detail: str,
-    job: ClaimedJob,
-) -> None:
-    """F10: the error status is written with the same lease fencing."""
-    async with system_connection(engine) as job_conn:
-        fenced = (
-            await job_conn.execute(
-                text(
-                    "SELECT id FROM processing_jobs"
-                    " WHERE id = :id AND lease_token = :t"
-                    "   AND status IN ('claimed','running') FOR UPDATE"
-                ),
-                {"id": job.id, "t": job.lease_token},
-            )
-        ).first()
-        if fenced is None:
-            raise LeaseStale("lease pierdut; eroarea sursei nu mai poate fi scrisă")
-        async with actor_connection(engine, actor_id) as conn:
-            await conn.execute(
-                text(
-                    "UPDATE notebook_sources SET status = 'error', status_detail = :d"
-                    " WHERE id = :id"
-                ),
-                {"id": source_id, "d": detail[:2000]},
-            )
-        await job_conn.execute(
-            text(
-                "UPDATE processing_jobs SET status = 'failed', completed_at = now(),"
-                " last_error = :d, lease_token = NULL WHERE id = :id"
-            ),
-            {"id": job.id, "d": detail[:2000]},
-        )
 
 
 async def _cancel_job(engine: AsyncEngine, job: ClaimedJob) -> None:
@@ -311,7 +272,6 @@ async def _cancel_job(engine: AsyncEngine, job: ClaimedJob) -> None:
 
 async def _fail_quietly(
     engine: AsyncEngine, job: ClaimedJob, error: str, *, permanent: bool,
-    source_id: Optional[uuid.UUID] = None,
 ) -> None:
     try:
         await fail(engine, job.id, job.lease_token, error,
@@ -319,16 +279,3 @@ async def _fail_quietly(
     except LeaseStale:
         logger.warning("eșecul jobului %s nu a putut fi înregistrat (lease)", job.id)
         return
-    # B10: permanent failure flips the source to error so the user sees it
-    if permanent and source_id and job.actor_id:
-        try:
-            async with actor_connection(engine, job.actor_id) as conn:
-                await conn.execute(
-                    text(
-                        "UPDATE notebook_sources SET status = 'error',"
-                        " status_detail = :d WHERE id = :id"
-                    ),
-                    {"id": source_id, "d": error[:2000]},
-                )
-        except Exception:
-            logger.warning("nu am putut marca sursa %s ca error", source_id)
