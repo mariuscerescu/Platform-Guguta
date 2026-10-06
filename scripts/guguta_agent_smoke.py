@@ -67,6 +67,16 @@ async def main(args):
             history = await service._history(conn, session, revision)
         if args.fresh:
             history = []
+        if args.history_file:
+            history = json.loads(Path(args.history_file).read_text())
+            if not isinstance(history, list) or any(
+                not isinstance(message, dict)
+                or set(message) != {"role", "content"}
+                or message["role"] not in ("user", "assistant")
+                or not isinstance(message["content"], str)
+                for message in history
+            ):
+                raise ValueError("History must contain user/assistant text messages.")
         start = time.monotonic()
         async with asyncio.timeout(config.chat_total_timeout_seconds):
             initial = []
@@ -121,9 +131,14 @@ if __name__ == "__main__":
         action="store_true",
         help="Seed evidence with explicit-page retrieval.",
     )
-    parser.add_argument(
+    history_options = parser.add_mutually_exclusive_group()
+    history_options.add_argument(
         "--fresh",
         action="store_true",
         help="Evaluate discovery without prior conversation hints.",
+    )
+    history_options.add_argument(
+        "--history-file",
+        help="Use a synthetic conversation JSON for read-only tutoring evaluation.",
     )
     asyncio.run(main(parser.parse_args()))

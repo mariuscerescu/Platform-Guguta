@@ -41,6 +41,33 @@ the explanation is absent from the page. The retrieval agent can stop without
 tool calls for source-independent teaching questions. Original page inspection
 remains required for questions that depend on an actual figure or exercise.
 
+## Teaching interaction
+
+The tutor helps pupils understand and make progress, using clear language,
+patient corrections and encouragement tied to concrete effort or correct steps.
+It adapts to the level shown by the pupil without making every question an
+intake interview. Discouragement is met with a small achievable next step.
+
+For hints or collaborative learning it offers one manageable next step and at
+most one useful progress question, then continues from the pupil's attempt.
+It identifies the first actual error, explains the correction and never praises
+incorrect work as correct. Requests for the complete solution receive explained
+steps and result verification. Simple translations and factual questions still
+receive direct answers. Review preserves the requested degree of guidance
+instead of completing an intentionally partial teaching turn.
+
+Interactive turns stay concise and ask for a new action rather than repeating
+an answer already supplied. The tutor begins helping instead of asking whether
+the pupil wants the help they just requested. With answer review enabled, review
+also runs for zero-fragment teaching responses, checking language, correctness
+and pedagogical usefulness without inventing sources. This adds a bounded
+completion to source-free teaching turns.
+
+Progress uses the existing authorized current-revision conversation history;
+no learner profile or new storage is introduced. Synthetic conversation files
+in the read-only evaluation script support live multi-turn teaching probes
+without writing test messages into a pupil's notebook.
+
 ## Validation and limits
 
 Contract tests cover general teaching with zero fragments, uncited translation

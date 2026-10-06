@@ -113,7 +113,7 @@ async def test_server_renders_dense_citations_in_first_use_order():
     assert answer.cited == [2, 0]
     assert answer.prompt_tokens == 91 and answer.completion_tokens == 12
     assert answer.estimated_cost == 0
-    assert answer.prompt_version == "guguta-openrouter-grounded-10"
+    assert answer.prompt_version == "guguta-openrouter-grounded-11"
 
 
 @pytest.mark.asyncio
@@ -130,12 +130,14 @@ async def test_inline_labels_do_not_define_citations_or_rewrite_math():
 
 @pytest.mark.asyncio
 async def test_without_materials_accepts_uncited_educational_answer():
+    stages = []
     def response(request):
         body = json.loads(request.content)
         payload = json.loads(body["messages"][-1]["content"])
         assert payload["untrusted_source_fragments"] == []
         sources_schema = body["response_format"]["json_schema"]["schema"]["properties"]["paragraphs"]["items"]["properties"]["source_ids"]
         assert sources_schema["maxItems"] == 0
+        stages.append("review" if "untrusted_draft" in payload else "generation")
         return httpx.Response(200, json=completion(document(
             "Gravitația este atracția dintre corpuri care au masă.", [],
         )))
@@ -144,6 +146,7 @@ async def test_without_materials_accepts_uncited_educational_answer():
     answer = await provider.generate("Ce este gravitația?", [], [])
     assert answer.cited == []
     assert answer.content == "Gravitația este atracția dintre corpuri care au masă."
+    assert stages == ["generation", "review"]
 
 
 @pytest.mark.asyncio
@@ -289,17 +292,18 @@ async def test_each_stage_has_its_own_retry_budget():
 
 
 @pytest.mark.asyncio
-async def test_failed_review_does_not_publish_unreviewed_draft():
+@pytest.mark.parametrize("context_count", [0, 1])
+async def test_failed_review_does_not_publish_unreviewed_draft(context_count):
     calls = []
     def response(request):
         payload = json.loads(json.loads(request.content)["messages"][-1]["content"])
         calls.append(payload)
-        result = document() if len(calls) == 1 else document(sources=["F2"])
+        result = document(sources=["F1"] if context_count else []) if len(calls) == 1 else document(sources=[f"F{context_count + 1}"])
         return httpx.Response(200, json=completion(result))
     provider = OpenRouterChatProvider(config(chat_answer_review=True),
                                       transport=httpx.MockTransport(response))
     with pytest.raises(OpenRouterError, match="Verificarea AI.*după două încercări"):
-        await provider.generate("q", [SimpleNamespace(text="evidence")], [])
+        await provider.generate("q", [SimpleNamespace(text="evidence")] * context_count, [])
     assert len(calls) == 3
     assert all("untrusted_draft" in payload for payload in calls[1:])
 
