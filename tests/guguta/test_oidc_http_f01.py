@@ -101,7 +101,12 @@ def _oidc_config() -> GugutaConfig:
 async def oidc_app_client(guguta_db: dict[str, Any]) -> AsyncIterator[tuple[AsyncClient, dict[str, dict[str, Any]]]]:
     """App with auth_mode=oidc and the OIDC client backed by the fake issuer."""
     api = pytest.importorskip("api.guguta_app")
-    app = api.create_guguta_app(_oidc_config())
+    # Use the isolated fixture's actual port/roles rather than assuming 5433.
+    app = api.create_guguta_app(_oidc_config().model_copy(update={
+        "database_url_api":guguta_db["api_dsn"],
+        "database_url_worker":guguta_db["worker_dsn"],
+        "database_url_migrator":guguta_db["migrator_dsn"],
+    }))
     http_client, issued = _fake_oidc_transport()
     # inject the fake-issuer-backed client over the real one (F01 HTTP path)
     app.state.guguta_oidc = OidcClient(

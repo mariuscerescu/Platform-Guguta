@@ -178,6 +178,12 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
         get_chat_provider(config.chat_provider, config),
         total_timeout_seconds=config.chat_total_timeout_seconds,
     )
+    if config.chat_provider == "openrouter" and config.chat_pdf_images:
+        from api.services.guguta.pdf_evidence import PdfPageEvidence
+        app.state.guguta_chat._pdf_evidence = PdfPageEvidence(
+            engine, FilesystemStorage(config.storage_root),
+            max_pages=config.chat_pdf_image_max_pages,
+        )
     app.state.guguta_notes = NotesService(engine)
     app.state.guguta_audio_overviews = AudioOverviewService(
         engine, FilesystemStorage(config.storage_root)

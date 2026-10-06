@@ -21,6 +21,8 @@ RUN pip install --no-cache-dir \
     "authlib>=1.3.2,<2" \
     "cryptography>=43,<44" \
     "pypdf>=5.0.0,<6" \
+    "pypdfium2==5.11.0" \
+    "pillow>=12.0,<13" \
     "liteparse==2.14.6" \
     "httpx>=0.27,<1" \
     "loguru>=0.7.2,<0.8" \

@@ -25,16 +25,20 @@ from typing import Any, Optional
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from api.services.guguta.search import RetrievedChunk
+from api.services.guguta.search import RetrievedChunk, requested_page
 from open_notebook.ai.guguta.chat import ChatProvider
 from open_notebook.ai.guguta.openrouter import invoke
 from open_notebook.auth.guguta.actor import ActorContext
 from open_notebook.database.guguta.engine import actor_connection
-from open_notebook.exceptions import ExternalServiceError, NotFoundError, OpenNotebookError
+from open_notebook.exceptions import (
+    ExternalServiceError,
+    NotFoundError,
+    OpenNotebookError,
+)
 
 logger = logging.getLogger(__name__)
 
-MAX_CONTEXT_CHARS = 8000
+MAX_CONTEXT_CHARS = 24000
 MAX_HISTORY_MESSAGES = 10
 
 
@@ -78,6 +82,7 @@ class ChatService:
         self._engine = engine
         self._search = search
         self._provider = provider
+        self._pdf_evidence = None
         self._max_context_chars = max_context_chars
         self._max_history = max_history_messages
         # F09: a 'pending' generation older than this is recovered on retry
@@ -130,6 +135,8 @@ class ChatService:
                 "Generarea a durat prea mult. Reîncercați peste câteva momente."
             ) from None
         context = self._budget(retrieval)
+        if self._pdf_evidence is not None:
+            context = await self._pdf_evidence.enrich(actor.actor_id,notebook_id,context)
 
         # Phase 1 (single tx): validate session, save user message
         async with actor_connection(self._engine, actor.actor_id) as conn:
@@ -178,6 +185,7 @@ class ChatService:
         # proxyele taie conexiunile idle (next proxyTimeout 30s implicit)
         async def _generate():
             full_content = []
+            answer = None
             loop = asyncio.get_running_loop()
             deadline = loop.time() + self._total_timeout
             try:
@@ -186,10 +194,13 @@ class ChatService:
                 _STOP: dict[str, Any] = {"stop": True}
 
                 async def _pump() -> None:
+                    nonlocal answer
                     try:
-                        stream = self._provider.generate_stream(content, context, history)
-                        async for token in stream:
-                            await queue.put(token)
+                        # Keep the complete validated answer on THIS request.
+                        # A shared provider.last_cited can race across sessions.
+                        answer = await invoke(self._provider.generate,content,context,history)
+                        for word in answer.content.split(" "):
+                            await queue.put(word+" ")
                     except Exception as exc:  # propagate to the consumer
                         await queue.put(exc)
                     finally:
@@ -229,6 +240,11 @@ class ChatService:
                         text("SELECT id FROM chat_sessions WHERE id = :sid FOR UPDATE"),
                         {"sid": session_id},
                     )
+                    current_revision = (await conn.execute(text(
+                        "SELECT context_revision FROM digital_notebooks WHERE id=:nb"
+                    ),{"nb":notebook_id})).scalar_one()
+                    if current_revision != context_revision:
+                        raise IdempotencyConflict("Materialele s-au schimbat în timpul generării; repetă întrebarea.")
                     assistant_seq = (
                         await conn.execute(
                             text("SELECT coalesce(max(seq), 0) + 1 FROM chat_messages WHERE session_id = :sid"),
@@ -236,19 +252,23 @@ class ChatService:
                         )
                     ).scalar_one()
                     assistant_id = uuid.uuid4()
+                    prompt_tokens = answer.prompt_tokens if answer.prompt_tokens is not None else (len(content)+sum(len(c.text) for c in context))//4
+                    completion_tokens = answer.completion_tokens if answer.completion_tokens is not None else len(full_text)//4
                     await conn.execute(
                         text(
                             "INSERT INTO chat_messages (id, session_id, seq, role, content,"
-                            " status, context_revision, model, prompt_version)"
+                            " status, context_revision, model, prompt_version,prompt_tokens,"
+                            " completion_tokens,total_tokens,estimated_cost)"
                             " VALUES (:id, :sid, :seq, 'assistant', :c, 'complete', :rev,"
-                            " :model, :pv)"
+                            " :model, :pv,:pt,:ct,:tt,:cost)"
                         ),
                         {"id": assistant_id, "sid": session_id, "seq": assistant_seq,
                          "c": full_text, "rev": context_revision,
                          "model": self._provider.model_name,
-                         "pv": "guguta-stream-grounded-3"},
+                         "pv": answer.prompt_version,"pt":prompt_tokens,"ct":completion_tokens,
+                         "tt":prompt_tokens+completion_tokens,"cost":answer.estimated_cost or 0},
                     )
-                    for idx in getattr(self._provider, "last_cited", []):
+                    for citation_number,idx in enumerate(answer.cited,1):
                         if idx < 0 or idx >= len(context):
                             continue
                         chunk = context[idx]
@@ -261,10 +281,10 @@ class ChatService:
                             {"id": uuid.uuid4(), "mid": assistant_id,
                              "ns": chunk.notebook_source_id, "mv": chunk.material_version_id,
                              "c": chunk.chunk_id, "name": chunk.local_name,
-                             "loc": json.dumps(chunk.locator)},
+                             "loc": json.dumps({**chunk.locator,"citation_number":citation_number})},
                         )
                 yield json.dumps({"event": "done", "assistant_message_id": str(assistant_id),
-                             "cited": len(getattr(self._provider, "last_cited", []))})
+                             "cited": len(answer.cited)})
             except Exception as exc:
                 logger.exception(
                     "chat streaming failed actor=%s notebook=%s session=%s",
@@ -395,7 +415,9 @@ class ChatService:
                         "      ELSE NOT EXISTS (SELECT 1 FROM notebook_sources ns"
                         "                       WHERE ns.id = ct.notebook_source_id) END"
                         "   AS source_removed"
-                        " FROM citations ct WHERE ct.message_id = :mid ORDER BY ct.created_at"
+                        " FROM citations ct WHERE ct.message_id = :mid ORDER BY "
+                        " CASE WHEN ct.locator->>'citation_number' ~ '^[1-9][0-9]{0,3}$' "
+                        " THEN (ct.locator->>'citation_number')::int END NULLS LAST,ct.created_at,ct.id"
                     ),
                     {"mid": message_id},
                 )
@@ -462,6 +484,8 @@ class ChatService:
         except TimeoutError:
             raise ChatProviderUnavailable("Căutarea AI a depășit timpul de așteptare.") from None
         context = self._budget(retrieval)
+        if self._pdf_evidence is not None:
+            context = await self._pdf_evidence.enrich(actor.actor_id,notebook_id,context)
 
         # Phase 1 (one transaction): lock session, validate, build context,
         # insert the user message + idempotency record. No AI call inside.
@@ -634,7 +658,7 @@ class ChatService:
                  "cost": answer.estimated_cost if answer.estimated_cost is not None else 0.0},
             )
             if not cancelled:
-                for idx in answer.cited:
+                for citation_number,idx in enumerate(answer.cited,1):
                     if idx < 0 or idx >= len(context):
                         continue  # invalid citation index refused (A12)
                     chunk = context[idx]
@@ -647,7 +671,7 @@ class ChatService:
                         {"id": uuid.uuid4(), "mid": assistant_id,
                          "ns": chunk.notebook_source_id, "mv": chunk.material_version_id,
                          "c": chunk.chunk_id, "name": chunk.local_name,
-                         "loc": json.dumps(chunk.locator)},
+                         "loc": json.dumps({**chunk.locator,"citation_number":citation_number})},
                     )
             if idempotency_key:
                 await conn.execute(
@@ -729,7 +753,7 @@ class ChatService:
         total = 0
         for chunk in retrieval:
             if total + len(chunk.text) > self._max_context_chars:
-                break
+                continue
             kept.append(chunk)
             total += len(chunk.text)
         return kept
@@ -744,6 +768,12 @@ class ChatService:
         invalid output, the original question remains a safe retrieval query.
         """
         queries = [question]
+        if requested_page(question) is not None:
+            # The locator is already an exact retrieval plan. A model planner
+            # must not reinterpret an exercise number as the PDF page.
+            return await self._search.search_notebook(
+                actor_id,notebook_id,question,mode="both",limit=8,
+            )
         planner = getattr(self._provider, "plan_queries", None)
         if callable(planner):
             try:

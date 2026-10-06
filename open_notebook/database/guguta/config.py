@@ -116,6 +116,11 @@ class GugutaConfig(BaseSettings):
     openrouter_chat_model: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
     rerank_provider: Literal["none", "openrouter", "local"] = "none"
     retrieval_candidates: int = Field(default=24, ge=6, le=50)
+    # Opt in only for a configured multimodal chat model. Images are rendered
+    # from the same authorized PDFs, never fetched from user-controlled URLs.
+    chat_pdf_images: bool = False
+    chat_pdf_image_max_pages: int = Field(default=4, ge=1, le=8)
+    chat_answer_review: bool = False
     openrouter_timeout_seconds: float = Field(default=60, gt=0, le=300)
     openrouter_max_retries: int = Field(default=1, ge=0, le=3)
     openrouter_embedding_batch_size: int = Field(default=16, ge=1, le=32)

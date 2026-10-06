@@ -93,8 +93,9 @@ high-level values:
 - `GUGUTA_HTTP_PORT=8300`
 - `GUGUTA_PUBLIC_ORIGIN=https://tineri.math.md`
 - `GUGUTA_CORS_ORIGINS=["https://tineri.math.md"]`
-- OpenRouter providers for chat, embeddings, and rerank when using live AI
-- `GUGUTA_EMBEDDING_DIMENSION=2048` for the Nemotron embedding model
+- `GUGUTA_CHAT_PROVIDER=openrouter` and `GUGUTA_OPENROUTER_CHAT_MODEL=google/gemma-4-31b-it`
+- `GUGUTA_EMBEDDING_PROVIDER=local`, `GUGUTA_RERANK_PROVIDER=local`, and `GUGUTA_EMBEDDING_DIMENSION=1024`
+- local models `Qwen/Qwen3-Embedding-0.6B` and `Qwen/Qwen3-Reranker-0.6B`
 - non-default server, credential-encryption, and PostgreSQL role secrets
 
 `GUGUTA_BASE_PATH` is baked into the Next.js client bundle at build time. Any
@@ -156,6 +157,32 @@ The endpoint returns Server-Sent Events as `data: {json}\n\n`. OpenRouter chat i
 currently validated as one complete JSON answer, then emitted word by word to
 the browser. While waiting, the backend sends `ping` events every 15 seconds so
 proxies do not close the connection.
+
+Retrieval updates (2026-10-06, ADR-014): explicit page queries use indexed
+printed/PDF locator metadata, and chat uses request-local validated citations.
+`GUGUTA_CHAT_PDF_IMAGES=true` supplies original PDF page images to the configured
+image-capable model, rather than relying on damaged mathematical OCR alone.
+`GUGUTA_CHAT_ANSWER_REVIEW=true` enables an additional source-based review
+completion before publishing the answer; this increases latency and cost.
+Both options default to false. Existing documents and embeddings are unchanged.
+The mathematics evaluation also found residual visual transcription errors
+with Gemma after source-based review. GPT-5.4 was used in a historical evaluation,
+but the user explicitly requires Gemma 4 31B and prohibits more expensive models.
+The live configuration must remain
+`GUGUTA_OPENROUTER_CHAT_MODEL=google/gemma-4-31b-it`, without implicit model
+fallbacks. Do not run expensive alternative-model probes. Local Qwen embedding
+and reranking models remain unchanged. The historical GPT-5.4 result does not
+prove the same score for Gemma; new evaluation must use Gemma throughout.
+The complete Gemma rerun on 2026-10-06 scored 98 correct, 2 partial, and 0 failed
+answers on the same frozen 100-question suite. All 100 requests completed and
+cited a reference page. See `docs/guguta/retrieval-evaluation-2026-10-06.md` for
+the remaining errors and validation scope.
+Lexical retrieval folds historical/current Romanian diacritics and uses
+PostgreSQL's built-in Romanian stemming, with query instruction/function words
+filtered out when subject terms remain. This affects retrieval ranking only;
+stored source text and embeddings are untouched and no migration is required.
+Visible citation markers use the ordered saved citation list, not sparse
+indexes into the hidden retrieval context. No migration is needed.
 
 The UI must not spin forever. Backend streaming now enforces the configured
 `GUGUTA_CHAT_TOTAL_TIMEOUT_SECONDS`, logs stream failures, and emits an `error`
