@@ -177,12 +177,10 @@ export default function HomePage() {
     setImporting(true);
     setError(null);
     try {
-      await api("POST", `/api/v1/catalog/templates/${templateId}/instances`, {
+      const result = await api<{ notebook_id: string }>("POST", `/api/v1/catalog/templates/${templateId}/instances`, {
         idempotency_key: crypto.randomUUID(),
       });
-      setTab("mine");
-      const list = await api<{ items: Notebook[] }>("GET", "/api/v1/notebooks");
-      setNotebooks(list.items);
+      window.location.href = withBase(`/notebook/${result.notebook_id}`);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -196,7 +194,8 @@ export default function HomePage() {
       return;
     }
     const owned = notebooks?.find((notebook) =>
-      notebook.origin === "school" &&
+      (notebook.origin === "school" || notebook.origin === "template") &&
+      template.current_version_id &&
       notebook.current_template_version_id === template.current_version_id
     );
     if (owned) {
@@ -379,6 +378,9 @@ export default function HomePage() {
       </section>
 
       {error && <p className="error-text" style={{ padding: "0 24px" }}>{error}</p>}
+      {tab === "school" && importing && (
+        <p className="muted" role="status" style={{ padding: "0 24px" }}>Se deschide carnetul…</p>
+      )}
 
       {/* Carnetele mele */}
       {tab === "mine" && (
@@ -586,6 +588,7 @@ export default function HomePage() {
                   key={t.id}
                   role="button"
                   tabIndex={0}
+                  aria-disabled={importing || undefined}
                   onClick={() => !importing && openSchoolTemplate(t)}
                   onKeyDown={(e) => {
                     if ((e.key === "Enter" || e.key === " ") && !importing) {
