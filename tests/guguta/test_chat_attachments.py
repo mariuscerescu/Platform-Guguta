@@ -128,6 +128,26 @@ async def test_material_image_ocr_and_original_vision(client, worker, fmt):
     with Image.open(io.BytesIO(downloaded.content)) as image:
         assert not image.getexif() and image.size == (160, 100)
     assert downloaded.headers["cache-control"] == "private, no-store"
+    assert await search.open_page(
+        data.actor, uuid.UUID(data.nb), uuid.UUID(source["id"]), 1, page_kind="printed_page"
+    )
+
+    class VisionProvider:
+        model_name = "synthetic-material-vision"
+
+        def generate(self, question, context_chunks, history):
+            assert any(c.image_url for c in context_chunks)
+            return ChatAnswer("Imaginea este disponibilă", [0], self.model_name)
+
+    app = client._transport.app
+    app.state.guguta_chat._pdf_evidence = evidence
+    app.state.guguta_chat._provider = VisionProvider()
+    result = await client.post(
+        f"/api/v1/notebooks/{data.nb}/sessions/{data.sid}/messages",
+        json={"content": "Câte ceasuri sunt în imagine?"},
+        **data.access,
+    )
+    assert result.status_code == 200, result.text
 
 
 @pytest.mark.parametrize("streaming", [False, True])
@@ -511,3 +531,46 @@ async def test_chat_attachments_cannot_be_retained_in_public_catalog(
         **data.access,
     )
     assert result.status_code == 422, result.text
+
+
+async def test_followups_keep_attached_text_and_notebook_erasure_with_many_citations(
+    client, worker, guguta_db
+):
+    data = await setup(client)
+    app = client._transport.app
+    attachments = await upload(client, data)
+    await _drain(worker)
+    path = f"/api/v1/notebooks/{data.nb}/sessions/{data.sid}/messages"
+    result = await client.post(
+        path,
+        json={
+            "content": "Explică materialele",
+            "attachment_ids": [x["id"] for x in attachments],
+        },
+        **data.access,
+    )
+    assert result.status_code == 200, result.text
+
+    class FollowupProvider:
+        model_name = "synthetic-followup"
+
+        def generate(self, question, context_chunks, history):
+            assert any("Fotosinteza" in c.text for c in context_chunks)
+            return ChatAnswer(
+                "Cites both attached sources",
+                list(range(len(context_chunks))),
+                self.model_name,
+            )
+
+    app.state.guguta_chat._provider = FollowupProvider()
+    result = await client.post(
+        path, json={"content": "Ce scrie în fișierul de text?"}, **data.access
+    )
+    assert result.status_code == 200, result.text
+    result = await client.delete(f"/api/v1/notebooks/{data.nb}", **data.access)
+    assert result.status_code == 200, result.text
+    assert not inspect_db(
+        guguta_db,
+        "SELECT 1 FROM notebook_sources WHERE notebook_id=:nb",
+        {"nb": uuid.UUID(data.nb)},
+    )

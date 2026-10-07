@@ -763,22 +763,22 @@ class Citation(GugutaBase):
     id: Mapped[uuid.UUID] = _uuid_pk()
     message_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("chat_messages.id", ondelete="CASCADE"),
+        ForeignKey("chat_messages.id", ondelete="CASCADE", deferrable=True, initially="DEFERRED"),
         nullable=False,
     )
     notebook_source_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("notebook_sources.id", ondelete="SET NULL"),
+        ForeignKey("notebook_sources.id", ondelete="SET NULL", deferrable=True, initially="DEFERRED"),
         nullable=True,
     )
     material_version_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("material_versions.id", ondelete="SET NULL"),
+        ForeignKey("material_versions.id", ondelete="SET NULL", deferrable=True, initially="DEFERRED"),
         nullable=True,
     )
     chunk_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("chunks.id", ondelete="SET NULL"),
+        ForeignKey("chunks.id", ondelete="SET NULL", deferrable=True, initially="DEFERRED"),
         nullable=True,
     )
     display_name: Mapped[str] = mapped_column(String(500), nullable=False)

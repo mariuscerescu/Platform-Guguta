@@ -15,6 +15,9 @@ Notebook lists, permanent search, sharing, catalog publication and Studio exclud
 Request-scoped agent search and image rendering include permanent selected
 materials and ready attachments in the current conversation only. Renderer
 caches for conversation requests are private to the request.
+Ready conversation files and selected standalone images provide initial
+evidence on every turn, so empty OCR cannot prevent visual inspection and
+follow-up questions retain access to earlier attachments.
 
 Accept static PNG, JPEG and WebP. Validate file contents, decoding, dimensions
 and frame count before storage; autorotate and normalize to PNG, stripping
@@ -50,6 +53,10 @@ explicitly saved from answers keep their existing retention semantics.
 Migration 0021 follows the already deployed school-origin migration 0020;
 both must be present when deploying from Git. Deploy migrations before the
 new worker. Downgrade requires deleting attachments and draining the outbox.
+Migration 0022 defers historic citation foreign keys until
+commit: nested source/material erasure can otherwise check a citation in the
+middle of several `SET NULL` cascades. Foreign-key integrity remains enforced
+on the final transaction state.
 
 Validation covers image decoding and metadata removal, OCR and pixel/crop
 evidence, lexical/vector retrieval, same-user conversation isolation and

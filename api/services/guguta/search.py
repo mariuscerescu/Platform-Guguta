@@ -165,7 +165,7 @@ class SearchService:
         """List only ready, selected sources visible to this actor."""
         async with actor_connection(self._engine, actor_id) as conn:
             rows = (await conn.execute(self._scoped_text(
-                "SELECT ns.id AS source_id,ns.local_name,sa.mime_type "
+                "SELECT ns.id AS source_id,ns.local_name,sa.mime_type,ns.chat_session_id "
                 "FROM notebook_sources ns "
                 "JOIN material_versions mv ON mv.id=ns.material_version_id "
                 "LEFT JOIN source_assets sa ON sa.id=mv.source_asset_id "
@@ -173,7 +173,7 @@ class SearchService:
                 "AND ns.status='ready' ORDER BY ns.chat_session_id NULLS LAST, ns.created_at DESC,ns.id LIMIT 50"
             ), {"nb": notebook_id})).mappings().all()
         return [{"source_id": str(r["source_id"]), "name": r["local_name"],
-                 "mime_type": r["mime_type"]} for r in rows]
+                 "mime_type": r["mime_type"], "is_attachment": r["chat_session_id"] is not None} for r in rows]
 
     async def open_page(
         self, actor_id: uuid.UUID, notebook_id: uuid.UUID,
@@ -197,6 +197,10 @@ class SearchService:
             ), {"nb": notebook_id, "source": source_id})).mappings().first()
             if source is None:
                 return []
+            if (source["mime_type"] or "").startswith("image/"):
+                if page_number != 1:
+                    return []
+                page_kind = "page"  # Standalone images have no printed page numbers.
             rows = (await conn.execute(self._scoped_text(
                 "SELECT c.id,c.text,c.locator FROM chunks c "
                 "JOIN processing_artifacts pa ON pa.id=c.artifact_id "
@@ -247,8 +251,10 @@ class SearchService:
         ).bindparams(bindparam("ids", expanding=True))
         async with actor_connection(self._engine, actor_id) as conn:
             rows = (await conn.execute(statement, {"nb": notebook_id, "ids": source_ids})).mappings().all()
+        indexed = {r["source_id"]: r for r in rows}
         return [RetrievedChunk(r["id"], r["text"], r["locator"], r["source_id"],
-                               r["mv_id"], r["local_name"], 1.0, "locator") for r in rows]
+                               r["mv_id"], r["local_name"], 1.0, "locator")
+                for source_id in source_ids if (r := indexed.get(source_id)) is not None]
 
     async def search_notebook(
         self, actor_id: uuid.UUID, notebook_id: uuid.UUID, query: str, *,

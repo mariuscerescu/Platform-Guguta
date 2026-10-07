@@ -783,8 +783,19 @@ class ChatService:
     ) -> tuple[ChatAnswer, list[RetrievedChunk]]:
         """Acquire adaptive evidence then use the existing citation validator."""
         result = None
-        if self._attachment_ids:
-            attached = await self._search.attachment_context(actor_id, notebook_id, self._attachment_ids)
+        source_ids = list(self._attachment_ids)
+        if callable(getattr(self._search, "list_sources", None)):
+            sources = await self._search.list_sources(actor_id, notebook_id)
+            for source in sources:
+                # Keep conversation files available on later turns; preload
+                # standalone pixels even when OCR has no semantic search hit.
+                if source.get("is_attachment") or (requested_page(question) is None and
+                    (source.get("mime_type") or "").startswith("image/")):
+                    source_id = uuid.UUID(source["source_id"])
+                    if source_id not in source_ids:
+                        source_ids.append(source_id)
+        if source_ids:
+            attached = await self._search.attachment_context(actor_id, notebook_id, source_ids)
             if self._pdf_evidence is not None:
                 attached = await self._pdf_evidence.enrich(actor_id, notebook_id, attached)
             seen = {c.chunk_id for c in attached}
