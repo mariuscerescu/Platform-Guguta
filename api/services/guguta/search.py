@@ -113,6 +113,7 @@ class RetrievedChunk:
     mode: str = "text"
     image_url: str | None = field(default=None, repr=False, compare=False)
     extracted_text: str | None = field(default=None, repr=False, compare=False)
+    source_scope: str = "notebook"
 
 
 def source_scope_sql(sql: str, session_id: uuid.UUID | None):
@@ -241,20 +242,27 @@ class SearchService:
         return [c for c in chunks if (c.notebook_source_id, c.material_version_id) in allowed]
 
     async def attachment_context(self, actor_id, notebook_id, source_ids):
+        """Read bounded excerpts, keeping every requested file represented first."""
         statement = self._scoped_text(
-            "SELECT DISTINCT ON (ns.id) ns.id AS source_id,ns.local_name,mv.id AS mv_id,c.id,c.text,c.locator "
+            "SELECT ns.id AS source_id,ns.local_name,mv.id AS mv_id,c.id,c.text,c.locator,c.position "
             "FROM notebook_sources ns JOIN material_versions mv ON mv.id=ns.material_version_id "
-            "JOIN processing_artifacts pa ON pa.material_version_id=mv.id "
-            "JOIN chunks c ON c.artifact_id=pa.id "
+            "JOIN LATERAL (SELECT c.id,c.text,c.locator,c.position "
+            "FROM processing_artifacts pa JOIN chunks c ON c.artifact_id=pa.id "
+            "WHERE pa.material_version_id=mv.id AND pa.status='complete' "
+            "ORDER BY c.position,c.id LIMIT 8) c ON true "
             "WHERE ns.notebook_id=:nb AND ns.id IN :ids AND ns.selected_for_chat "
-            "AND ns.status='ready' AND pa.status='complete' ORDER BY ns.id,c.position"
+            "AND ns.status='ready' ORDER BY ns.id,c.position,c.id"
         ).bindparams(bindparam("ids", expanding=True))
         async with actor_connection(self._engine, actor_id) as conn:
             rows = (await conn.execute(statement, {"nb": notebook_id, "ids": source_ids})).mappings().all()
-        indexed = {r["source_id"]: r for r in rows}
+        indexed = {}
+        for row in rows:
+            indexed.setdefault(row["source_id"], []).append(row)
         return [RetrievedChunk(r["id"], r["text"], r["locator"], r["source_id"],
                                r["mv_id"], r["local_name"], 1.0, "locator")
-                for source_id in source_ids if (r := indexed.get(source_id)) is not None]
+                for index in range(8) for source_id in source_ids
+                if index < len(indexed.get(source_id, []))
+                for r in [indexed[source_id][index]]]
 
     async def search_notebook(
         self, actor_id: uuid.UUID, notebook_id: uuid.UUID, query: str, *,

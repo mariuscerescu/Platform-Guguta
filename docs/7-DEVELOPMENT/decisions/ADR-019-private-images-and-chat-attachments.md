@@ -1,6 +1,6 @@
 # ADR-019: Images and private conversation attachments
 
-Date: 2026-10-07 · Status: Accepted
+Date: 2026-10-07 · Status: Accepted; initial evidence priority superseded by ADR-020
 
 Students need to add photographs to permanent notebook materials and attach
 documents or images to a conversation. The agent must inspect the original

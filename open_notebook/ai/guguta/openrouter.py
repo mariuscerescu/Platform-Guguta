@@ -19,7 +19,7 @@ import httpx
 from open_notebook.ai.guguta.chat import SYSTEM_PROMPT, ChatAnswer
 from open_notebook.exceptions import ExternalServiceError
 
-PROMPT_VERSION = "guguta-openrouter-grounded-11"
+PROMPT_VERSION = "guguta-openrouter-grounded-12"
 logger = logging.getLogger("guguta.openrouter")
 
 
@@ -398,7 +398,8 @@ class OpenRouterChatProvider:
             "originală: nu le considera pagini ori obiecte suplimentare. "
             "citește fracțiile, exponenții și schemele din imagine, deoarece textul OCR "
             "poate pierde simboluri sau ordinea lor. Imaginea originală are prioritate "
-            "față de OCR în orice neconcordanță; nu reproduce formulele OCR corupte. "
+            "față de OCR din aceeași sursă în orice neconcordanță; "
+            "nu reproduce formulele OCR corupte. "
             "Pentru un enunț păstrează toate "
             "datele, formulele și subpunctele; dacă pagina are două variante, indică-le. "
             "Redă și schemele necesare rezolvării, inclusiv căsuțele goale prin □ "
@@ -416,6 +417,7 @@ class OpenRouterChatProvider:
             "question": question,
             "untrusted_source_fragments": [{
                 "id": f"F{i+1}", "source": getattr(c, "local_name", "material"),
+                "source_scope": getattr(c, "source_scope", "notebook"),
                 "locator": getattr(c, "locator", {}), "text": c.text,
             }
                                             for i, c in enumerate(context_chunks)],
@@ -491,6 +493,9 @@ class OpenRouterChatProvider:
                 "Nu presupune rânduri de aceeași lungime și nu număra "
                 "același obiect din pagina întreagă și decupaj de două ori. "
                 "Verifică sursele fiecărui paragraf și corectează source_ids. "
+                "Verifică și subiectul: dacă există current_attachment, "
+                "ciorna trebuie să răspundă despre aceste fișiere, fără să "
+                "le confunde cu imagini din carnet ori atașamente anterioare. "
                 "Păstrează identificatorii originali F1, F2 etc. din dovezi. "
                 "Returnează numai documentul final corectat cu paragraphs, "
                 "nu raportul verificării și nu raționamentul intern."

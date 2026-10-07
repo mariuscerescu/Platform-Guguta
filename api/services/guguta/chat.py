@@ -20,6 +20,7 @@ import json
 import logging
 import uuid
 from copy import copy
+from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -784,26 +785,35 @@ class ChatService:
         """Acquire adaptive evidence then use the existing citation validator."""
         result = None
         source_ids = list(self._attachment_ids)
+        current_ids = set(source_ids)
+        source_scopes = {source_id: "current_attachment" for source_id in current_ids}
         if callable(getattr(self._search, "list_sources", None)):
             sources = await self._search.list_sources(actor_id, notebook_id)
+            has_attachments = bool(current_ids) or any(source.get("is_attachment") for source in sources)
             for source in sources:
+                source_id = uuid.UUID(source["source_id"])
+                source_scopes.setdefault(source_id, "chat_attachment" if source.get("is_attachment") else "notebook")
                 # Keep conversation files available on later turns; preload
-                # standalone pixels even when OCR has no semantic search hit.
-                if source.get("is_attachment") or (requested_page(question) is None and
+                # notebook images only when they cannot distract from attachments.
+                if source.get("is_attachment") or (not has_attachments and requested_page(question) is None and
                     (source.get("mime_type") or "").startswith("image/")):
-                    source_id = uuid.UUID(source["source_id"])
                     if source_id not in source_ids:
                         source_ids.append(source_id)
         if source_ids:
             attached = await self._search.attachment_context(actor_id, notebook_id, source_ids)
+            # Preserve all current-file excerpts before older conversation files.
+            attached.sort(key=lambda chunk: chunk.notebook_source_id not in current_ids)
             if self._pdf_evidence is not None:
                 attached = await self._pdf_evidence.enrich(actor_id, notebook_id, attached)
             seen = {c.chunk_id for c in attached}
             context = self._budget(attached + [c for c in context if c.chunk_id not in seen])
+        context = [replace(chunk, source_scope=source_scopes.get(chunk.notebook_source_id, "notebook"))
+                   for chunk in context]
         if self._agent is not None and callable(getattr(self._provider, "choose_tools", None)):
             result = await self._agent.retrieve(
                 actor_id, notebook_id, self._provider, question, history, context,
                 expected_revision=context_revision,
+                source_scopes=source_scopes,
             )
             context = self._budget(result.chunks)
         if callable(getattr(self._search, "authorize_chunks", None)):

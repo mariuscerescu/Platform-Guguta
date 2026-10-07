@@ -117,7 +117,7 @@ async def test_server_renders_dense_citations_in_first_use_order():
     assert answer.cited == [2, 0]
     assert answer.prompt_tokens == 91 and answer.completion_tokens == 12
     assert answer.estimated_cost == 0
-    assert answer.prompt_version == "guguta-openrouter-grounded-11"
+    assert answer.prompt_version == "guguta-openrouter-grounded-12"
 
 
 @pytest.mark.asyncio
@@ -150,6 +150,34 @@ async def test_without_materials_accepts_uncited_educational_answer():
     answer = await provider.generate("Ce este gravitația?", [], [])
     assert answer.cited == []
     assert answer.content == "Gravitația este atracția dintre corpuri care au masă."
+    assert stages == ["generation", "review"]
+
+
+@pytest.mark.asyncio
+async def test_current_attachment_identity_reaches_generation_and_review_with_background_image():
+    stages = []
+
+    def response(request):
+        body = json.loads(request.content)
+        content = body["messages"][-1]["content"]
+        payload = json.loads(content[0]["text"])
+        fragments = payload["untrusted_source_fragments"]
+        assert [(f["source"], f["source_scope"]) for f in fragments] == [
+            ("fracții.docx", "current_attachment"), ("notă.png", "notebook"),
+        ]
+        stages.append("review" if "untrusted_draft" in payload else "generation")
+        # The original image remains available as supporting evidence.
+        assert content[-1]["image_url"]["url"] == "data:image/png;base64,c3ludGhldGlj"
+        assert "Atașamentele mesajului curent sunt sursele principale" in body["messages"][0]["content"]
+        return httpx.Response(200, json=completion(document("Fișierul DOCX conține fracții.", ["F1"])))
+
+    provider = OpenRouterChatProvider(config(chat_answer_review=True), transport=httpx.MockTransport(response))
+    answer = await provider.generate("Ajută-mă să înțeleg materialul atașat.", [
+        SimpleNamespace(text="Fracții", local_name="fracții.docx", source_scope="current_attachment"),
+        SimpleNamespace(text="Notă", local_name="notă.png", source_scope="notebook",
+                        locator={"page": 1}, image_url="data:image/png;base64,c3ludGhldGlj"),
+    ], [])
+    assert answer.cited == [0]
     assert stages == ["generation", "review"]
 
 

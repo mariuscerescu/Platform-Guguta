@@ -381,3 +381,99 @@ async def test_agent_timeout_cancels_the_outbound_request():
                 uuid.uuid4(), uuid.uuid4(), Provider(), "q", [], []
             )
     assert cancelled.is_set()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tight_budget", [False, True])
+async def test_current_document_precedes_old_files_and_unrelated_notebook_image(tight_budget):
+    note = replace(chunk(), local_name="notă medicală.png", locator={"page": 1, "image": True})
+    document = replace(chunk(), local_name="fracții.docx", image_url=None,
+                       locator={"paragraph": 1}, text="Lecție despre fracții.")
+    exercise = replace(document, chunk_id=uuid.uuid4(), locator={"paragraph": 2},
+                       text="Exercițiu: calculează 1/2 + 1/4.")
+    old = replace(chunk(), local_name="lecție anterioară.txt", image_url=None)
+
+    class AttachmentSearch(Search):
+        async def list_sources(self, *args):
+            return [{"source_id": str(c.notebook_source_id), "name": c.local_name,
+                     "is_attachment": c is not note,
+                     "mime_type": "image/png" if c is note else "text/plain"}
+                    for c in [note, old, document]]
+
+        async def attachment_context(self, actor, notebook, ids):
+            assert ids == [document.notebook_source_id, old.notebook_source_id]
+            # An older attachment cannot displace later chunks of the new file.
+            return [document, old, exercise]
+
+        async def authorize_chunks(self, actor, notebook, chunks):
+            return chunks
+
+    search = AttachmentSearch(note)
+    turns = []
+
+    class Provider:
+        async def choose_tools(self, messages, tools):
+            turns.append(messages)
+            metadata = json.loads(messages[-1]["content"][0]["text"])["untrusted_evidence"]
+            assert [c["source_scope"] for c in metadata[:2]] == ["current_attachment"] * 2
+            assert all(c["source"] != note.local_name for c in metadata)
+            if len(turns) == 1:
+                return turn("list_sources")
+            tool_result = json.loads(messages[-2]["content"])["result"]
+            if isinstance(tool_result, str):
+                tool_result = json.loads(tool_result)
+            sources = tool_result["sources"]
+            assert {s["name"]: s["source_scope"] for s in sources} == {
+                note.local_name: "notebook", old.local_name: "chat_attachment",
+                document.local_name: "current_attachment",
+            }
+            return turn()
+
+        def generate(self, question, chunks, history):
+            assert [c.text for c in chunks[:2]] == [document.text, exercise.text]
+            assert all(c.notebook_source_id != note.notebook_source_id for c in chunks)
+            if tight_budget:
+                assert len(chunks) == 2
+            else:
+                assert chunks[2].source_scope == "chat_attachment"
+            return ChatAnswer("Documentul conține un exercițiu despre fracții.", [0, 1], "synthetic")
+
+    service = ChatService(None, search, Provider())
+    service._attachment_ids = [document.notebook_source_id]
+    service._agent = NotebookChatAgent(search, Pdf())
+    if tight_budget:
+        service._max_context_chars = len(document.text) + len(exercise.text)
+    history = [{"role": "assistant", "content": "O notă medicală scrisă de mână.",
+                "source_refs": [{"source_id": str(note.notebook_source_id),
+                                 "material_version_id": str(note.material_version_id), "locator": note.locator}]}]
+    answer, _ = await service._answer(uuid.uuid4(), uuid.uuid4(), "Ajută-mă să înțeleg materialul atașat.", [], history)
+    assert "fracții" in answer.content
+    assert search.opens == []  # The old note is available via tools, never preloaded.
+
+
+@pytest.mark.asyncio
+async def test_source_priority_survives_search_and_image_tools():
+    item = chunk()
+    search = Search(item)
+    steps = 0
+
+    class Provider:
+        async def choose_tools(self, messages, tools):
+            nonlocal steps
+            steps += 1
+            if steps == 1:
+                return turn("search_pages", {"query": "diagram"})
+            evidence = json.loads(messages[-1]["content"][0]["text"])["untrusted_evidence"]
+            assert evidence and all(c["source_scope"] == "current_attachment" for c in evidence)
+            if steps == 2:
+                return turn("load_image", {"image_id": "F1"}, steps)
+            if steps == 3:
+                return turn("crop_image", {"image_id": "F1", "left": 0.0, "top": 0.0,
+                                           "right": 1.0, "bottom": 1.0}, steps)
+            return turn()
+
+    result = await NotebookChatAgent(search, Pdf()).retrieve(
+        uuid.uuid4(), uuid.uuid4(), Provider(), "Explică imaginea atașată", [], [],
+        source_scopes={item.notebook_source_id: "current_attachment"},
+    )
+    assert result.chunks and all(c.source_scope == "current_attachment" for c in result.chunks)

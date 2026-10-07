@@ -6,12 +6,14 @@ import asyncio
 import io
 import json
 import uuid
+import zipfile
 from types import SimpleNamespace
 
 import pytest
 from PIL import Image
 from sqlalchemy import create_engine, text
 
+from api.services.guguta.chat_agent import NotebookChatAgent
 from api.services.guguta.pdf_evidence import PdfPageEvidence
 from open_notebook.ai.guguta.chat import ChatAnswer
 from open_notebook.jobs.guguta import queue
@@ -574,3 +576,89 @@ async def test_followups_keep_attached_text_and_notebook_erasure_with_many_citat
         "SELECT 1 FROM notebook_sources WHERE notebook_id=:nb",
         {"nb": uuid.UUID(data.nb)},
     )
+
+
+@pytest.mark.parametrize("streaming", [False, True])
+@pytest.mark.parametrize("agent_enabled", [False, True])
+async def test_current_docx_takes_priority_over_notebook_image_and_old_citation(
+    client, worker, streaming, agent_enabled
+):
+    data = await setup(client)
+    app = client._transport.app
+
+    class OCR:
+        async def parse_page(self, png, *, page_number):
+            return SimpleNamespace(markdown="Notă medicală scrisă de mână.")
+
+        async def aclose(self):
+            pass
+
+    worker._image_ocr = OCR()
+    permanent = await client.post(
+        f"/api/v1/notebooks/{data.nb}/sources/file",
+        files={"file": ("notă.png", image_bytes(), "image/png")}, **data.access,
+    )
+    assert permanent.status_code == 201
+    await _drain(worker)
+    evidence = PdfPageEvidence(app.state.guguta_search._engine, worker._storage)
+    app.state.guguta_chat._pdf_evidence = evidence
+    path = f"/api/v1/notebooks/{data.nb}/sessions/{data.sid}/messages"
+    # Save an earlier answer referring to the notebook image.
+    prior = await client.post(path, json={"content": "Ce arată imaginea din carnet?"}, **data.access)
+    assert prior.status_code == 200, prior.text
+
+    paragraphs = ["Lecție despre fracții.", "Exercițiu: calculează 1/2 + 1/4."] + [
+        f"Explicația {i}: adunăm fracțiile cu același numitor." for i in range(3, 10)
+    ]
+    document = io.BytesIO()
+    with zipfile.ZipFile(document, "w") as archive:
+        xml = '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'
+        xml += "".join(f"<w:p><w:r><w:t>{paragraph}</w:t></w:r></w:p>" for paragraph in paragraphs)
+        archive.writestr("word/document.xml", xml + "</w:body></w:document>")
+    attachment = (await upload(client, data, [
+        ("files", ("fracții.docx", document.getvalue(),
+                   "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))
+    ]))[0]
+    await _drain(worker)
+    expected_scope = "current_attachment"
+
+    class DocumentProvider:
+        model_name = "synthetic-document-tutor"
+
+        async def choose_tools(self, messages, tools):
+            content = json.loads(messages[-1]["content"][0]["text"])["untrusted_evidence"]
+            assert len(content) == 8 and all(c["source_scope"] == expected_scope for c in content)
+            assert all(c["source"] == "fracții.docx" for c in content)
+            return {"message": {"role": "assistant", "content": "GATA"}, "usage": (1, 1, 0)}
+
+        def generate(self, question, context_chunks, history):
+            assert len(context_chunks) >= 8
+            primary = context_chunks[:8]
+            assert [c.locator["paragraph"] for c in primary] == list(range(1, 9))
+            assert [c.text for c in primary] == paragraphs[:8]
+            assert all(c.source_scope == expected_scope and not c.image_url for c in primary)
+            # Explicit/search-based supplementary sources remain available and labelled.
+            assert all(c.source_scope == (expected_scope if str(c.notebook_source_id) == attachment["id"] else "notebook")
+                       for c in context_chunks)
+            return ChatAnswer("Documentul DOCX conține fracții. 1/2 + 1/4 = 3/4.", [1], self.model_name)
+
+    app.state.guguta_chat._provider = DocumentProvider()
+    if agent_enabled:
+        app.state.guguta_chat._agent = NotebookChatAgent(app.state.guguta_search, evidence)
+    response = await client.post(path + ("/stream" if streaming else ""), json={
+        "content": "Ajută-mă să înțeleg materialul atașat.", "attachment_ids": [attachment["id"]],
+    }, **data.access)
+    assert response.status_code == 200, response.text
+    if streaming:
+        events = [json.loads(line[6:]) for line in response.text.splitlines() if line.startswith("data: ")]
+        assert not any(event["event"] == "error" for event in events), events
+        assert any(event["event"] == "done" for event in events)
+    messages = (await client.get(path, **data.access)).json()
+    answer = messages[-1]
+    assert "DOCX" in answer["content"] and "medicală" not in answer["content"]
+    citations = (await client.get(path + f"/{answer['id']}/citations", **data.access)).json()
+    assert citations and {c["notebook_source_id"] for c in citations} == {attachment["id"]}
+    # A follow-up keeps the document accessible without introducing the old image.
+    expected_scope = "chat_attachment"
+    followup = await client.post(path, json={"content": "Explică al doilea paragraf."}, **data.access)
+    assert followup.status_code == 200, followup.text
