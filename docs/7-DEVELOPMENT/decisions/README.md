@@ -57,5 +57,6 @@ What this makes easier, what it makes harder, what to watch. (bullets)
 | [ADR-013](ADR-013-full-page-pdf-text-coverage.md) | Every PDF page combines native text with visual OCR | Accepted |
 | [ADR-014](ADR-014-exact-page-visual-evidence-chat.md) | Exact page retrieval and request-local visual evidence | Accepted |
 | [ADR-015](ADR-015-server-rendered-chat-citations.md) | Server-rendered citations and independent review retries | Accepted |
+| [ADR-018](ADR-018-openrouter-private-performance-routing.md) | OpenRouter ZDR enforcement and performance routing | Accepted |
 | [PDR-001](PDR-001-single-user-first.md) | Single-user first; don't preclude multi-user | Accepted |
 | [PDR-002](PDR-002-provider-agnostic-core.md) | Provider-agnostic core by default | Accepted |

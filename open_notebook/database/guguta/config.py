@@ -131,6 +131,14 @@ class GugutaConfig(BaseSettings):
     openrouter_max_retries: int = Field(default=1, ge=0, le=3)
     openrouter_embedding_batch_size: int = Field(default=16, ge=1, le=32)
     openrouter_max_output_tokens: int = Field(default=3000, ge=128, le=8192)
+    # Short agent/retrieval calls favour time to first token; longer answers
+    # favour token throughput. Privacy is enforced in OpenRouterClient and
+    # cannot be disabled through environment variables or caller payloads.
+    openrouter_provider_sort: Literal["latency", "throughput"] = "throughput"
+    openrouter_interactive_provider_sort: Literal["latency", "throughput"] = "latency"
+    # OpenRouter treats these as soft preferences, never availability limits.
+    openrouter_preferred_max_latency_seconds: float | None = Field(default=3, gt=0)
+    openrouter_preferred_min_throughput: float | None = Field(default=50, gt=0)
     local_retrieval_base_url: str = "http://qwen-retrieval:8002"
     local_retrieval_timeout_seconds: float = Field(default=120, gt=0, le=600)
     local_embedding_model: str = "Qwen/Qwen3-Embedding-0.6B"

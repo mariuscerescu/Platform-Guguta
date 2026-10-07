@@ -66,16 +66,58 @@ class OpenRouterClient:
         self._timeout = config.openrouter_timeout_seconds
         self._retries = config.openrouter_max_retries
         self._transport = transport
+        self.provider_sort = config.openrouter_provider_sort
+        self.interactive_provider_sort = config.openrouter_interactive_provider_sort
+        self._preferred_max_latency = config.openrouter_preferred_max_latency_seconds
+        self._preferred_min_throughput = config.openrouter_preferred_min_throughput
+
+    def _private_payload(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """Enforce retention controls once for every attempt and every adapter.
+
+        Keep capability requirements/allowlists, but never let a caller or a
+        retry relax privacy. OpenRouter applies ZDR at the endpoint level;
+        provider fallback remains restricted to eligible endpoints.
+        """
+        provider = dict(payload.get("provider") or {})
+        default_sort = (
+            self.interactive_provider_sort
+            if endpoint in ("embeddings", "rerank") else self.provider_sort
+        )
+        provider.update({
+            "sort": provider.get("sort", default_sort),
+            "data_collection": "deny",
+            "zdr": True,
+        })
+        if self._preferred_max_latency is not None:
+            provider["preferred_max_latency"] = self._preferred_max_latency
+        if self._preferred_min_throughput is not None:
+            provider["preferred_min_throughput"] = self._preferred_min_throughput
+        return {**payload, "provider": provider}
+
+    @staticmethod
+    def _upstream_error(code: Any) -> OpenRouterError:
+        # Upstream messages/metadata can echo prompts, image data or secrets.
+        # Only locally defined text is safe for API errors and job status.
+        if code == 404:
+            return OpenRouterError(
+                "OpenRouter: modelul sau un provider compatibil cu politica "
+                "de confidențialitate nu este disponibil."
+            )
+        return OpenRouterError("OpenRouter a respins cererea sau nu a putut-o procesa.")
 
     async def post(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
         # Fixed trusted destination; never follow a redirect carrying the key.
+        if endpoint not in ("chat/completions", "embeddings", "rerank"):
+            raise OpenRouterError("Endpoint OpenRouter nepermis.")
+        payload = self._private_payload(endpoint, payload)
         retriable_codes = (429, 502, 503, 504, 529)
         try:
             async with asyncio.timeout(self._timeout):
                 async with httpx.AsyncClient(
                     base_url="https://openrouter.ai/api/v1/",
                     headers={"Authorization": "Bearer " + self._key,
-                             "X-Title": "Guguta"},
+                             "X-Title": "Guguta",
+                             "X-OpenRouter-Cache": "false"},
                     timeout=httpx.Timeout(self._timeout, connect=10),
                     follow_redirects=False, transport=self._transport,
                 ) as client:
@@ -84,6 +126,8 @@ class OpenRouterClient:
                         retriable = response.status_code in retriable_codes
                         data: Any = None
                         if not retriable:
+                            if response.status_code != 200:
+                                raise self._upstream_error(response.status_code) from None
                             try:
                                 data = response.json()
                             except ValueError:
@@ -93,18 +137,15 @@ class OpenRouterClient:
                             # OpenRouter semnalează supraîncărcarea upstream
                             # cu HTTP 200 + error.code 502 în body (variante
                             # :free) — retriable exact ca un HTTP 502.
-                            if isinstance(data, dict) and isinstance(
-                                data.get("error"), dict
-                            ):
+                            if isinstance(data, dict) and data.get("error") is not None:
                                 err = data["error"]
+                                if not isinstance(err, dict):
+                                    raise self._upstream_error(None) from None
                                 code = err.get("code")
                                 if isinstance(code, int) and code in retriable_codes:
                                     retriable = True
                                 else:
-                                    raise OpenRouterError(
-                                        "OpenRouter: "
-                                        + str(err.get("message", "eroare de procesare"))
-                                    ) from None
+                                    raise self._upstream_error(code) from None
                         if retriable and attempt < self._retries:
                             try:
                                 delay = float(
@@ -217,7 +258,10 @@ class OpenRouterChatProvider:
             "model": self.model_name, "messages": messages, "tools": tools,
             "tool_choice": "auto", "max_tokens": min(1200, self._max_tokens),
             "temperature": 0, "reasoning": {"enabled": False},
-            "provider": {"require_parameters": True},
+            "provider": {
+                "require_parameters": True,
+                "sort": self._client.interactive_provider_sort,
+            },
         })
         try:
             choice = data["choices"][0]
@@ -284,6 +328,7 @@ class OpenRouterChatProvider:
             "temperature": 0,
             "response_format": {"type": "json_object"},
             "reasoning": {"enabled": False},
+            "provider": {"sort": self._client.interactive_provider_sort},
         })
         try:
             choice = data["choices"][0]

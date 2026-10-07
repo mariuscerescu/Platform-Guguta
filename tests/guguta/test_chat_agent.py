@@ -313,7 +313,11 @@ async def test_tool_adapter_uses_native_calls_and_requires_provider_support():
     def response(request):
         body = json.loads(request.content)
         requests.append(body)
-        assert body["provider"] == {"require_parameters": True}
+        assert body["provider"] == {
+            "require_parameters": True, "sort": "latency",
+            "data_collection": "deny", "zdr": True,
+            "preferred_max_latency": 3, "preferred_min_throughput": 50,
+        }
         assert body["tool_choice"] == "auto" and body["tools"]
         return httpx.Response(
             200,

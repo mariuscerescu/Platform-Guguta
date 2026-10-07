@@ -93,7 +93,11 @@ async def test_server_renders_dense_citations_in_first_use_order():
     def response(request):
         body = json.loads(request.content)
         assert body["model"] == "google/gemma-4-31b-it"
-        assert body["provider"] == {"require_parameters": True}
+        assert body["provider"] == {
+            "require_parameters": True, "sort": "throughput",
+            "data_collection": "deny", "zdr": True,
+            "preferred_max_latency": 3, "preferred_min_throughput": 50,
+        }
         schema = body["response_format"]["json_schema"]["schema"]
         assert body["response_format"]["json_schema"]["strict"]
         assert schema["properties"]["paragraphs"]["items"]["properties"]["source_ids"]["items"]["enum"] == ["F1", "F2", "F3"]
@@ -364,7 +368,10 @@ async def test_invalid_provider_usage_is_rejected(usage):
 @pytest.mark.asyncio
 async def test_query_planner_uses_history_and_returns_distinct_queries():
     def response(request):
-        payload = json.loads(json.loads(request.content)["messages"][-1]["content"])
+        body = json.loads(request.content)
+        assert body["provider"]["sort"] == "latency"
+        assert body["provider"]["zdr"] is True
+        payload = json.loads(body["messages"][-1]["content"])
         assert payload["history"][-1]["content"] == "Metoda este fotosinteza."
         assert payload["question"] == "Care sunt limitările ei?"
         return httpx.Response(200, json=completion('{"queries":["limitările fotosintezei","dovezi experimentale"]}'))
@@ -386,6 +393,9 @@ async def test_retry_keeps_exact_model_and_redacts_errors():
     with pytest.raises(OpenRouterError) as exc:
         await client.post("rerank", {"model": "chosen:free"})
     assert len(calls) == 2 and calls[0] == calls[1]
+    assert calls[0]["model"] == "chosen:free"
+    assert calls[0]["provider"]["zdr"] is True
+    assert calls[0]["provider"]["data_collection"] == "deny"
     assert "synthetic-test-key" not in str(exc.value) and "private text" not in str(exc.value)
 
 
@@ -406,3 +416,98 @@ def test_config_refuses_missing_key_and_wrong_dimension():
     with pytest.raises(ValueError):
         GugutaConfig(_env_file=None, embedding_provider="openrouter", openrouter_api_key="synthetic")
     assert "synthetic-test-key" not in repr(config())
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("endpoint,sort", [
+    ("chat/completions", "throughput"), ("embeddings", "latency"), ("rerank", "latency"),
+])
+async def test_all_endpoints_enforce_privacy_without_mutating_caller(endpoint, sort):
+    payload = {"model": "exact-model", "provider": {
+        "data_collection": "allow", "zdr": False,
+        "require_parameters": True, "only": ["compatible-provider"],
+    }}
+    original = json.loads(json.dumps(payload))
+
+    def response(request):
+        assert str(request.url) == "https://openrouter.ai/api/v1/" + endpoint
+        assert request.headers["X-OpenRouter-Cache"] == "false"
+        body = json.loads(request.content)
+        assert body["model"] == "exact-model"
+        assert body["provider"] == {
+            "require_parameters": True, "only": ["compatible-provider"],
+            "data_collection": "deny", "zdr": True, "sort": sort,
+            "preferred_max_latency": 3, "preferred_min_throughput": 50,
+        }
+        return httpx.Response(200, json={"ok": True})
+
+    client = OpenRouterClient(config(), transport=httpx.MockTransport(response))
+    assert await client.post(endpoint, payload) == {"ok": True}
+    assert payload == original
+
+
+@pytest.mark.asyncio
+async def test_performance_configuration_and_optional_preferences():
+    def response(request):
+        assert json.loads(request.content)["provider"] == {
+            "sort": "latency", "data_collection": "deny", "zdr": True,
+        }
+        return httpx.Response(200, json={})
+
+    client = OpenRouterClient(config(
+        openrouter_provider_sort="latency",
+        openrouter_preferred_max_latency_seconds=None,
+        openrouter_preferred_min_throughput=None,
+    ), transport=httpx.MockTransport(response))
+    await client.post("chat/completions", {"model": "exact-model"})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("status,error", [
+    (200, {"code": 404, "message": "private text synthetic-test-key"}),
+    (200, {"code": "private text", "message": "synthetic-test-key"}),
+    (200, "private text synthetic-test-key"),
+    (400, {}), (401, {}), (402, {}), (403, {}), (404, {}), (500, {}), (307, {}),
+])
+async def test_upstream_failures_never_echo_private_content(status, error, provider_logs):
+    calls = []
+
+    def response(request):
+        calls.append(json.loads(request.content))
+        return httpx.Response(status, json={
+            "error": error, "metadata": {"raw": "private text synthetic-test-key"},
+        }, headers={"Location": "https://untrusted.example"})
+
+    client = OpenRouterClient(config(), transport=httpx.MockTransport(response))
+    with pytest.raises(OpenRouterError) as exc:
+        await client.post("chat/completions", {"model": "exact-model"})
+    assert len(calls) == 1  # Fail closed: no privacy relaxation/model fallback.
+    assert "private text" not in str(exc.value) + provider_logs.text
+    assert "synthetic-test-key" not in str(exc.value) + provider_logs.text
+    if status == 404 or isinstance(error, dict) and error.get("code") == 404:
+        assert "confidențialitate" in str(exc.value)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("endpoint", [
+    "https://untrusted.example/embeddings", "//untrusted.example/embeddings",
+    "../embeddings", "unknown",
+])
+async def test_client_refuses_destinations_outside_approved_endpoints(endpoint):
+    def response(request):
+        pytest.fail("An unapproved endpoint must not receive the API key or payload")
+
+    client = OpenRouterClient(config(), transport=httpx.MockTransport(response))
+    with pytest.raises(OpenRouterError, match="nepermis"):
+        await client.post(endpoint, {"model": "exact-model"})
+
+
+@pytest.mark.parametrize("settings", [
+    {"openrouter_provider_sort": "price"},
+    {"openrouter_interactive_provider_sort": "invalid"},
+    {"openrouter_preferred_max_latency_seconds": 0},
+    {"openrouter_preferred_min_throughput": -1},
+])
+def test_config_rejects_invalid_routing_preferences(settings):
+    with pytest.raises(ValueError):
+        config(**settings)
