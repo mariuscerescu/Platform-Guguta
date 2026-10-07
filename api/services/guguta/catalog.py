@@ -237,6 +237,9 @@ class CatalogService:
                         text(
                             "SELECT mv.id, mv.title, mv.page_count FROM material_versions mv"
                             " WHERE mv.id = :mv AND mv.created_by = :a"
+                            "   AND NOT EXISTS (SELECT 1 FROM notebook_sources ns"
+                            "                   WHERE ns.material_version_id = mv.id"
+                            "                   AND ns.chat_session_id IS NOT NULL)"
                             "   AND EXISTS (SELECT 1 FROM processing_artifacts pa"
                             "               WHERE pa.material_version_id = mv.id"
                             "               AND pa.status = 'complete')"

@@ -11,7 +11,7 @@ Reuse the source/material/artifact/chunk/embedding pipeline. A nullable
 `notebook_sources.chat_session_id` distinguishes permanent materials from
 attachments; `chat_message_id` associates an uploaded file with its user
 message. Uploads are initially staged, then bound in the message transaction.
-Notebook lists, permanent search, sharing and Studio exclude attachments.
+Notebook lists, permanent search, sharing, catalog publication and Studio exclude attachments.
 Request-scoped agent search and image rendering include permanent selected
 materials and ready attachments in the current conversation only. Renderer
 caches for conversation requests are private to the request.

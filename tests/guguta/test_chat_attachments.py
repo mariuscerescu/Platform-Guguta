@@ -479,3 +479,35 @@ async def test_inflight_ocr_cannot_publish_after_chat_deletion(
         "SELECT 1 FROM processing_artifacts WHERE material_version_id=:mv",
         {"mv": mv},
     )
+
+
+async def test_chat_attachments_cannot_be_retained_in_public_catalog(
+    client, worker, guguta_db
+):
+    data = await setup(client)
+    attachments = await upload(client, data)
+    await _drain(worker)
+    inspect_db(
+        guguta_db,
+        "UPDATE users SET roles=ARRAY['user','catalog_editor'] WHERE id=:actor RETURNING id",
+        {"actor": data.actor},
+    )
+    template = await client.post(
+        "/api/v1/admin/catalog/templates",
+        json={"slug": "attachment-" + uuid.uuid4().hex, "title": "Temporary sources"},
+        **data.access,
+    )
+    assert template.status_code == 201, template.text
+    result = await client.post(
+        f"/api/v1/admin/catalog/templates/{template.json()['id']}/versions",
+        json={
+            "items": [
+                {
+                    "material_version_id": attachments[0]["material_version_id"],
+                    "display_name": "Private attachment",
+                }
+            ]
+        },
+        **data.access,
+    )
+    assert result.status_code == 422, result.text
