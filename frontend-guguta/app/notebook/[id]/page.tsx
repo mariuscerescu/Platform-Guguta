@@ -7,6 +7,8 @@ import {
   SHOW_ANSWER_REFERENCES,
   withoutReferenceMarkers,
 } from "../../../lib/features";
+import ChatAttachments, { AttachmentCards, type ChatAttachment } from "../../components/ChatAttachments";
+import PrivateImagePreview from "../../components/PrivateImagePreview";
 import SourceUploader from "../../components/SourceUploader";
 import MarkdownContent from "../../components/MarkdownContent";
 import {
@@ -151,6 +153,13 @@ export default function NotebookPage() {
   const [quizzes, setQuizzes] = useState<QuizArtifact[] | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [chatAttachments, setChatAttachments] = useState<ChatAttachment[]>([]);
+  const [uploadingAttachments, setUploadingAttachments] = useState(false);
+  const [resettingChat, setResettingChat] = useState(false);
+  const [attachmentRefresh, setAttachmentRefresh] = useState(0);
+  const [imagePreview, setImagePreview] = useState<Source | null>(null);
+  const pendingAttachments = chatAttachments.filter((file) => !file.chat_message_id);
+  const attachmentsReady = pendingAttachments.every((file) => file.status === "ready");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [citations, setCitations] = useState<Record<string, Citation[]>>({});
   const [draft, setDraft] = useState("");
@@ -366,8 +375,9 @@ export default function NotebookPage() {
   }, [messages.length]);
 
   async function send() {
-    if (sending) return;
-    const content = draft.trim();
+    if (sending || uploadingAttachments || resettingChat || !attachmentsReady) return;
+    const attachmentIds = pendingAttachments.map((file) => file.id);
+    const content = draft.trim() || (attachmentIds.length ? "Ajută-mă să înțeleg materialul atașat." : "");
     if (!content || sessionId === null) return;
     setSending(true);
     setError(null);
@@ -400,7 +410,7 @@ export default function NotebookPage() {
             "Content-Type": "application/json",
             ...(csrf ? { "X-Guguta-CSRF": csrf } : {}),
           },
-          body: JSON.stringify({ content }),
+          body: JSON.stringify({ content, attachment_ids: attachmentIds }),
           signal: controller.signal,
         },
       );
@@ -434,6 +444,7 @@ export default function NotebookPage() {
               text?: string;
               message?: string;
             };
+            if (ev.event === "user_saved") setAttachmentRefresh((value) => value + 1);
             if (ev.event === "token" && ev.text) {
               setStreaming((prev) => (prev ?? "") + ev.text);
             } else if (ev.event === "done") {
@@ -550,18 +561,24 @@ export default function NotebookPage() {
   }
 
   async function newSession() {
+    if (sending || uploadingAttachments || resettingChat) return;
+    setResettingChat(true);
+    let deleted = false;
     try {
-      const s = await api<ChatSession>(
-        "POST",
-        `/api/v1/notebooks/${nbId}/sessions`,
-        {},
-      );
-      setSessions((prev) => [s, ...prev]);
-      setSessionId(s.id);
-      setMessages([]);
+      if (sessionId !== null) {
+        await api("DELETE", `/api/v1/notebooks/${nbId}/sessions/${sessionId}`);
+        deleted = true;
+        setSessions((prev) => prev.filter((session) => session.id !== sessionId));
+      }
+      setMessages([]); setChatAttachments([]); setDraft("");
+      setStreaming(null); setCitations({}); setChatMessage(null);
+      const session = await api<ChatSession>("POST", `/api/v1/notebooks/${nbId}/sessions`, {});
+      setSessions((prev) => [session, ...prev]);
+      setSessionId(session.id);
     } catch (err) {
+      if (deleted) setSessionId(null);
       setError((err as Error).message);
-    }
+    } finally { setResettingChat(false); }
   }
 
   // Adăugarea materialelor (file manager → upload → procesare) este izolată
@@ -1101,7 +1118,11 @@ export default function NotebookPage() {
                     />
                   </label>
                   <span className={`src-doc source-type-${sourceIconType(s)}`} title={sourceIconType(s) === "book" ? "Carte / PDF" : sourceIconType(s) === "quiz" ? "Test" : sourceIconType(s) === "audio" ? "Audio" : sourceIconType(s) === "video" ? "Video" : "Document"}>
-                    <SourceTypeIcon source={s} />
+                    {s.mime_type?.startsWith("image/") ? (
+                      <button type="button" className="source-image-thumb" onClick={() => setImagePreview(s)} aria-label={`Afișează imaginea ${s.local_name}`}>
+                        <img src={`${API_BASE}/api/v1/notebooks/${nbId}/sources/${s.id}/download`} alt={s.local_name} />
+                      </button>
+                    ) : <SourceTypeIcon source={s} />}
                   </span>
                   <span className="src-name" title={s.local_name}>{s.local_name}</span>
                   {/* Cât timp workerul procesează, fișierul primește doar
@@ -1154,9 +1175,10 @@ export default function NotebookPage() {
             </div>
             <button
               className="icon-btn reset-chat-btn"
-              onClick={newSession}
+              onClick={() => void newSession()}
+              disabled={sending || uploadingAttachments || resettingChat}
               aria-label="Resetează conversația"
-              title="Resetează conversația"
+              title="Șterge conversația și atașamentele, apoi începe una nouă"
             >
               <img src={withBase("/assets/broom.png")} alt="" />
             </button>
@@ -1185,6 +1207,10 @@ export default function NotebookPage() {
                   ) : (
                     m.content
                   )}
+                  {m.role === "user" && sessionId && <AttachmentCards
+                    attachments={chatAttachments.filter((file) => file.chat_message_id === m.id)}
+                    notebookId={nbId} sessionId={sessionId}
+                  />}
                   {SHOW_ANSWER_REFERENCES &&
                     (citations[m.id] ?? []).map((c, i) => (
                       <span className="citation" key={i}>
@@ -1210,7 +1236,10 @@ export default function NotebookPage() {
               )}
               <div ref={bottomRef} />
             </div>
-            <div className="composer">
+            <div className="composer has-attachments">
+              {sessionId && !resettingChat && <ChatAttachments key={sessionId} notebookId={nbId} sessionId={sessionId}
+                disabled={sending || resettingChat} refreshToken={attachmentRefresh + messages.length}
+                onChange={setChatAttachments} onBusy={setUploadingAttachments} />}
               {speechMessage || chatMessage ? (
                 <p className="composer-notice" role="status" aria-live="polite">
                   {speechMessage ?? chatMessage}
@@ -1248,7 +1277,7 @@ export default function NotebookPage() {
               <button
                 className="send-btn"
                 onClick={() => void send()}
-                disabled={sending || sessionId === null || !draft.trim()}
+                disabled={sending || uploadingAttachments || resettingChat || sessionId === null || !attachmentsReady || (!draft.trim() && !pendingAttachments.length)}
                 aria-label="Trimite"
                 title={sending ? `Se generează… ${elapsed}s` : "Trimite"}
               >
@@ -1836,6 +1865,9 @@ export default function NotebookPage() {
           </div>
         </div>
       )}
+      {imagePreview && <PrivateImagePreview
+        url={`${API_BASE}/api/v1/notebooks/${nbId}/sources/${imagePreview.id}/download`}
+        name={imagePreview.local_name} onClose={() => setImagePreview(null)} />}
     </div>
   );
 }

@@ -149,6 +149,7 @@ class NotebookService:
                             " FROM notebook_sources ns"
                             " JOIN digital_notebooks dn ON dn.id = ns.notebook_id"
                             " WHERE ns.notebook_id = ANY(:ids)"
+                            " AND ns.chat_session_id IS NULL"
                             " GROUP BY ns.notebook_id"
                         ),
                         {"ids": [r["id"] for r in rows[:page_size]]},

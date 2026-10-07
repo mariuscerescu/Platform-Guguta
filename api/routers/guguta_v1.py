@@ -13,7 +13,7 @@ import secrets
 import uuid
 from typing import Any, Optional
 
-from fastapi import APIRouter, Query, Request, Response
+from fastapi import APIRouter, File, Query, Request, Response, UploadFile
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 
@@ -476,7 +476,6 @@ async def delete_notebook(notebook_id: uuid.UUID, request: Request) -> dict[str,
 # Sources (materials)
 # ---------------------------------------------------------------------------
 
-from fastapi import UploadFile  # noqa: E402
 
 
 class TextSourceCreate(BaseModel):
@@ -604,6 +603,8 @@ async def download_source(
     ascii_name = safe_name.encode("ascii", "replace").decode("ascii")
     utf8_name = quote(safe_name)
     headers = {
+        "Cache-Control": "private, no-store",
+        "X-Content-Type-Options": "nosniff",
         "Content-Disposition": (
             f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{utf8_name}"
         )
@@ -691,6 +692,7 @@ class SessionCreate(BaseModel):
 class MessageCreate(BaseModel):
     content: str = Field(min_length=1, max_length=20000)
     idempotency_key: Optional[str] = Field(default=None, max_length=255)
+    attachment_ids: list[uuid.UUID] = Field(default_factory=list, max_length=5)
 
 
 chat_router = APIRouter(
@@ -725,6 +727,41 @@ async def list_messages(
     return await service.list_messages(actor, notebook_id, session_id)
 
 
+@chat_router.get("/{session_id}/attachments")
+async def list_chat_attachments(notebook_id: uuid.UUID, session_id: uuid.UUID, request: Request):
+    return await request.app.state.guguta_attachments.list(get_actor(request), notebook_id, session_id)
+
+
+@chat_router.post("/{session_id}/attachments", status_code=201)
+async def upload_chat_attachments(notebook_id: uuid.UUID, session_id: uuid.UUID,
+                                  request: Request, files: list[UploadFile] = File(...)):
+    return await request.app.state.guguta_attachments.upload(get_actor(request), notebook_id, session_id, files)
+
+
+@chat_router.delete("/{session_id}/attachments/{source_id}")
+async def remove_chat_attachment(notebook_id: uuid.UUID, session_id: uuid.UUID,
+                                 source_id: uuid.UUID, request: Request):
+    return {"deleted": await request.app.state.guguta_attachments.remove(
+        get_actor(request), notebook_id, session_id, source_id)}
+
+
+@chat_router.get("/{session_id}/attachments/{source_id}/download")
+async def download_chat_attachment(notebook_id: uuid.UUID, session_id: uuid.UUID,
+                                   source_id: uuid.UUID, request: Request):
+    await request.app.state.guguta_attachments.check_file(get_actor(request), notebook_id, session_id, source_id)
+    return await download_source(notebook_id, source_id, request)
+
+
+@chat_router.delete("/{session_id}")
+async def delete_chat_session(notebook_id: uuid.UUID, session_id: uuid.UUID, request: Request):
+    deleted = await request.app.state.guguta_attachments.delete_chat(get_actor(request), notebook_id, session_id)
+    evidence = request.app.state.guguta_chat._pdf_evidence
+    if evidence is not None:
+        evidence._cache.clear()
+        evidence._size = 0
+    return {"deleted": deleted}
+
+
 @chat_router.post("/{session_id}/messages")
 async def send_message(
     notebook_id: uuid.UUID,
@@ -733,7 +770,8 @@ async def send_message(
     request: Request,
 ) -> dict[str, Any]:
     actor = get_actor(request)
-    service = request.app.state.guguta_chat
+    await request.app.state.guguta_attachments.validate(actor, notebook_id, session_id, body.attachment_ids)
+    service = request.app.state.guguta_chat.for_session(session_id, body.attachment_ids)
     return await service.send_message(
         actor,
         notebook_id,
@@ -755,7 +793,8 @@ async def send_message_stream(
     from fastapi.responses import StreamingResponse
 
     actor = get_actor(request)
-    service = request.app.state.guguta_chat
+    await request.app.state.guguta_attachments.validate(actor, notebook_id, session_id, body.attachment_ids)
+    service = request.app.state.guguta_chat.for_session(session_id, body.attachment_ids)
     gen = await service.send_message_stream(
         actor,
         notebook_id,

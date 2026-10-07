@@ -19,6 +19,7 @@ import hashlib
 import json
 import logging
 import uuid
+from copy import copy
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -88,6 +89,28 @@ class ChatService:
         self._max_history = max_history_messages
         # F09: a 'pending' generation older than this is recovered on retry
         self._pending_recovery_seconds = 300
+        self._attachments = None
+        self._attachment_ids = []
+
+    def for_session(self, session_id, attachment_ids=()):
+        scoped = copy(self)
+        scoped._attachment_ids = list(attachment_ids)
+        if callable(getattr(self._search, "for_session", None)):
+            scoped._search = self._search.for_session(session_id)
+        if self._pdf_evidence is not None:
+            scoped._pdf_evidence = self._pdf_evidence.for_session(session_id)
+        if self._agent is not None:
+            scoped._agent = copy(self._agent)
+            scoped._agent._search = scoped._search
+            if scoped._pdf_evidence is not None:
+                scoped._agent._pdf = scoped._pdf_evidence
+            elif self._agent._pdf is not None:
+                scoped._agent._pdf = self._agent._pdf.for_session(session_id)
+        return scoped
+
+    async def _bind_attachments(self, conn, session_id, message_id):
+        if self._attachments is not None:
+            await self._attachments.bind(conn, session_id, message_id, self._attachment_ids)
 
     # -- streaming (SSE) -------------------------------------------------------
 
@@ -177,6 +200,7 @@ class ChatService:
                 {"id": user_msg_id, "sid": session_id, "seq": seq, "c": content,
                  "rev": context_revision},
             )
+            await self._bind_attachments(conn, session_id, user_msg_id)
 
         # Phase 2: stream tokens from the provider, cu heartbeat la 15s —
         # proxyele taie conexiunile idle (next proxyTimeout 30s implicit)
@@ -237,10 +261,12 @@ class ChatService:
 
                 # Phase 3: save assistant message + citations (one tx)
                 async with actor_connection(self._engine, actor.actor_id) as conn:
-                    await conn.execute(
+                    locked = (await conn.execute(
                         text("SELECT id FROM chat_sessions WHERE id = :sid FOR UPDATE"),
                         {"sid": session_id},
-                    )
+                    )).first()
+                    if locked is None:
+                        raise ChatSessionNotFound()
                     current_revision = (await conn.execute(text(
                         "SELECT context_revision FROM digital_notebooks WHERE id=:nb"
                     ),{"nb":notebook_id})).scalar_one()
@@ -438,7 +464,8 @@ class ChatService:
             raise ChatValidation("Mesajul depășește limita de 20000 de caractere.")
 
         payload_hash = hashlib.sha256(
-            f"{notebook_id}:{session_id}:{content}".encode("utf-8")
+            (f"{notebook_id}:{session_id}:{content}" +
+             (":" + ",".join(sorted(map(str, self._attachment_ids))) if self._attachment_ids else "")).encode("utf-8")
         ).hexdigest()
 
         # Idempotent fast-path: same actor+operation+key returns the stored result.
@@ -537,6 +564,7 @@ class ChatService:
                 {"id": user_msg_id, "sid": session_id, "seq": seq, "c": content,
                  "rev": context_revision},
             )
+            await self._bind_attachments(conn, session_id, user_msg_id)
             if idempotency_key:
                 try:
                     await conn.execute(
@@ -755,12 +783,22 @@ class ChatService:
     ) -> tuple[ChatAnswer, list[RetrievedChunk]]:
         """Acquire adaptive evidence then use the existing citation validator."""
         result = None
+        if self._attachment_ids:
+            attached = await self._search.attachment_context(actor_id, notebook_id, self._attachment_ids)
+            if self._pdf_evidence is not None:
+                attached = await self._pdf_evidence.enrich(actor_id, notebook_id, attached)
+            seen = {c.chunk_id for c in attached}
+            context = self._budget(attached + [c for c in context if c.chunk_id not in seen])
         if self._agent is not None and callable(getattr(self._provider, "choose_tools", None)):
             result = await self._agent.retrieve(
                 actor_id, notebook_id, self._provider, question, history, context,
                 expected_revision=context_revision,
             )
             context = self._budget(result.chunks)
+        if callable(getattr(self._search, "authorize_chunks", None)):
+            context = await self._search.authorize_chunks(actor_id, notebook_id, context)
+        if callable(getattr(self._search, "context_revision", None)) and await self._search.context_revision(actor_id, notebook_id) is None:
+            raise ChatSessionNotFound()
         answer = await invoke(self._provider.generate, question, context, history)
         if result is not None:
             usage = [*result.usage, (answer.prompt_tokens, answer.completion_tokens, answer.estimated_cost)]

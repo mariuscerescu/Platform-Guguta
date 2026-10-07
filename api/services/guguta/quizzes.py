@@ -75,7 +75,7 @@ class QuizService:
             sources = (
                 await conn.execute(
                     text(
-                        "SELECT id,status FROM notebook_sources WHERE notebook_id=:n AND id=ANY(:ids)"
+                        "SELECT id,status FROM notebook_sources WHERE notebook_id=:n AND chat_session_id IS NULL AND id=ANY(:ids)"
                     ),
                     {"n": notebook_id, "ids": ids},
                 )

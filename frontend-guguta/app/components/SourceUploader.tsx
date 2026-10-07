@@ -22,8 +22,8 @@ import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "reac
 import { getCsrf, type Source } from "../../lib/api";
 import { API_BASE } from "../../lib/paths";
 
-const ACCEPT = ".pdf,.docx,.pptx,.txt,.md";
-const ALLOWED_EXT = ["pdf", "docx", "pptx", "txt", "md"];
+const ACCEPT = ".pdf,.docx,.pptx,.txt,.md,.png,.jpg,.jpeg,.webp";
+const ALLOWED_EXT = ["pdf", "docx", "pptx", "txt", "md", "png", "jpg", "jpeg", "webp"];
 const MAX_MIB = 25;
 const MAX_BYTES = MAX_MIB * 1024 * 1024;
 
@@ -160,7 +160,7 @@ export default function SourceUploader({
       }
       const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
       if (!ALLOWED_EXT.includes(ext)) {
-        fail("Format neacceptat. Folosește PDF, DOCX, PPTX, TXT sau MD.");
+        fail("Format neacceptat. Folosește PDF, DOCX, PPTX, TXT, MD, PNG, JPEG sau WebP.");
         return;
       }
 

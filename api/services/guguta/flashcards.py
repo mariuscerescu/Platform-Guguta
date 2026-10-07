@@ -55,7 +55,7 @@ class FlashcardService:
             if notebook is None:
                 raise FlashcardDeckNotFound()
             rows = (await conn.execute(
-                text("SELECT id,status FROM notebook_sources WHERE notebook_id=:n AND id=ANY(:ids)"),
+                text("SELECT id,status FROM notebook_sources WHERE notebook_id=:n AND chat_session_id IS NULL AND id=ANY(:ids)"),
                 {"n": notebook_id, "ids": unique_ids},
             )).all()
             if len(rows) != len(unique_ids):

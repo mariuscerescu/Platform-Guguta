@@ -62,6 +62,12 @@ class GugutaConfig(BaseSettings):
 
     # Working limits (GHID §10.2, calibrate before staging).
     max_upload_mib: int = 25
+    max_image_pixels: int = Field(default=20_000_000, ge=1, le=50_000_000)
+    max_image_dimension: int = Field(default=8000, ge=1, le=12000)
+    chat_attachment_max_mib: int = Field(default=25, ge=1, le=25)
+    chat_attachment_total_mib: int = Field(default=25, ge=1, le=25)
+    chat_attachment_max_per_message: int = Field(default=5, ge=1, le=5)
+    chat_attachment_max_per_session: int = Field(default=20, ge=1, le=100)
     max_pdf_pages: int = 300
     max_sources_per_notebook: int = 20
     quota_mib_per_user: int = 1024

@@ -93,6 +93,7 @@ async def process_material_version(
     chunk_size_chars: int = 2000,
     overlap_chars: int = 200,
     pdf_extractor: PdfExtractor | None = None,
+    image_ocr: Any = None,
 ) -> None:
     assert job.target_type == "material_version"
     mv_id = job.target_id
@@ -107,7 +108,7 @@ async def process_material_version(
                 text(
                     "SELECT mv.id, mv.version, mv.provenance, mv.page_count,"
                     " mv.created_by, sa.storage_key, sa.kind, sa.text_content,"
-                    " sa.mime_type, ns.id AS source_id"
+                    " sa.mime_type, ns.id AS source_id, ns.local_name"
                     " FROM material_versions mv"
                     " JOIN source_assets sa ON sa.id = mv.source_asset_id"
                     " LEFT JOIN notebook_sources ns ON ns.material_version_id = mv.id"
@@ -134,7 +135,19 @@ async def process_material_version(
         parser_version = PARSER_VERSION
         units: list[parsing.TextUnit]
         page_count: int | None
-        if detected_kind == "pdf" and pdf_extractor is not None:
+        if detected_kind == "image":
+            ocr_text = ""
+            if image_ocr is not None:
+                page = await image_ocr.parse_page(data, page_number=1)
+                ocr_text = page.markdown
+            # Visual-only images are valid sources, even with empty OCR.
+            units = [parsing.TextUnit(
+                text=f"Imagine: {target['local_name']}\n" + (ocr_text or "Imagine fără text detectabil; examinează imaginea originală."),
+                locator={"page": 1, "image": True},
+            )]
+            page_count = 1
+            parser_name, parser_version = "ppocr-image", "PP-OCRv5"
+        elif detected_kind == "pdf" and pdf_extractor is not None:
             units, page_count = await pdf_extractor.extract(data)
             parser_name = pdf_extractor.parser_name
             parser_version = pdf_extractor.parser_version
@@ -174,6 +187,13 @@ async def process_material_version(
     checksum = hashlib.sha256(checksum_src.encode("utf-8")).hexdigest()
     try:
         async with actor_connection(engine, actor_id) as conn:
+            # Match deletion's lock order: source -> job. This also fences
+            # processing already in flight when its conversation is deleted.
+            source = (await conn.execute(text(
+                "SELECT id FROM notebook_sources WHERE id=:id FOR UPDATE"
+            ), {"id": source_id})).first()
+            if source is None:
+                raise LeaseStale("sursa a fost eliminată")
             # B04 fence: verify lease + revision on the SAME connection/tx
             fenced = (
                 await conn.execute(

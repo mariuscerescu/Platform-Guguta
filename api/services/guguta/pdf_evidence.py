@@ -14,11 +14,12 @@ import math
 import threading
 import uuid
 from collections import OrderedDict
+from copy import copy
 from dataclasses import replace
 
-from sqlalchemy import bindparam, text
+from sqlalchemy import bindparam
 
-from api.services.guguta.search import RetrievedChunk
+from api.services.guguta.search import RetrievedChunk, source_scope_sql
 from open_notebook.database.guguta.engine import actor_connection
 
 logger = logging.getLogger(__name__)
@@ -41,6 +42,17 @@ class PdfPageEvidence:
         self._cache: OrderedDict[tuple[str, int], bytes] = OrderedDict()
         self._size = 0
         self._render_lock = asyncio.Lock()
+        self._session_id = None
+
+    def for_session(self, session_id):
+        scoped = copy(self)
+        scoped._session_id = session_id
+        scoped._cache = OrderedDict()
+        scoped._size = 0
+        return scoped
+
+    def _scoped_text(self, sql):
+        return source_scope_sql(sql, self._session_id)
 
     async def enrich(
         self, actor_id: uuid.UUID, notebook_id: uuid.UUID, chunks: list[RetrievedChunk]
@@ -55,13 +67,13 @@ class PdfPageEvidence:
             return chunks
         # Check source selection and notebook authorization on EVERY request,
         # including cache hits. The cache is not an access-control shortcut.
-        statement = text(
+        statement = self._scoped_text(
             "SELECT mv.id,sa.storage_key,sa.sha256,sa.mime_type FROM notebook_sources ns "
             "JOIN material_versions mv ON mv.id=ns.material_version_id "
             "JOIN source_assets sa ON sa.id=mv.source_asset_id "
             "WHERE ns.notebook_id=:nb AND ns.id IN :source_ids "
             "AND ns.selected_for_chat AND ns.status='ready' AND sa.kind='file' "
-            "AND sa.mime_type='application/pdf'"
+            "AND (sa.mime_type='application/pdf' OR sa.mime_type='image/png')"
         ).bindparams(bindparam("source_ids", expanding=True))
         async with actor_connection(self._engine, actor_id) as conn:
             rows = (
@@ -95,7 +107,7 @@ class PdfPageEvidence:
                     png = self._cache.get(key)
                     if png is None:
                         png = await asyncio.to_thread(
-                            self._render, asset["storage_key"], page
+                            self._render_asset, asset, page
                         )
                         self._cache[key] = png
                         self._size += len(png)
@@ -135,8 +147,9 @@ class PdfPageEvidence:
                     chunk,
                     extracted_text=chunk.text,
                     text=(
-                        f"Pagina PDF: {chunk.locator.get('page')}; "
-                        f"pagina tipărită: {chunk.locator.get('printed_page')}. "
+                        ("Imagine originală. " if chunk.locator.get("image") else
+                         f"Pagina PDF: {chunk.locator.get('page')}; "
+                         f"pagina tipărită: {chunk.locator.get('printed_page')}. ") +
                         "Examinează imaginea originală pentru cerința utilizatorului, "
                         "inclusiv obiectele desenate, fracțiile, formulele și schemele."
                     ),
@@ -160,20 +173,20 @@ class PdfPageEvidence:
         if type(page_number) is not int or page_number < 1:
             return None
         async with actor_connection(self._engine, actor_id) as conn:
-            row = (await conn.execute(text(
-                "SELECT sa.storage_key FROM notebook_sources ns "
+            row = (await conn.execute(self._scoped_text(
+                "SELECT sa.storage_key,sa.mime_type FROM notebook_sources ns "
                 "JOIN material_versions mv ON mv.id=ns.material_version_id "
                 "JOIN source_assets sa ON sa.id=mv.source_asset_id "
                 "WHERE ns.notebook_id=:nb AND ns.id=:source "
                 "AND mv.id=:mv AND ns.selected_for_chat AND ns.status='ready' "
-                "AND sa.kind='file' AND sa.mime_type='application/pdf'"
+                "AND sa.kind='file' AND (sa.mime_type='application/pdf' OR sa.mime_type='image/png')"
             ), {"nb": notebook_id, "source": chunk.notebook_source_id,
-                "mv": chunk.material_version_id})).scalar_one_or_none()
+                "mv": chunk.material_version_id})).mappings().first()
         if row is None:
             return None
         try:
             async with self._render_lock:
-                png = await asyncio.to_thread(self._render, row, page_number, region)
+                png = await asyncio.to_thread(self._render_asset, row, page_number, region)
         except Exception as exc:
             logger.warning("PDF region evidence unavailable (%s)", type(exc).__name__)
             return None
@@ -181,9 +194,17 @@ class PdfPageEvidence:
             chunk,
             image_url="data:image/png;base64," + base64.b64encode(png).decode("ascii"),
             locator={**chunk.locator, "image_region": list(region)},
-            text=(f"Decupaj din pagina PDF {page_number}, regiunea {region}. "
+            text=(("Decupaj din imagine" if chunk.locator.get("image") else f"Decupaj din pagina PDF {page_number}") + f", regiunea {region}. " +
                   "Coordonatele se raportează la pagina originală întreagă."),
         )
+
+    def _render_asset(self, asset, page_number, region=None):
+        if asset["mime_type"] == "image/png":
+            if page_number != 1:
+                raise ValueError("Image page out of range")
+            from open_notebook.jobs.guguta.images import render_image
+            return render_image(self._storage.read_bytes(asset["storage_key"]), region)
+        return self._render(asset["storage_key"], page_number, region)
 
     def _render(
         self, storage_key: str, page_number: int,

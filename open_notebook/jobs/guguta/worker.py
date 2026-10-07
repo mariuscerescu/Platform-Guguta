@@ -34,6 +34,7 @@ class Worker:
         self._engine = create_engine_for_role(config, "worker")
         self._storage = FilesystemStorage(config.storage_root)
         self._provider = get_provider(config.embedding_provider, config.embedding_dimension, config)
+        self._image_ocr = PpOcrClient(config.ppocr_base_url, timeout_seconds=config.ppocr_timeout_seconds)
         self._pdf_extractor = None
         if config.pdf_parser == "liteparse_ppocr":
             self._pdf_extractor = HybridPdfExtractor(
@@ -54,13 +55,16 @@ class Worker:
     async def process_one(self) -> bool:
         """Claim and process exactly one job, with a heartbeat loop running
         for the duration (F11). Returns True if a job ran."""
+        from open_notebook.jobs.guguta.storage_deletions import drain_storage_deletions
+
+        deleted = await drain_storage_deletions(self._engine, self._storage)
         job = await claim(
             self._engine,
             lease_seconds=self._config.job_lease_seconds,
             worker_name=self._config.job_worker_name,
         )
         if job is None:
-            return False
+            return bool(deleted)
         logger.info("job revendicat: %s (%s)", job.id, job.job_type)
 
         from open_notebook.jobs.guguta.queue import heartbeat
@@ -86,6 +90,7 @@ class Worker:
                     chunk_size_chars=self._config.chunk_size_chars,
                     overlap_chars=self._config.chunk_overlap_chars,
                     pdf_extractor=getattr(self, "_pdf_extractor", None),
+                    image_ocr=getattr(self, "_image_ocr", None),
                 )
             elif job.job_type == "generate_audio_overview":
                 await process_audio_overview(
@@ -136,6 +141,9 @@ class Worker:
         self._stopping.set()
 
     async def aclose(self) -> None:
+        image_ocr = getattr(self, "_image_ocr", None)
+        if image_ocr is not None:
+            await image_ocr.aclose()
         pdf_extractor = getattr(self, "_pdf_extractor", None)
         if pdf_extractor is not None:
             await pdf_extractor.aclose()

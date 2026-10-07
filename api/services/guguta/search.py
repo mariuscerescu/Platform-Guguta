@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 import uuid
+from copy import copy
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
@@ -114,6 +115,16 @@ class RetrievedChunk:
     extracted_text: str | None = field(default=None, repr=False, compare=False)
 
 
+def source_scope_sql(sql: str, session_id: uuid.UUID | None):
+    scope = "ns.chat_session_id IS NULL"
+    if session_id is not None:
+        scope = "(ns.chat_session_id IS NULL OR ns.chat_session_id=CAST(:chat_scope AS uuid))"
+    scoped = text(sql.replace("ns.selected_for_chat", f"({scope}) AND ns.selected_for_chat"))
+    if ":chat_scope" in scoped.text:
+        scoped = scoped.bindparams(chat_scope=session_id)
+    return scoped
+
+
 class SearchService:
     def __init__(
         self, engine: AsyncEngine, vector_provider: Any, *,
@@ -125,28 +136,41 @@ class SearchService:
         self._engine = engine
         self._provider = vector_provider
         self._max_vector_distance = max_vector_distance
+        self._session_id: uuid.UUID | None = None
+
+    def for_session(self, session_id: uuid.UUID):
+        scoped = copy(self)
+        scoped._session_id = session_id
+        return scoped
+
+    def _scoped_text(self, sql: str):
+        return source_scope_sql(sql, self._session_id)
 
     async def context_revision(
         self, actor_id: uuid.UUID, notebook_id: uuid.UUID,
     ) -> int | None:
         """Read the current authorized notebook revision for an agent run."""
         async with actor_connection(self._engine, actor_id) as conn:
-            return (await conn.execute(text(
-                "SELECT context_revision FROM digital_notebooks WHERE id=:nb"
-            ), {"nb": notebook_id})).scalar_one_or_none()
+            if self._session_id is not None:
+                return (await conn.execute(self._scoped_text(
+                    "SELECT dn.context_revision FROM digital_notebooks dn JOIN chat_sessions s "
+                    "ON s.notebook_id=dn.id WHERE dn.id=:nb AND s.id=:sid"
+                ), {"nb": notebook_id, "sid": self._session_id})).scalar_one_or_none()
+            return (await conn.execute(self._scoped_text("SELECT context_revision FROM digital_notebooks WHERE id=:nb"),
+                                       {"nb": notebook_id})).scalar_one_or_none()
 
     async def list_sources(
         self, actor_id: uuid.UUID, notebook_id: uuid.UUID,
     ) -> list[dict[str, Any]]:
         """List only ready, selected sources visible to this actor."""
         async with actor_connection(self._engine, actor_id) as conn:
-            rows = (await conn.execute(text(
+            rows = (await conn.execute(self._scoped_text(
                 "SELECT ns.id AS source_id,ns.local_name,sa.mime_type "
                 "FROM notebook_sources ns "
                 "JOIN material_versions mv ON mv.id=ns.material_version_id "
                 "LEFT JOIN source_assets sa ON sa.id=mv.source_asset_id "
                 "WHERE ns.notebook_id=:nb AND ns.selected_for_chat "
-                "AND ns.status='ready' ORDER BY ns.created_at,ns.id LIMIT 20"
+                "AND ns.status='ready' ORDER BY ns.chat_session_id NULLS LAST, ns.created_at DESC,ns.id LIMIT 50"
             ), {"nb": notebook_id})).mappings().all()
         return [{"source_id": str(r["source_id"]), "name": r["local_name"],
                  "mime_type": r["mime_type"]} for r in rows]
@@ -163,7 +187,7 @@ class SearchService:
         if page_kind not in ("page", "printed_page") or type(page_number) is not int or page_number < 1:
             raise ValueError("Identificatorul paginii este invalid.")
         async with actor_connection(self._engine, actor_id) as conn:
-            source = (await conn.execute(text(
+            source = (await conn.execute(self._scoped_text(
                 "SELECT ns.local_name,mv.id AS mv_id,sa.mime_type "
                 "FROM notebook_sources ns "
                 "JOIN material_versions mv ON mv.id=ns.material_version_id "
@@ -173,7 +197,7 @@ class SearchService:
             ), {"nb": notebook_id, "source": source_id})).mappings().first()
             if source is None:
                 return []
-            rows = (await conn.execute(text(
+            rows = (await conn.execute(self._scoped_text(
                 "SELECT c.id,c.text,c.locator FROM chunks c "
                 "JOIN processing_artifacts pa ON pa.id=c.artifact_id "
                 "WHERE pa.material_version_id=:mv AND pa.status='complete' "
@@ -185,7 +209,7 @@ class SearchService:
                 r["id"], r["text"], r["locator"], source_id, source["mv_id"],
                 source["local_name"], 1.0, "locator",
             ) for r in rows]
-        if page_kind == "page" and source["mime_type"] == "application/pdf":
+        if page_kind == "page" and (source["mime_type"] == "application/pdf" or source["mime_type"].startswith("image/")):
             return [RetrievedChunk(
                 None, "", {"page": page_number}, source_id, source["mv_id"],
                 source["local_name"], 1.0, "locator",
@@ -199,7 +223,7 @@ class SearchService:
         """Recheck source/version visibility before another model invocation."""
         if not chunks:
             return []
-        statement = text(
+        statement = self._scoped_text(
             "SELECT ns.id,ns.material_version_id FROM notebook_sources ns "
             "WHERE ns.notebook_id=:nb AND ns.id IN :sources "
             "AND ns.selected_for_chat AND ns.status='ready'"
@@ -211,6 +235,20 @@ class SearchService:
             })).all()
         allowed = set(rows)
         return [c for c in chunks if (c.notebook_source_id, c.material_version_id) in allowed]
+
+    async def attachment_context(self, actor_id, notebook_id, source_ids):
+        statement = self._scoped_text(
+            "SELECT DISTINCT ON (ns.id) ns.id AS source_id,ns.local_name,mv.id AS mv_id,c.id,c.text,c.locator "
+            "FROM notebook_sources ns JOIN material_versions mv ON mv.id=ns.material_version_id "
+            "JOIN processing_artifacts pa ON pa.material_version_id=mv.id "
+            "JOIN chunks c ON c.artifact_id=pa.id "
+            "WHERE ns.notebook_id=:nb AND ns.id IN :ids AND ns.selected_for_chat "
+            "AND ns.status='ready' AND pa.status='complete' ORDER BY ns.id,c.position"
+        ).bindparams(bindparam("ids", expanding=True))
+        async with actor_connection(self._engine, actor_id) as conn:
+            rows = (await conn.execute(statement, {"nb": notebook_id, "ids": source_ids})).mappings().all()
+        return [RetrievedChunk(r["id"], r["text"], r["locator"], r["source_id"],
+                               r["mv_id"], r["local_name"], 1.0, "locator") for r in rows]
 
     async def search_notebook(
         self, actor_id: uuid.UUID, notebook_id: uuid.UUID, query: str, *,
@@ -251,12 +289,12 @@ class SearchService:
             return await self._search_page(actor_id, notebook_id, page_request, limit)
         candidate_limit = max(limit, self._candidate_limit) if self._reranker else limit
         async with actor_connection(self._engine, actor_id) as conn:
-            nb = (await conn.execute(text("SELECT id FROM digital_notebooks WHERE id=:id"),
+            nb = (await conn.execute(self._scoped_text("SELECT id FROM digital_notebooks WHERE id=:id"),
                                      {"id": notebook_id})).first()
             if nb is None:
                 from open_notebook.exceptions import NotFoundError
                 raise NotFoundError()
-            space = (await conn.execute(text(
+            space = (await conn.execute(self._scoped_text(
                 "SELECT id, model_name, model_revision, dimension FROM embedding_spaces WHERE is_active"
             ))).mappings().first()
         qvecs: list[Optional[list[float]]] = [None] * len(clean_queries)
@@ -302,12 +340,12 @@ class SearchService:
     ) -> list[RetrievedChunk]:
         field_name, page_number = page_request
         async with actor_connection(self._engine, actor_id) as conn:
-            nb = (await conn.execute(text("SELECT id FROM digital_notebooks WHERE id=:nb"),
+            nb = (await conn.execute(self._scoped_text("SELECT id FROM digital_notebooks WHERE id=:nb"),
                                      {"nb":notebook_id})).first()
             if nb is None:
                 from open_notebook.exceptions import NotFoundError
                 raise NotFoundError()
-            rows = (await conn.execute(text(
+            rows = (await conn.execute(self._scoped_text(
                 "SELECT c.id,c.text,c.locator,ns.id AS ns_id,mv.id AS mv_id,ns.local_name "
                 "FROM chunks c JOIN processing_artifacts pa ON pa.id=c.artifact_id "
                 "JOIN material_versions mv ON mv.id=pa.material_version_id "
@@ -344,7 +382,7 @@ class SearchService:
         if mode in ("text", "both"):
             rows = (
                 await conn.execute(
-                    text(
+                    self._scoped_text(
                         "SELECT c.id, c.text, c.locator, ns.id AS ns_id,"
                         " mv.id AS mv_id, ns.local_name,"
                         " ts_rank(to_tsvector('romanian', translate(lower(c.text),'ăâîșşțţ','aaisstt')),"
@@ -381,7 +419,7 @@ class SearchService:
             if qvec is not None:
                 vrows = (
                     await conn.execute(
-                        text(
+                        self._scoped_text(
                             "SELECT c.id, c.text, c.locator, ns.id AS ns_id,"
                             " mv.id AS mv_id, ns.local_name,"
                             " e.embedding <=> CAST(:qv AS vector) AS dist"

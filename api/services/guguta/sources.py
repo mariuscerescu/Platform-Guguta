@@ -10,6 +10,7 @@ Quota counts logical material bytes of the user (invariant 7).
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import uuid
@@ -49,7 +50,7 @@ def _json(value: dict[str, Any]) -> str:
 
 
 def _default_mimes() -> dict[str, str]:
-    return {"pdf": "application/pdf", "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation", "text": "text/plain"}
+    return {"pdf": "application/pdf", "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation", "text": "text/plain", "image": "image/png"}
 
 
 class SourcesService:
@@ -57,6 +58,9 @@ class SourcesService:
         self, engine: AsyncEngine, storage: StorageBackend, *,
         max_upload_mib: int = 25, max_pdf_pages: int = 300,
         max_sources_per_notebook: int = 20, quota_mib_per_user: int = 1024,
+        max_image_pixels: int = 20_000_000, max_image_dimension: int = 8000,
+        attachment_max_mib: int = 25, attachment_total_mib: int = 25,
+        attachment_max_per_message: int = 5, attachment_max_per_session: int = 20,
     ) -> None:
         self._engine = engine
         self._storage = storage
@@ -64,6 +68,12 @@ class SourcesService:
         self._max_pdf_pages = max_pdf_pages
         self._max_sources = max_sources_per_notebook
         self._quota_bytes = quota_mib_per_user * 1024 * 1024
+        self._max_image_pixels = max_image_pixels
+        self._max_image_dimension = max_image_dimension
+        self._attachment_bytes = attachment_max_mib * 1024 * 1024
+        self._attachment_total_bytes = attachment_total_mib * 1024 * 1024
+        self._attachment_message_count = attachment_max_per_message
+        self._attachment_session_count = attachment_max_per_session
 
     # -- helpers ------------------------------------------------------------
 
@@ -137,10 +147,22 @@ class SourcesService:
     async def _create_source(
         self, actor: ActorContext, notebook_id: uuid.UUID, *,
         data: bytes, original_name: Optional[str], local_name: Optional[str],
+        chat_session_id: uuid.UUID | None = None,
     ) -> dict[str, Any]:
         if len(data) == 0:
             raise SourceValidation("Fișierul este vid.")
         kind = parsing.detect_kind(data, None)
+        if kind == "image":
+            from open_notebook.jobs.guguta.images import normalize_image
+
+            try:
+                data = await asyncio.to_thread(normalize_image, data,
+                    max_pixels=self._max_image_pixels, max_dimension=self._max_image_dimension)
+            except parsing.ExtractionError as exc:
+                raise SourceValidation(str(exc)) from None
+        byte_limit = min(self._max_bytes, self._attachment_bytes) if chat_session_id else self._max_bytes
+        if len(data) > byte_limit:
+            raise SourceValidation(f"Fișierul depășește limita de {byte_limit // (1024*1024)} MiB.")
         if kind == "pdf":
             # validate page budget before storing anything heavy (GHID §6.1)
             import io
@@ -157,7 +179,7 @@ class SourcesService:
                     f"{self._max_pdf_pages}."
                 )
         else:
-            page_count = None
+            page_count = 1 if kind == "image" else None
         display_name = (local_name or original_name or "Material").strip()[:500]
         if not display_name:
             raise SourceValidation("Numele materialului nu poate fi vid.")
@@ -176,16 +198,34 @@ class SourcesService:
                     {"a": actor.actor_id},
                 )
                 await self._check_notebook(conn, notebook_id)
+                if chat_session_id is not None:
+                    session = (await conn.execute(text(
+                        "SELECT id FROM chat_sessions WHERE id=:sid AND notebook_id=:nb FOR UPDATE"
+                    ), {"sid": chat_session_id, "nb": notebook_id})).first()
+                    if session is None:
+                        raise SourceNotFound()
+                    totals = (await conn.execute(text(
+                        "SELECT count(*) AS total, count(*) FILTER (WHERE ns.chat_message_id IS NULL) AS pending, "
+                        "coalesce(sum(sa.byte_size) FILTER (WHERE ns.chat_message_id IS NULL),0) AS pending_bytes "
+                        "FROM notebook_sources ns JOIN material_versions mv ON mv.id=ns.material_version_id "
+                        "JOIN source_assets sa ON sa.id=mv.source_asset_id WHERE ns.chat_session_id=:sid"
+                    ), {"sid": chat_session_id})).mappings().one()
+                    if totals["total"] >= self._attachment_session_count:
+                        raise SourceValidation(f"Maximum {self._attachment_session_count} atașamente într-o conversație.")
+                    if totals["pending"] >= self._attachment_message_count:
+                        raise SourceValidation(f"Maximum {self._attachment_message_count} atașamente într-un mesaj.")
+                    if totals["pending_bytes"] + len(data) > self._attachment_total_bytes:
+                        raise SourceValidation(f"Atașamentele unui mesaj pot avea în total maximum {self._attachment_total_bytes // (1024*1024)} MiB.")
                 await self._check_quota(conn, actor.actor_id, len(data))
                 count = (
                     await conn.execute(
                         text(
-                            "SELECT count(*) FROM notebook_sources WHERE notebook_id = :n"
+                            "SELECT count(*) FROM notebook_sources WHERE notebook_id = :n AND chat_session_id IS NULL"
                         ),
                         {"n": notebook_id},
                     )
                 ).scalar_one()
-                if int(count) >= self._max_sources:
+                if chat_session_id is None and int(count) >= self._max_sources:
                     raise SourceValidation(
                         f"Carnetul are deja {self._max_sources} materiale (limita MVP)."
                     )
@@ -229,11 +269,11 @@ class SourcesService:
                     text(
                         "INSERT INTO notebook_sources (id, notebook_id,"
                         " material_version_id, local_name, position, selected_for_chat,"
-                        " status, added_by) VALUES (:id, :n, :mv, :name, :pos, true,"
-                        " 'processing', :by)"
+                        " status, added_by, chat_session_id) VALUES (:id, :n, :mv, :name, :pos, true,"
+                        " 'processing', :by, :sid)"
                     ),
                     {"id": ns_id, "n": notebook_id, "mv": mv_id,
-                     "name": display_name, "pos": position, "by": actor.actor_id},
+                     "name": display_name, "pos": position, "by": actor.actor_id, "sid": chat_session_id},
                 )
                 job_id = await enqueue(
                     self._engine, conn,
@@ -246,13 +286,15 @@ class SourcesService:
                 row = (
                     await conn.execute(
                         text(
-                            "SELECT id, local_name, status, position, created_at"
+                            "SELECT id, local_name, status, position, created_at, chat_session_id, chat_message_id"
                             " FROM notebook_sources WHERE id = :id"
                         ),
                         {"id": ns_id},
                     )
                 ).mappings().one()
-            return {"source": dict(row), "job_id": str(job_id), "kind": kind}
+            return {"source": {**dict(row), "mime_type": _default_mimes()[kind],
+                               "byte_size": len(data), "selected_for_chat": True,
+                               "material_version_id": mv_id}, "job_id": str(job_id), "kind": kind}
         except Exception:
             # Compensating cleanup: bytes stored outside the DB die with the
             # failed transaction (GHID §6.2 step 4).
@@ -264,7 +306,7 @@ class SourcesService:
             raise
 
     async def list_for_notebook(
-        self, actor: ActorContext, notebook_id: uuid.UUID
+        self, actor: ActorContext, notebook_id: uuid.UUID, *, chat_session_id: uuid.UUID | None = None,
     ) -> list[dict[str, Any]]:
         async with actor_connection(self._engine, actor.actor_id) as conn:
             await self._check_notebook(conn, notebook_id)
@@ -272,15 +314,16 @@ class SourcesService:
                 await conn.execute(
                     text(
                         "SELECT ns.id, ns.local_name, ns.position, ns.status,"
-                        " ns.status_detail, ns.selected_for_chat, ns.created_at,"
-                        " mv.page_count, sa.byte_size, sa.sha256, mv.id AS material_version_id"
+                        " ns.status_detail, ns.selected_for_chat, ns.created_at, ns.chat_message_id, ns.chat_session_id,"
+                        " mv.page_count, sa.byte_size, sa.sha256, sa.kind AS source_kind,"
+                        " sa.mime_type, sa.original_name, mv.id AS material_version_id"
                         " FROM notebook_sources ns"
                         " JOIN material_versions mv ON mv.id = ns.material_version_id"
                         " JOIN source_assets sa ON sa.id = mv.source_asset_id"
-                        " WHERE ns.notebook_id = :n"
+                        " WHERE ns.notebook_id = :n AND ns.chat_session_id IS NOT DISTINCT FROM CAST(:sid AS uuid)"
                         " ORDER BY ns.position, ns.created_at"
                     ),
-                    {"n": notebook_id},
+                    {"n": notebook_id, "sid": chat_session_id},
                 )
             ).mappings().all()
         return [dict(r) for r in rows]

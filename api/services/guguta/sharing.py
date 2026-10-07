@@ -140,7 +140,7 @@ class SharingService:
                                 " FROM notebook_sources ns"
                                 " JOIN material_versions mv ON mv.id = ns.material_version_id"
                                 " WHERE ns.id = :sid AND ns.notebook_id = :nb"
-                                "   AND ns.status = 'ready'"
+                                "   AND ns.status = 'ready' AND ns.chat_session_id IS NULL"
                             ),
                             {"sid": sid, "nb": notebook_id},
                         )

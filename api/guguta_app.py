@@ -154,7 +154,16 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
         max_pdf_pages=config.max_pdf_pages,
         max_sources_per_notebook=config.max_sources_per_notebook,
         quota_mib_per_user=config.quota_mib_per_user,
+        max_image_pixels=config.max_image_pixels,
+        max_image_dimension=config.max_image_dimension,
+        attachment_max_mib=config.chat_attachment_max_mib,
+        attachment_total_mib=config.chat_attachment_total_mib,
+        attachment_max_per_message=config.chat_attachment_max_per_message,
+        attachment_max_per_session=config.chat_attachment_max_per_session,
     )
+    from api.services.guguta.chat_attachments import ChatAttachmentsService
+
+    app.state.guguta_attachments = ChatAttachmentsService(app.state.guguta_sources)
     if config.rerank_provider == "openrouter":
         from open_notebook.ai.guguta.openrouter import OpenRouterReranker
 
@@ -178,6 +187,7 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
         get_chat_provider(config.chat_provider, config),
         total_timeout_seconds=config.chat_total_timeout_seconds,
     )
+    app.state.guguta_chat._attachments = app.state.guguta_attachments
     if config.chat_provider == "openrouter" and config.chat_pdf_images:
         from api.services.guguta.pdf_evidence import PdfPageEvidence
         app.state.guguta_chat._pdf_evidence = PdfPageEvidence(

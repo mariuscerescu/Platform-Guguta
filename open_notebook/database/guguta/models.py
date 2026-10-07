@@ -351,7 +351,7 @@ class DigitalNotebook(GugutaBase):
     )
     origin: Mapped[str] = mapped_column(
         String(20), nullable=False, default="personal", server_default="personal"
-    )  # personal | empty | template | import
+    )  # personal | empty | template | import | school
     current_template_version_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("template_versions.id", ondelete="SET NULL"),
@@ -376,7 +376,7 @@ class DigitalNotebook(GugutaBase):
             "status IN ('active','archived','deleted')", name="ck_notebooks_status"
         ),
         CheckConstraint(
-            "origin IN ('personal','empty','template','import')",
+            "origin IN ('personal','empty','template','import','school')",
             name="ck_notebooks_origin",
         ),
         CheckConstraint("length(btrim(title)) > 0", name="ck_notebooks_title"),
@@ -402,6 +402,12 @@ class NotebookSource(GugutaBase):
         nullable=False,
     )
     local_name: Mapped[str] = mapped_column(String(500), nullable=False)
+    chat_session_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("chat_sessions.id", ondelete="CASCADE"), nullable=True
+    )
+    chat_message_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("chat_messages.id", ondelete="SET NULL"), nullable=True
+    )
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     selected_for_chat: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default=sa_true()

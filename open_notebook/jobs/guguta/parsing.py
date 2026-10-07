@@ -43,6 +43,10 @@ def detect_kind(data: bytes, declared_ext: Optional[str]) -> str:
     """Real content type detection — client MIME is never trusted (R41)."""
     if data.startswith(PDF_SNIFF):
         return "pdf"
+    if data.startswith((b"\x89PNG\r\n\x1a\n", b"\xff\xd8\xff")) or (
+        data.startswith(b"RIFF") and data[8:12] == b"WEBP"
+    ):
+        return "image"
     if data.startswith(ZIP_SNIFF):
         # OOXML zip containers; distinguish by required entries
         try:
@@ -63,7 +67,7 @@ def detect_kind(data: bytes, declared_ext: Optional[str]) -> str:
     except UnicodeDecodeError:
         raise ExtractionError(
             "Tip de fișier neacceptat sau encodare invalidă. Formate MVP: "
-            "PDF cu text, DOCX, PPTX, TXT/Markdown."
+            "PDF, DOCX, PPTX, TXT/Markdown, PNG, JPEG și WebP."
         )
 
 
