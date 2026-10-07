@@ -52,6 +52,12 @@ A feature request that conflicts with the IS NOT list or a principle gets closed
 
 **The phase we're in: get the basics working well for everyone before expanding.** Priority goes to making the core experience (sources, chat, search, notes, podcasts) solid across the full provider matrix and deployment surface, ahead of new product surfaces.
 
+In the Guguță educational deployment, the tutor guides pupils through exercises
+one step at a time and waits for their contribution. Requests for just the answer
+or a complete solution receive guidance; the tutor can confirm a correct final
+answer supplied by the pupil. Ordinary explanations and standalone translations
+remain direct ([PDR-003](docs/7-DEVELOPMENT/decisions/PDR-003-guided-only-exercise-tutoring.md)).
+
 ### Directional constraints
 
 Decisions about the future we haven't made yet — recorded as "which door to keep open":

@@ -1,6 +1,6 @@
 # ADR-017: Educational tutoring with accurate source attribution
 
-- **Status**: Accepted
+- **Status**: Accepted; complete-solution teaching option superseded by PDR-003
 - **Date**: 2026-10-06
 - **Related**: ADR-008, ADR-014, ADR-015, ADR-016
 - **Supersedes**: ADR-008's blanket prohibition on general knowledge in chat.

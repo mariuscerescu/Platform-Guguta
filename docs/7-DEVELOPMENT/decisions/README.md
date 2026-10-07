@@ -57,8 +57,10 @@ What this makes easier, what it makes harder, what to watch. (bullets)
 | [ADR-013](ADR-013-full-page-pdf-text-coverage.md) | Every PDF page combines native text with visual OCR | Accepted |
 | [ADR-014](ADR-014-exact-page-visual-evidence-chat.md) | Exact page retrieval and request-local visual evidence | Accepted |
 | [ADR-015](ADR-015-server-rendered-chat-citations.md) | Server-rendered citations and independent review retries | Accepted |
+| [ADR-017](ADR-017-source-aware-educational-tutor.md) | Educational tutoring with accurate source attribution | Accepted; complete-solution option superseded by PDR-003 |
 | [ADR-018](ADR-018-openrouter-private-performance-routing.md) | OpenRouter ZDR enforcement and performance routing | Accepted |
 | [ADR-019](ADR-019-private-images-and-chat-attachments.md) | Images and private conversation attachments | Accepted; initial evidence priority superseded by ADR-020 |
 | [ADR-020](ADR-020-current-message-attachment-priority.md) | Current message attachments take priority | Accepted |
 | [PDR-001](PDR-001-single-user-first.md) | Single-user first; don't preclude multi-user | Accepted |
 | [PDR-002](PDR-002-provider-agnostic-core.md) | Provider-agnostic core by default | Accepted |
+| [PDR-003](PDR-003-guided-only-exercise-tutoring.md) | Guide pupils through exercises without doing their work | Accepted |
