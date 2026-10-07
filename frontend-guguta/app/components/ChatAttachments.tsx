@@ -42,8 +42,9 @@ export function AttachmentCards({ attachments, notebookId, sessionId, onRemove, 
   </>;
 }
 
-export default function ChatAttachments({ notebookId, sessionId, disabled, refreshToken, onChange, onBusy }: {
+export default function ChatAttachments({ notebookId, sessionId, disabled, refreshToken, submittedAttachmentIds, onChange, onBusy }: {
   notebookId: string; sessionId: string; disabled: boolean; refreshToken: number;
+  submittedAttachmentIds: ReadonlySet<string>;
   onChange: (files: ChatAttachment[]) => void; onBusy: (busy: boolean) => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
@@ -53,7 +54,7 @@ export default function ChatAttachments({ notebookId, sessionId, disabled, refre
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const endpoint = `/api/v1/notebooks/${notebookId}/sessions/${sessionId}/attachments`;
-  const pending = files.filter((file) => !file.chat_message_id);
+  const pending = files.filter((file) => !file.chat_message_id && !submittedAttachmentIds.has(file.id));
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const refresh = useCallback(async () => {
     try {

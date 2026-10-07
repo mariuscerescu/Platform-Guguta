@@ -35,6 +35,9 @@ interface ChatMessage {
   role: string;
   content: string;
   context_revision: number;
+  // Keep the optimistic message and its files together while the server saves it.
+  clientId?: string;
+  attachments?: ChatAttachment[];
 }
 
 interface Citation {
@@ -158,9 +161,14 @@ export default function NotebookPage() {
   const [resettingChat, setResettingChat] = useState(false);
   const [attachmentRefresh, setAttachmentRefresh] = useState(0);
   const [imagePreview, setImagePreview] = useState<Source | null>(null);
-  const pendingAttachments = chatAttachments.filter((file) => !file.chat_message_id);
-  const attachmentsReady = pendingAttachments.every((file) => file.status === "ready");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const submittedAttachmentIds = new Set(messages.flatMap((message) =>
+    message.attachments?.map((file) => file.id) ?? []
+  ));
+  const pendingAttachments = chatAttachments.filter((file) =>
+    !file.chat_message_id && !submittedAttachmentIds.has(file.id)
+  );
+  const attachmentsReady = pendingAttachments.every((file) => file.status === "ready");
   const [citations, setCitations] = useState<Record<string, Citation[]>>({});
   const [draft, setDraft] = useState("");
   const [recording, setRecording] = useState(false);
@@ -327,7 +335,15 @@ export default function NotebookPage() {
         "GET",
         `/api/v1/notebooks/${nbId}/sessions/${sessionId}/messages`,
       );
-      setMessages(msgs);
+      setMessages((previous) => {
+        const localMessages = new Map(previous.map((message) => [message.id, message]));
+        return msgs.map((message) => {
+          const local = localMessages.get(message.id);
+          return local?.clientId
+            ? { ...message, clientId: local.clientId, attachments: local.attachments }
+            : message;
+        });
+      });
       // Referințele oprite: citările rămân în bază, dar nu le mai cerem de N
       // ori la fiecare încărcare. Codul de mai jos e intact pentru reluare.
       if (!SHOW_ANSWER_REFERENCES) return;
@@ -382,12 +398,15 @@ export default function NotebookPage() {
     setSending(true);
     setError(null);
     setChatMessage(null);
+    const optimisticId = `tmp-u-${crypto.randomUUID()}`;
     // optimist: mesajul utilizatorului apare instant; serverul îl salvează
     // oricum în faza 1, deci rămâne vizibil și pe eșec (A26)
     setMessages((prev) => [
       ...prev,
       {
-        id: `tmp-u-${crypto.randomUUID()}`,
+        id: optimisticId,
+        clientId: optimisticId,
+        attachments: pendingAttachments,
         seq: 0,
         role: "user",
         content,
@@ -443,8 +462,15 @@ export default function NotebookPage() {
               event: string;
               text?: string;
               message?: string;
+              user_message_id?: string;
             };
-            if (ev.event === "user_saved") setAttachmentRefresh((value) => value + 1);
+            if (ev.event === "user_saved" && ev.user_message_id) {
+              const savedId = ev.user_message_id;
+              setMessages((previous) => previous.map((message) =>
+                message.id === optimisticId ? { ...message, id: savedId } : message
+              ));
+              setAttachmentRefresh((value) => value + 1);
+            }
             if (ev.event === "token" && ev.text) {
               setStreaming((prev) => (prev ?? "") + ev.text);
             } else if (ev.event === "done") {
@@ -452,7 +478,7 @@ export default function NotebookPage() {
             } else if (ev.event === "error") {
               throw new ApiError(502, "provider", ev.message ?? "Eroare AI.");
             }
-            // „ping" și „user_saved" sunt ignorate (optimist deja afișat)
+            // „ping" nu schimbă conținutul afișat.
           } catch (e) {
             if (e instanceof ApiError) throw e;
             // JSON parțial între chunkuri — ignorat, bufferul continuă
@@ -471,6 +497,7 @@ export default function NotebookPage() {
       window.clearTimeout(timeout);
       setStreaming(null);
       setSending(false);
+      setAttachmentRefresh((value) => value + 1);
     }
   }
 
@@ -1201,14 +1228,14 @@ export default function NotebookPage() {
                 )
               )}
               {messages.map((m) => (
-                <div key={m.id} className={`msg ${m.role}`}>
+                <div key={m.clientId ?? m.id} className={`msg ${m.role}`}>
                   {m.role === "assistant" ? (
                     <MarkdownContent content={answerText(m.content)} />
                   ) : (
                     m.content
                   )}
                   {m.role === "user" && sessionId && <AttachmentCards
-                    attachments={chatAttachments.filter((file) => file.chat_message_id === m.id)}
+                    attachments={m.attachments ?? chatAttachments.filter((file) => file.chat_message_id === m.id)}
                     notebookId={nbId} sessionId={sessionId}
                   />}
                   {SHOW_ANSWER_REFERENCES &&
@@ -1239,6 +1266,7 @@ export default function NotebookPage() {
             <div className="composer has-attachments">
               {sessionId && !resettingChat && <ChatAttachments key={sessionId} notebookId={nbId} sessionId={sessionId}
                 disabled={sending || resettingChat} refreshToken={attachmentRefresh + messages.length}
+                submittedAttachmentIds={submittedAttachmentIds}
                 onChange={setChatAttachments} onBusy={setUploadingAttachments} />}
               {speechMessage || chatMessage ? (
                 <p className="composer-notice" role="status" aria-live="polite">
