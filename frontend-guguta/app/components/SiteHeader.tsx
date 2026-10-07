@@ -2,6 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import AuthEntryLink from "./AuthEntryLink";
+import LogoutButton from "./LogoutButton";
 import { withBase } from "../../lib/paths";
 
 /**
@@ -18,8 +19,8 @@ import { withBase } from "../../lib/paths";
  *    înălțimea lui mai sus: gradientul continuă din pagină în header, fără
  *    muchie la îmbinare.
  * 2. Butonul „Intră în cont", care apare doar pe pagina de start: vizitator →
- *    logare, autentificat → carnetele lui. Pe celelalte pagini header-ul rămâne
- *    fără buton de cont.
+ *    logare, autentificat → carnetele lui. În carnete și la import apare
+ *    delogarea; un carnet deschis o afișează în propriul header.
  *
  * `usePathname()` poate include sau nu `basePath` (depinde de versiune), așa că
  * potrivirea acceptă ambele forme — altfel ambele particularități ar dispărea
@@ -72,6 +73,9 @@ export default function SiteHeader() {
             Intră în cont
           </AuthEntryLink>
         </div>
+      )}
+      {(isLibraryPage || isImportPage) && (
+        <div className="header-actions"><LogoutButton /></div>
       )}
     </header>
   );

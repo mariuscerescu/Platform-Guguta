@@ -5339,6 +5339,73 @@ main.container:has(> .nb-shell) {
 /* Numele complet al platformei rămâne vizibil și în antetele înguste. */
 .wordmark { line-height: 1.18; }
 
+.header-product .header-actions {
+  display: flex;
+}
+
+.logout-control {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.logout-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 9px 13px;
+  border: 1px solid #dce4ef;
+  border-radius: 12px;
+  background: #fff;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.logout-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.logout-button:hover:not(:disabled) {
+  border-color: #bdcff0;
+  background: #eef4ff;
+  color: var(--primary);
+}
+
+.logout-button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+
+.logout-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.logout-error {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(280px, 85vw);
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fff;
+  color: #b42318;
+  font-size: 0.85rem;
+  box-shadow: 0 4px 16px #17294312;
+}
+
+.nb-header .nb-actions {
+  flex-wrap: nowrap;
+  gap: 10px;
+}
+
 @media (max-width: 720px) {
   .header:not(.header-product) .wordmark {
     font-size: clamp(1.15rem, 5vw, 1.5rem);
@@ -5362,6 +5429,7 @@ main.container:has(> .nb-shell) {
     font-size: 1.05rem;
   }
   .nb-brand-divider { display: none; }
+  .nb-header .nb-title-area { flex: 1 1 0; }
 }
 
 /* Acțiunile de creare și import stau sub un singur buton în bibliotecă. */

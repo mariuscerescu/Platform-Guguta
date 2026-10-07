@@ -9,6 +9,7 @@ import {
 } from "../../../lib/features";
 import ChatAttachments, { AttachmentCards, type ChatAttachment } from "../../components/ChatAttachments";
 import PrivateImagePreview from "../../components/PrivateImagePreview";
+import LogoutButton from "../../components/LogoutButton";
 import SourceUploader from "../../components/SourceUploader";
 import MarkdownContent from "../../components/MarkdownContent";
 import {
@@ -1037,6 +1038,7 @@ export default function NotebookPage() {
             <ShareIcon />
             <span>Partajează</span>
           </button>
+          <LogoutButton />
         </div>
       </header>
       {error && <p className="error-text nb-error">{error}</p>}
