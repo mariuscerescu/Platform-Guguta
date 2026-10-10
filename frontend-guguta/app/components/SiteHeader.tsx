@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import AuthEntryLink from "./AuthEntryLink";
 import LogoutButton from "./LogoutButton";
+import ThemeToggle from "./ThemeToggle";
 import { withBase } from "../../lib/paths";
 
 /**
@@ -67,16 +68,15 @@ export default function SiteHeader() {
       <a href={withBase("/")} className="wordmark" aria-label="Platforma educațională Guguță" title="Platforma educațională Guguță">
         <span>Platforma educațională Guguță</span>
       </a>
-      {isLanding && (
-        <div className="header-actions">
+      <div className="header-actions">
+        {isLanding && (
           <AuthEntryLink className="header-login" next="/app">
             Intră în cont
           </AuthEntryLink>
-        </div>
-      )}
-      {(isLibraryPage || isImportPage) && (
-        <div className="header-actions"><LogoutButton /></div>
-      )}
+        )}
+        <ThemeToggle />
+        {(isLibraryPage || isImportPage) && <LogoutButton />}
+      </div>
     </header>
   );
 }

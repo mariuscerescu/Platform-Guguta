@@ -10,6 +10,7 @@ import {
 import ChatAttachments, { AttachmentCards, type ChatAttachment } from "../../components/ChatAttachments";
 import PrivateImagePreview from "../../components/PrivateImagePreview";
 import LogoutButton from "../../components/LogoutButton";
+import ThemeToggle from "../../components/ThemeToggle";
 import SourceUploader from "../../components/SourceUploader";
 import MarkdownContent from "../../components/MarkdownContent";
 import {
@@ -1038,6 +1039,7 @@ export default function NotebookPage() {
             <ShareIcon />
             <span>Partajează</span>
           </button>
+          <ThemeToggle />
           <LogoutButton />
         </div>
       </header>
