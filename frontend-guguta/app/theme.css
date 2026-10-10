@@ -1,20 +1,11 @@
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #f7faff;
-  --surface: #ffffff;
-  --surface-soft: #f2f6fc;
-  --surface-hover: #eef4fb;
-  --text: #0f1f3d;
-  --text-secondary: #5b6b84;
-  --primary: #0b63f6;
-  --primary-strong: #0849b8;
-  --accent: #1856b6;
+  /* Extra tokens for controls added after the original light interface. */
+  --on-primary: #ffffff;
+  --accent: var(--primary);
   --accent-soft: #eaf2ff;
   --accent-border: #b9cfee;
   --selection: #d2e5ff;
-  --green: #137d4d;
-  --yellow: #946400;
-  --red: #b42335;
   --purple: #7951a8;
   --teal: #16806d;
   --orange: #a95125;
@@ -30,11 +21,8 @@
   --teal-soft: #e7f7f2;
   --orange-soft: #fff0e8;
   --rose-soft: #fcecf7;
-  --border: #d9e2ef;
-  --border-subtle: #e7edf6;
   --scrollbar: #a4b3c8;
   --overlay: rgba(18, 35, 61, 0.55);
-  --shadow: 0 18px 45px rgba(20, 45, 85, 0.1);
 }
 
 .theme-toggle {
@@ -53,10 +41,6 @@
 .theme-toggle svg { width: 22px; height: 22px; }
 .theme-toggle:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-border); }
 .header-actions { display: flex; gap: 12px; }
-
-:root[data-theme="light"] .library-shell .nb-card { --notebook-card-bg: #eef5ff; }
-:root[data-theme="light"] .library-shell .nb-card:nth-child(3n + 2) { --notebook-card-bg: #eaf7f1; }
-:root[data-theme="light"] .library-shell .nb-card:nth-child(3n) { --notebook-card-bg: #f4effb; }
 
 /* Keep the companion and its shadow-DOM controls on the same palette. */
 .education-companion { color: var(--text); }

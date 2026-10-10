@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "katex/dist/katex.min.css";
 import "./globals.css";
+import "./dark-theme.css";
 import "./theme.css";
 import SiteHeader from "./components/SiteHeader";
 import { THEME_INIT_SCRIPT } from "../lib/theme";
