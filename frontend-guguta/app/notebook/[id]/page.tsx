@@ -197,6 +197,28 @@ function NotebookWorkspace({ nbId }: { nbId: string }) {
   const [srcCollapsed, setSrcCollapsed] = useState(false);
   const [studioCollapsed, setStudioCollapsed] = useState(false);
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>("chat");
+  const [conversationMode, setConversationMode] = useState<"companion" | "chat" | null>(null);
+  const draftInputRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    let mode: "companion" | "chat" = "companion";
+    try {
+      if (localStorage.getItem(`guguta_notebook_mode_v1:${nbId}`) === "chat") mode = "chat";
+    } catch { /* The control also works without persistent storage. */ }
+    setConversationMode(mode);
+  }, [nbId]);
+  useEffect(() => {
+    if (conversationMode === "chat" && sessionId !== null) {
+      draftInputRef.current?.focus({ preventScroll: true });
+    }
+  }, [conversationMode, sessionId]);
+
+  function toggleConversationMode() {
+    const next = conversationMode === "chat" ? "companion" : "chat";
+    setConversationMode(next);
+    setMobilePanel("chat");
+    try { localStorage.setItem(`guguta_notebook_mode_v1:${nbId}`, next); } catch { /* Optional preference. */ }
+  }
+
   const [elapsed, setElapsed] = useState(0);
   const [streaming, setStreaming] = useState<string | null>(null);
   const [audioModalOpen, setAudioModalOpen] = useState(false);
@@ -429,8 +451,9 @@ function NotebookWorkspace({ nbId }: { nbId: string }) {
   }, [nbId, sessionId]);
 
   useEffect(() => {
-    void loadMessages();
-  }, [loadMessages]);
+    // The mascot can write to the same session. Refresh its history when opening chat.
+    if (conversationMode === "chat") void loadMessages();
+  }, [loadMessages, conversationMode]);
 
   // Materialele în procesare se reîmprospătează singure: cercul de lângă
   // fișier se oprește fără intervenția utilizatorului când workerul termină.
@@ -1060,8 +1083,19 @@ function NotebookWorkspace({ nbId }: { nbId: string }) {
   }
 
 
+  const conversationModeButton = (
+    <button type="button" className="notebook-chat-toggle" onClick={toggleConversationMode}
+      disabled={conversationMode === null || (conversationMode === "chat" && (sending || uploadingAttachments || resettingChat || recording || transcribing))}
+      aria-controls="notebook-conversation"
+      aria-label={conversationMode === "chat" ? "Activează Guguță" : "Deschide chatul"}
+      title={conversationMode === "chat" ? "Revino la Guguță" : "Deconectează Guguță și deschide chatul"}>
+      {conversationMode === "chat" ? <AudioIcon /> : <ChatIcon />}
+      <span>{conversationMode === "chat" ? "Guguță" : "Chat"}</span>
+    </button>
+  );
+
   return (
-    <div className="nb-shell">
+    <div className="nb-shell" data-conversation-mode={conversationMode ?? "loading"}>
       <header className="nb-header">
         <Link href="/app" className="nb-brand wordmark" aria-label="Platforma educațională Guguță" title="Platforma educațională Guguță">
           <span>Platforma educațională Guguță</span>
@@ -1095,6 +1129,7 @@ function NotebookWorkspace({ nbId }: { nbId: string }) {
           )}
         </div>
         <div className="nb-actions">
+          {conversationModeButton}
           <button
             className="pill share-btn"
             onClick={() => void openShareModal()}
@@ -1115,6 +1150,7 @@ function NotebookWorkspace({ nbId }: { nbId: string }) {
           type="button"
           className={mobilePanel === "materials" ? "active" : ""}
           aria-pressed={mobilePanel === "materials"}
+          aria-label="Materiale"
           onClick={() => setMobilePanel("materials")}
         >
           <MaterialsIcon />
@@ -1124,15 +1160,17 @@ function NotebookWorkspace({ nbId }: { nbId: string }) {
           type="button"
           className={mobilePanel === "chat" ? "active" : ""}
           aria-pressed={mobilePanel === "chat"}
+          aria-label={conversationMode === "chat" ? "Chat" : "Guguță"}
           onClick={() => setMobilePanel("chat")}
         >
           <ChatIcon />
-          <span>Guguță</span>
+          <span>{conversationMode === "chat" ? "Chat" : "Guguță"}</span>
         </button>
         <button
           type="button"
           className={mobilePanel === "studio" ? "active" : ""}
           aria-pressed={mobilePanel === "studio"}
+          aria-label="Studio"
           onClick={() => setMobilePanel("studio")}
         >
           <StudioIcon />
@@ -1262,23 +1300,157 @@ function NotebookWorkspace({ nbId }: { nbId: string }) {
           </div>
         </section>
 
-        {/* Chatul și dictarea sunt accesibile prin personaj. */}
-        <section className={`panel notebook-companion ${mobilePanel === "chat" ? "mobile-active" : ""}`} aria-label="Guguță">
-          <EducationCompanion
-            assetBase={withBase("/guguta-companion")}
-            context={{
-              source: "opennotebook", notebookId: nbId, lessonTitle: nb?.title,
-              subjectLabel: companionTemplate?.discipline ?? undefined, grade: companionTemplate?.class_level ?? undefined, locale: "ro-MD",
-              selectedSourceIds: sources?.filter(source => source.selected_for_chat && source.status === "ready").map(source => source.id).slice(0, 200),
-              activeCard: currentStudyCard && studySession && !studySession.completed_at ? { question: currentStudyCard.front } : undefined,
-              quizId: activeQuiz?.id,
-              activeQuestion: currentQuizQuestion && quizAttempt && !quizAttempt.completed_at ? { prompt: currentQuizQuestion.prompt, options: currentQuizQuestion.options.map(option => option.text), questionType: currentQuizQuestion.question_type } : undefined,
-            }}
-            sessionId={sessionId ?? undefined}
-            activity={nb?.title ?? "Deschidem carnetul"}
-            result={quizAttempt?.completed_at ? { correct: Object.values(quizAttempt.answers).filter(answer => answer.status === "correct").length, total: quizAttempt.question_order.length } : undefined}
-          />
+        {/* Unmounting the mascot closes voice, microphone capture and its chat requests. */}
+        {conversationMode === "companion" ? (
+          <section id="notebook-conversation" className={`panel notebook-companion ${mobilePanel === "chat" ? "mobile-active" : ""}`} aria-label="Guguță">
+            <EducationCompanion
+              assetBase={withBase("/guguta-companion")}
+              context={{
+                source: "opennotebook", notebookId: nbId, lessonTitle: nb?.title,
+                subjectLabel: companionTemplate?.discipline ?? undefined, grade: companionTemplate?.class_level ?? undefined, locale: "ro-MD",
+                selectedSourceIds: sources?.filter(source => source.selected_for_chat && source.status === "ready").map(source => source.id).slice(0, 200),
+                activeCard: currentStudyCard && studySession && !studySession.completed_at ? { question: currentStudyCard.front } : undefined,
+                quizId: activeQuiz?.id,
+                activeQuestion: currentQuizQuestion && quizAttempt && !quizAttempt.completed_at ? { prompt: currentQuizQuestion.prompt, options: currentQuizQuestion.options.map(option => option.text), questionType: currentQuizQuestion.question_type } : undefined,
+              }}
+              sessionId={sessionId ?? undefined}
+              activity={nb?.title ?? "Deschidem carnetul"}
+              result={quizAttempt?.completed_at ? { correct: Object.values(quizAttempt.answers).filter(answer => answer.status === "correct").length, total: quizAttempt.question_order.length } : undefined}
+            />
+          </section>
+        ) : conversationMode === "chat" ? (
+          <section id="notebook-conversation" className={`panel chat ${mobilePanel === "chat" ? "mobile-active" : ""}`} aria-label="Conversație">
+            <div className="panel-head">
+              <div className="panel-heading-copy">
+                <span className="panel-title">Conversație</span>
+                <span className="panel-subtitle">Întreabă și explorează materialele selectate.</span>
+              </div>
+              <button
+                className="icon-btn reset-chat-btn"
+                onClick={() => void newSession()}
+                disabled={sending || uploadingAttachments || resettingChat}
+                aria-label="Resetează conversația"
+                title="Șterge conversația și atașamentele, apoi începe una nouă"
+              >
+                <img src={withBase("/assets/broom.png")} alt="" />
+              </button>
+            </div>
+            <div className="panel-body chat-body">
+              {/*
+                Conversația există întotdeauna: carnetul primește automat o
+                sesiune la deschidere (vezi loadAll), iar caseta de scriere e
+                randată necondiționat. Panoul nu are stare goală.
+              */}
+              <div className="msgs">
+                {sessionId === null ? (
+                  <p className="muted chat-hint"><ChatIcon />Se pregătește conversația…</p>
+                ) : (
+                messages.length === 0 && (
+                  <p className="muted chat-hint">
+                    <ChatIcon />
+                    Întreabă ceva despre materialele selectate ale carnetului.
+                  </p>
+                )
+              )}
+              {messages.map((m) => (
+                <div key={m.clientId ?? m.id} className={`msg ${m.role}`}>
+                  {m.role === "assistant" ? (
+                    <MarkdownContent content={answerText(m.content)} />
+                  ) : (
+                    m.content
+                  )}
+                  {m.role === "user" && sessionId && <AttachmentCards
+                    attachments={m.attachments ?? chatAttachments.filter((file) => file.chat_message_id === m.id)}
+                    notebookId={nbId} sessionId={sessionId}
+                  />}
+                  {SHOW_ANSWER_REFERENCES &&
+                    (citations[m.id] ?? []).map((c, i) => (
+                      <span className="citation" key={i}>
+                        [{i + 1}]{" "}
+                        {c.source_removed ? "Sursă eliminată" : c.display_name}
+                        {Object.keys(c.locator).length > 0 &&
+                          ` · ${JSON.stringify(c.locator)}`}
+                      </span>
+                    ))}
+                </div>
+              ))}
+              {streaming !== null && (
+                <div className="msg assistant streaming">
+                  {streaming !== "" && (
+                    <MarkdownContent content={answerText(streaming)} />
+                  )}
+                  {streaming === "" && (
+                    <span className="muted">
+                      {elapsed < 15 ? "Se generează…" : `Se generează… ${elapsed}s`}
+                    </span>
+                  )}
+                </div>
+              )}
+              <div ref={bottomRef} />
+            </div>
+            <div className="composer has-attachments">
+              {sessionId && !resettingChat && <ChatAttachments key={sessionId} notebookId={nbId} sessionId={sessionId}
+                disabled={sending || resettingChat} refreshToken={attachmentRefresh + messages.length}
+                submittedAttachmentIds={submittedAttachmentIds}
+                onChange={setChatAttachments} onBusy={setUploadingAttachments} />}
+              {speechMessage || chatMessage ? (
+                <p className="composer-notice" role="status" aria-live="polite">
+                  {speechMessage ?? chatMessage}
+                </p>
+              ) : null}
+              <textarea
+                ref={draftInputRef}
+                id="draft"
+                className={speechMessage || chatMessage ? "has-composer-notice" : undefined}
+                placeholder={
+                  sessionId === null
+                    ? "Se pregătește conversația…"
+                    : "Pune o întrebare despre materiale…"
+                }
+                value={draft}
+                disabled={sessionId === null || transcribing}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    void send();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className={`mic-btn ${recording ? "recording" : ""}`}
+                onClick={() => void toggleRecording()}
+                disabled={!recording && (sending || transcribing || sessionId === null)}
+                aria-label={recording ? "Oprește înregistrarea" : "Începe dictarea"}
+                aria-pressed={recording}
+                title={recording ? "Oprește și transcrie" : transcribing ? "Se transcrie…" : "Dictează întrebarea"}
+              >
+                {transcribing ? <span className="mic-loader" aria-hidden="true" /> : <MicrophoneIcon />}
+              </button>
+              <button
+                className="send-btn"
+                onClick={() => void send()}
+                disabled={sending || uploadingAttachments || resettingChat || sessionId === null || !attachmentsReady || (!draft.trim() && !pendingAttachments.length)}
+                aria-label="Trimite"
+                title={sending ? `Se generează… ${elapsed}s` : "Trimite"}
+              >
+                {sending ? (
+                  <span style={{ fontSize: 11, fontWeight: 600 }}>{elapsed}s</span>
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M5 12h13M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          </div>
         </section>
+        ) : (
+          <section id="notebook-conversation" className={`panel chat ${mobilePanel === "chat" ? "mobile-active" : ""}`} aria-label="Conversație">
+            <p className="muted chat-hint" role="status">Se pregătește conversația…</p>
+          </section>
+        )}
 
         {/* -------- Studio (dreapta, colapsabil) -------- */}
         <section

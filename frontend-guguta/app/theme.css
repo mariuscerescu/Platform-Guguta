@@ -42,6 +42,25 @@
 .theme-toggle:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-border); }
 .header-actions { display: flex; gap: 12px; }
 
+.notebook-chat-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  gap: 8px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--accent);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+.notebook-chat-toggle svg { width: 20px; height: 20px; }
+.notebook-chat-toggle:hover:not(:disabled) { background: var(--accent-soft); border-color: var(--accent-border); }
+
 /* Keep the companion and its shadow-DOM controls on the same palette. */
 .education-companion { color: var(--text); }
 .education-companion__settings,
@@ -72,10 +91,25 @@
 .companion-chat:focus-within { border-color: var(--accent); }
 .companion-chat__typing > span { background: var(--text-secondary); }
 
+@media (max-width: 990px) {
+  .nb-header { flex-wrap: wrap; }
+  .nb-header .nb-brand { flex: 1 1 100%; }
+  .nb-header .nb-brand-divider { display: none; }
+  .nb-header .nb-title-area { flex: 1 1 0; }
+  .nb-header .nb-actions { width: auto; flex: 0 0 auto; }
+}
+
 @media (max-width: 720px) {
+  .nb-actions .notebook-chat-toggle { width: 44px; height: 44px; padding: 10px; }
+  .nb-actions .notebook-chat-toggle span { display: none; }
   .header:not(.header-product) { gap: 12px; }
   .header:not(.header-product) .wordmark { flex: 1 1 0; min-width: 0; }
   .header:not(.header-product) .header-login { display: none; }
   .header-product .header-actions { gap: 8px; }
   .header-product .header-login { min-height: 44px; padding-inline: 14px; font-size: 0.88rem; }
+}
+
+@media (max-width: 380px) {
+  .nb-header .logout-button { width: 44px; padding: 10px; }
+  .nb-header .logout-button span { display: none; }
 }
