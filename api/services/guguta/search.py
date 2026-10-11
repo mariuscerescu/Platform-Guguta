@@ -138,13 +138,28 @@ class SearchService:
         self._provider = vector_provider
         self._max_vector_distance = max_vector_distance
         self._session_id: uuid.UUID | None = None
+        self._source_ids: tuple[uuid.UUID, ...] | None = None
 
     def for_session(self, session_id: uuid.UUID):
         scoped = copy(self)
         scoped._session_id = session_id
         return scoped
 
+    def for_sources(self, source_ids: list[uuid.UUID]):
+        """Narrow retrieval before any ranking/model call; never expand access."""
+        scoped = copy(self)
+        scoped._source_ids = tuple(dict.fromkeys(source_ids))
+        return scoped
+
     def _scoped_text(self, sql: str):
+        if self._source_ids is not None and "ns.selected_for_chat" in sql:
+            sql = sql.replace(
+                "ns.selected_for_chat",
+                "ns.selected_for_chat AND ns.id IN :voice_source_ids",
+            )
+            return source_scope_sql(sql, self._session_id).bindparams(
+                bindparam("voice_source_ids", value=self._source_ids, expanding=True)
+            )
         return source_scope_sql(sql, self._session_id)
 
     async def context_revision(

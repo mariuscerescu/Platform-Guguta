@@ -1,0 +1,47 @@
+/* Preserve the attached notice style while giving the conversation room to read. */
+.companion-chat { box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; width: 100%; min-height: 132px; max-height: min(420px, max(180px, calc(100dvh - 390px))); margin: 10px 0 0; padding: 12px; border: 1px solid #37475a; border-radius: 10px; background: #16212d; color: #e6edf3; font-size: 16px; line-height: 1.55; }
+.companion-chat__messages { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; gap: 12px; }
+.companion-chat, .companion-chat__messages, .companion-chat__composer { animation: none; transition: none; scroll-behavior: auto; }
+.companion-chat__message { box-sizing: border-box; width: fit-content; max-width: 96%; padding: 10px 12px; border-radius: 10px; overflow-wrap: anywhere; }
+.companion-chat__message--user { align-self: flex-end; margin-left: 22px; border: 1px solid #34506c; background: #1d3349; }
+.companion-chat__message--assistant { align-self: flex-start; margin-right: 14px; border: 1px solid #293a4b; background: #111c28; }
+.companion-chat__author { display: block; margin-bottom: 4px; color: #b8d7f5; font-size: 12px; font-weight: 650; line-height: 1.4; }
+.companion-chat__message--user .companion-chat__author { color: #c9d8e7; }
+.companion-chat__message > p { margin: 0; white-space: pre-wrap; }
+.companion-chat__hint, .companion-chat__error { margin: 3px 0; font-size: 14px; overflow-wrap: anywhere; }
+.companion-chat__hint { color: #b4c1cf; }
+.companion-chat__error { color: #ffc4c8; }
+.companion-chat__composer { flex: none; margin: 0; padding-top: 9px; border-top: 1px solid #304052; }
+.companion-chat__composer > label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.companion-chat__composer textarea { all: unset; display: block; box-sizing: border-box; width: 100%; min-height: 50px; max-height: 124px; resize: none; background: transparent; color: inherit; font: inherit; font-size: 16px; line-height: 1.55; }
+.companion-chat__composer textarea::placeholder { color: #b4c1cf; opacity: 1; }
+.companion-chat:focus-within { border-color: #66cfff; }
+.companion-chat__composer textarea:disabled { opacity: .65; }
+.companion-chat__input-row { display: flex; align-items: flex-end; gap: 8px; }
+.companion-chat__input-row textarea { flex: 1 1 auto; min-width: 0; }
+.companion-chat__dictation { flex: 0 0 38px; display: grid; place-items: center; width: 38px; height: 38px; margin-bottom: 2px; padding: 8px; border: 1px solid var(--border, #37475a); border-radius: 50%; background: transparent; color: var(--text-secondary, #b4c1cf); cursor: pointer; }
+.companion-chat__dictation svg { display: block; width: 21px; height: 21px; }
+.companion-chat__dictation:hover:not(:disabled) { background: var(--surface-hover, #233346); color: var(--text, #e6edf3); }
+.companion-chat__dictation[aria-pressed="true"] { color: var(--danger-action, #ff858f); border-color: currentColor; background: var(--danger-soft, #38232c); }
+.companion-chat__dictation:focus-visible { outline: 2px solid var(--accent, #66cfff); outline-offset: 2px; }
+.companion-chat__dictation:disabled { cursor: default; opacity: .6; }
+.companion-chat__dictation-status { margin: 5px 0 0; color: var(--text-secondary, #b4c1cf); font-size: 12px; line-height: 1.4; }
+.companion-chat__dictation-spinner { animation: companion-dictation-spin 1s linear infinite; }
+@keyframes companion-dictation-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .companion-chat__dictation-spinner { animation: none; } }
+.companion-chat__typing { display: inline-flex; align-items: center; gap: 5px; min-height: 25px; padding: 4px 0; }
+.companion-chat__typing > span { width: 6px; height: 6px; border-radius: 50%; background: #a9cbed; animation: companion-chat-thinking 1.2s ease-in-out infinite; }
+.companion-chat__typing > span:nth-child(2) { animation-delay: .15s; }
+.companion-chat__typing > span:nth-child(3) { animation-delay: .3s; }
+@keyframes companion-chat-thinking { 0%, 70%, 100% { opacity: .45; transform: translateY(0); } 35% { opacity: 1; transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .companion-chat__typing > span { animation: none; opacity: .8; } }
+@media (max-width: 480px) { .companion-chat { padding: 10px; } .companion-chat__message { max-width: 98%; padding: 9px 10px; } }
+.companion-voice__header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.companion-voice__header > p { margin: 0; font-size: 14px; }
+.companion-voice__header > button { flex: none; font-size: 22px; min-width: 34px; }
+.companion-voice__controls { display: flex; flex-wrap: wrap; gap: 8px; }
+.companion-voice button { min-height: 38px; padding: 6px 10px; border: 1px solid var(--border, #37475a); border-radius: 8px; background: var(--surface, #111923); color: var(--text, #e6edf3); font: inherit; font-size: 13px; cursor: pointer; }
+.companion-voice button:focus-visible, .companion-voice a:focus-visible { outline: 2px solid var(--accent, #66cfff); outline-offset: 2px; }
+.companion-voice button:disabled { opacity: .6; cursor: wait; }
+.companion-voice button[aria-pressed="true"] { border-color: var(--accent, #66cfff); }
+.companion-voice a { color: var(--accent, #66cfff); text-decoration: underline; }

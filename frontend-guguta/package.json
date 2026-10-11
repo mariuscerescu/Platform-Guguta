@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@elevenlabs/client": "1.27.0",
     "katex": "^0.18.7",
     "next": "^15.1.0",
     "react": "^19.0.0",

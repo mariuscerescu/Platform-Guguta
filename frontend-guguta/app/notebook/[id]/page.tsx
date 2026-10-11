@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
-import { api, ApiError, getCsrf, Note, Notebook, Source } from "../../../lib/api";
+import { api, ApiError, getCsrf, Note, Notebook, Source, CatalogTemplate } from "../../../lib/api";
+import EducationCompanion from "../../components/EducationCompanion";
 import {
   SHOW_ANSWER_REFERENCES,
   withoutReferenceMarkers,
@@ -148,9 +150,22 @@ function SourceTypeIcon({ source }: { source: Source }) {
 
 export default function NotebookPage() {
   const params = useParams<{ id: string }>();
-  const nbId = params.id;
+  return <NotebookWorkspace key={params.id} nbId={params.id} />;
+}
 
+function NotebookWorkspace({ nbId }: { nbId: string }) {
   const [nb, setNb] = useState<Notebook | null>(null);
+  const [companionTemplate, setCompanionTemplate] = useState<CatalogTemplate | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setCompanionTemplate(null);
+    if (nb?.current_template_version_id) {
+      void api<CatalogTemplate[]>("GET", "/api/v1/catalog/templates").then(templates => {
+        if (!cancelled) setCompanionTemplate(templates.find(template => template.current_version_id === nb.current_template_version_id) ?? null);
+      }).catch(() => { /* Optional metadata must not block the notebook. */ });
+    }
+    return () => { cancelled = true; };
+  }, [nb?.current_template_version_id]);
   const [sources, setSources] = useState<Source[] | null>(null);
   const [notes, setNotes] = useState<Note[] | null>(null);
   const [audioOverviews, setAudioOverviews] = useState<AudioOverview[] | null>(null);
@@ -233,6 +248,7 @@ export default function NotebookPage() {
   const componentAliveRef = useRef(true);
 
   useEffect(() => {
+    componentAliveRef.current = true;
     return () => {
       componentAliveRef.current = false;
       const recorder = mediaRecorderRef.current;
@@ -270,58 +286,97 @@ export default function NotebookPage() {
     citationsRef.current = citations;
   }, [citations]);
 
-  const loadAll = useCallback(async () => {
-    try {
-      const nbData = await api<Notebook>("GET", `/api/v1/notebooks/${nbId}`);
-      setNb(nbData);
-      const srcs = await api<Source[]>(
-        "GET",
-        `/api/v1/notebooks/${nbId}/sources`,
-      );
-      setSources(srcs);
-      const nts = await api<Note[]>(`GET`, `/api/v1/notebooks/${nbId}/notes`);
-      setNotes(nts);
-      const overviews = await api<AudioOverview[]>(
-        "GET",
-        `/api/v1/notebooks/${nbId}/audio-overviews`,
-      );
-      setAudioOverviews(overviews);
-      const decks = await api<FlashcardDeck[]>(
-        "GET",
-        `/api/v1/notebooks/${nbId}/flashcard-decks`,
-      );
-      setFlashcardDecks(decks);
-      setQuizzes(await api<QuizArtifact[]>("GET", `/api/v1/notebooks/${nbId}/quizzes`));
-      const sess = await api<ChatSession[]>(
-        "GET",
-        `/api/v1/notebooks/${nbId}/sessions`,
-      );
+  const notebookLoadRef = useRef<{
+    notebookId: string;
+    promise: Promise<void>;
+    repeat: boolean;
+  } | null>(null);
+  const currentNotebookIdRef = useRef(nbId);
+  currentNotebookIdRef.current = nbId;
+  const currentSessionIdRef = useRef(sessionId);
+  currentSessionIdRef.current = sessionId;
+
+  // Each panel becomes usable as soon as its request finishes. Initial load
+  // and polling share the same batch; a mutation queues one fresh batch if
+  // a request started before that mutation is still in flight.
+  const loadAll = useCallback((refreshAfterPending = true): Promise<void> => {
+    const pending = notebookLoadRef.current;
+    if (pending?.notebookId === nbId) {
+      if (refreshAfterPending) pending.repeat = true;
+      return pending.promise;
+    }
+    const task = { notebookId: nbId, promise: Promise.resolve(), repeat: false };
+    notebookLoadRef.current = task;
+    const isCurrent = () => componentAliveRef.current &&
+      currentNotebookIdRef.current === nbId && notebookLoadRef.current === task;
+    const loadSection = async <T,>(path: string, update: (value: T) => void) => {
+      const value = await api<T>("GET", `/api/v1/notebooks/${nbId}${path}`);
+      if (isCurrent()) update(value);
+    };
+    const loadSessions = async () => {
+      const sess = await api<ChatSession[]>("GET", `/api/v1/notebooks/${nbId}/sessions`);
+      if (!isCurrent()) return;
       setSessions(sess);
       if (sess.length > 0) {
-        if (sessionId === null) setSessionId(sess[0].id);
+        setSessionId((current) => current ?? sess[0].id);
       } else if (!sessionCreationRef.current) {
-        // Conversația există întotdeauna: un carnet nou primește automat una,
-        // ca panoul din centru să nu rămână gol până apasă cineva un buton.
         sessionCreationRef.current = true;
-        const created = await api<ChatSession>(
-          "POST",
-          `/api/v1/notebooks/${nbId}/sessions`,
-          {},
-        );
-        setSessions([created]);
-        setSessionId(created.id);
+        try {
+          const created = await api<ChatSession>("POST", `/api/v1/notebooks/${nbId}/sessions`, {});
+          if (isCurrent()) {
+            setSessions([created]);
+            setSessionId((current) => current ?? created.id);
+          }
+        } catch (err) {
+          if (isCurrent()) sessionCreationRef.current = false;
+          throw err;
+        }
       }
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 404) {
-        setError("Carnetul nu există sau nu îți aparține.");
-      } else {
-        setError((err as Error).message);
+    };
+    task.promise = (async () => {
+      try {
+        do {
+          task.repeat = false;
+          const results = await Promise.allSettled([
+            loadSection<Notebook>("", setNb),
+            loadSection<Source[]>("/sources", setSources),
+            loadSection<Note[]>("/notes", setNotes),
+            loadSection<AudioOverview[]>("/audio-overviews", setAudioOverviews),
+            loadSection<FlashcardDeck[]>("/flashcard-decks", setFlashcardDecks),
+            loadSection<QuizArtifact[]>("/quizzes", setQuizzes),
+            loadSessions(),
+          ]);
+          if (!isCurrent()) return;
+          const failed = results.find((result) => result.status === "rejected");
+          if (failed?.status === "rejected") {
+            const err = failed.reason;
+            setError(err instanceof ApiError && err.status === 404
+              ? "Carnetul nu există sau nu îți aparține."
+              : (err as Error).message);
+          }
+        } while (task.repeat && isCurrent());
+      } finally {
+        if (notebookLoadRef.current === task) notebookLoadRef.current = null;
       }
-    }
-  }, [nbId, sessionId]);
+    })();
+    return task.promise;
+  }, [nbId]);
 
   useEffect(() => {
-    void loadAll();
+    setNb(null);
+    setSources(null);
+    setNotes(null);
+    setAudioOverviews(null);
+    setFlashcardDecks(null);
+    setQuizzes(null);
+    setSessions([]);
+    setSessionId(null);
+    setMessages([]);
+    setChatAttachments([]);
+    setCitations({});
+    setError(null);
+    sessionCreationRef.current = false;
+    void loadAll(false);
   }, [loadAll]);
 
   // Materialul tocmai urcat intră în listă imediat, în același render în care
@@ -332,11 +387,15 @@ export default function NotebookPage() {
 
   const loadMessages = useCallback(async () => {
     if (sessionId === null) return;
+    const isCurrent = () => componentAliveRef.current &&
+      currentNotebookIdRef.current === nbId && currentSessionIdRef.current === sessionId;
+    if (!isCurrent()) return;
     try {
       const msgs = await api<ChatMessage[]>(
         "GET",
         `/api/v1/notebooks/${nbId}/sessions/${sessionId}/messages`,
       );
+      if (!isCurrent()) return;
       setMessages((previous) => {
         const localMessages = new Map(previous.map((message) => [message.id, message]));
         return msgs.map((message) => {
@@ -357,13 +416,15 @@ export default function NotebookPage() {
             "GET",
             `/api/v1/notebooks/${nbId}/sessions/${sessionId}/messages/${m.id}/citations`,
           );
+          if (!isCurrent()) return;
           setCitations((prev) => ({ ...prev, [m.id]: cites }));
         } catch {
+          if (!isCurrent()) return;
           setCitations((prev) => ({ ...prev, [m.id]: [] }));
         }
       }
     } catch (err) {
-      setError((err as Error).message);
+      if (isCurrent()) setError((err as Error).message);
     }
   }, [nbId, sessionId]);
 
@@ -382,10 +443,14 @@ export default function NotebookPage() {
     (quizzes?.some((item) => ["queued", "generating"].includes(item.status)) ?? false);
   useEffect(() => {
     if (!hasProcessing) return;
-    const t = setInterval(() => {
-      void loadAll();
-    }, 2000);
-    return () => clearInterval(t);
+    let cancelled = false;
+    let timeout: ReturnType<typeof setTimeout>;
+    const refresh = async () => {
+      await loadAll(false);
+      if (!cancelled) timeout = setTimeout(refresh, 2000);
+    };
+    timeout = setTimeout(refresh, 2000);
+    return () => { cancelled = true; clearTimeout(timeout); };
   }, [hasProcessing, loadAll]);
 
   useEffect(() => {
@@ -989,7 +1054,7 @@ export default function NotebookPage() {
     return (
       <>
         <p className="error-text">{error}</p>
-        <a href={withBase("/app")}>← Înapoi la carnetele mele</a>
+        <Link href="/app">← Înapoi la carnetele mele</Link>
       </>
     );
   }
@@ -998,9 +1063,9 @@ export default function NotebookPage() {
   return (
     <div className="nb-shell">
       <header className="nb-header">
-        <a href={withBase("/app")} className="nb-brand wordmark" aria-label="Platforma educațională Guguță" title="Platforma educațională Guguță">
+        <Link href="/app" className="nb-brand wordmark" aria-label="Platforma educațională Guguță" title="Platforma educațională Guguță">
           <span>Platforma educațională Guguță</span>
-        </a>
+        </Link>
         <span className="nb-brand-divider" aria-hidden="true" />
         <div className="nb-title-area">
           {renamingTitle ? (
@@ -1062,7 +1127,7 @@ export default function NotebookPage() {
           onClick={() => setMobilePanel("chat")}
         >
           <ChatIcon />
-          <span>Conversație</span>
+          <span>Guguță</span>
         </button>
         <button
           type="button"
@@ -1144,7 +1209,7 @@ export default function NotebookPage() {
                           "PATCH",
                           `/api/v1/notebooks/${nbId}/sources/${s.id}`,
                           { selected_for_chat: !s.selected_for_chat },
-                        ).then(loadAll)
+                        ).then(() => loadAll())
                       }
                     />
                   </label>
@@ -1197,132 +1262,22 @@ export default function NotebookPage() {
           </div>
         </section>
 
-        {/* -------- Conversație (centru) -------- */}
-        <section className={`panel chat ${mobilePanel === "chat" ? "mobile-active" : ""}`} aria-label="Conversație">
-          <div className="panel-head">
-            <div className="panel-heading-copy">
-              <span className="panel-title">Conversație</span>
-              <span className="panel-subtitle">Întreabă și explorează materialele selectate.</span>
-            </div>
-            <button
-              className="icon-btn reset-chat-btn"
-              onClick={() => void newSession()}
-              disabled={sending || uploadingAttachments || resettingChat}
-              aria-label="Resetează conversația"
-              title="Șterge conversația și atașamentele, apoi începe una nouă"
-            >
-              <img src={withBase("/assets/broom.png")} alt="" />
-            </button>
-          </div>
-          <div className="panel-body chat-body">
-            {/*
-              Conversația există întotdeauna: carnetul primește automat o
-              sesiune la deschidere (vezi loadAll), iar caseta de scriere e
-              randată necondiționat. Panoul nu are stare goală.
-            */}
-            <div className="msgs">
-              {sessionId === null ? (
-                <p className="muted chat-hint"><ChatIcon />Se pregătește conversația…</p>
-              ) : (
-                messages.length === 0 && (
-                  <p className="muted chat-hint">
-                    <ChatIcon />
-                    Întreabă ceva despre materialele selectate ale carnetului.
-                  </p>
-                )
-              )}
-              {messages.map((m) => (
-                <div key={m.clientId ?? m.id} className={`msg ${m.role}`}>
-                  {m.role === "assistant" ? (
-                    <MarkdownContent content={answerText(m.content)} />
-                  ) : (
-                    m.content
-                  )}
-                  {m.role === "user" && sessionId && <AttachmentCards
-                    attachments={m.attachments ?? chatAttachments.filter((file) => file.chat_message_id === m.id)}
-                    notebookId={nbId} sessionId={sessionId}
-                  />}
-                  {SHOW_ANSWER_REFERENCES &&
-                    (citations[m.id] ?? []).map((c, i) => (
-                      <span className="citation" key={i}>
-                        [{i + 1}]{" "}
-                        {c.source_removed ? "Sursă eliminată" : c.display_name}
-                        {Object.keys(c.locator).length > 0 &&
-                          ` · ${JSON.stringify(c.locator)}`}
-                      </span>
-                    ))}
-                </div>
-              ))}
-              {streaming !== null && (
-                <div className="msg assistant streaming">
-                  {streaming !== "" && (
-                    <MarkdownContent content={answerText(streaming)} />
-                  )}
-                  {streaming === "" && (
-                    <span className="muted">
-                      {elapsed < 15 ? "Se generează…" : `Se generează… ${elapsed}s`}
-                    </span>
-                  )}
-                </div>
-              )}
-              <div ref={bottomRef} />
-            </div>
-            <div className="composer has-attachments">
-              {sessionId && !resettingChat && <ChatAttachments key={sessionId} notebookId={nbId} sessionId={sessionId}
-                disabled={sending || resettingChat} refreshToken={attachmentRefresh + messages.length}
-                submittedAttachmentIds={submittedAttachmentIds}
-                onChange={setChatAttachments} onBusy={setUploadingAttachments} />}
-              {speechMessage || chatMessage ? (
-                <p className="composer-notice" role="status" aria-live="polite">
-                  {speechMessage ?? chatMessage}
-                </p>
-              ) : null}
-              <textarea
-                id="draft"
-                className={speechMessage || chatMessage ? "has-composer-notice" : undefined}
-                placeholder={
-                  sessionId === null
-                    ? "Se pregătește conversația…"
-                    : "Pune o întrebare despre materiale…"
-                }
-                value={draft}
-                disabled={sessionId === null || transcribing}
-                onChange={(e) => setDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) {
-                    e.preventDefault();
-                    void send();
-                  }
-                }}
-              />
-              <button
-                type="button"
-                className={`mic-btn ${recording ? "recording" : ""}`}
-                onClick={() => void toggleRecording()}
-                disabled={!recording && (sending || transcribing || sessionId === null)}
-                aria-label={recording ? "Oprește înregistrarea" : "Începe dictarea"}
-                aria-pressed={recording}
-                title={recording ? "Oprește și transcrie" : transcribing ? "Se transcrie…" : "Dictează întrebarea"}
-              >
-                {transcribing ? <span className="mic-loader" aria-hidden="true" /> : <MicrophoneIcon />}
-              </button>
-              <button
-                className="send-btn"
-                onClick={() => void send()}
-                disabled={sending || uploadingAttachments || resettingChat || sessionId === null || !attachmentsReady || (!draft.trim() && !pendingAttachments.length)}
-                aria-label="Trimite"
-                title={sending ? `Se generează… ${elapsed}s` : "Trimite"}
-              >
-                {sending ? (
-                  <span style={{ fontSize: 11, fontWeight: 600 }}>{elapsed}s</span>
-                ) : (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M5 12h13M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                )}
-              </button>
-            </div>
-          </div>
+        {/* Chatul și dictarea sunt accesibile prin personaj. */}
+        <section className={`panel notebook-companion ${mobilePanel === "chat" ? "mobile-active" : ""}`} aria-label="Guguță">
+          <EducationCompanion
+            assetBase={withBase("/guguta-companion")}
+            context={{
+              source: "opennotebook", notebookId: nbId, lessonTitle: nb?.title,
+              subjectLabel: companionTemplate?.discipline ?? undefined, grade: companionTemplate?.class_level ?? undefined, locale: "ro-MD",
+              selectedSourceIds: sources?.filter(source => source.selected_for_chat && source.status === "ready").map(source => source.id).slice(0, 200),
+              activeCard: currentStudyCard && studySession && !studySession.completed_at ? { question: currentStudyCard.front } : undefined,
+              quizId: activeQuiz?.id,
+              activeQuestion: currentQuizQuestion && quizAttempt && !quizAttempt.completed_at ? { prompt: currentQuizQuestion.prompt, options: currentQuizQuestion.options.map(option => option.text), questionType: currentQuizQuestion.question_type } : undefined,
+            }}
+            sessionId={sessionId ?? undefined}
+            activity={nb?.title ?? "Deschidem carnetul"}
+            result={quizAttempt?.completed_at ? { correct: Object.values(quizAttempt.answers).filter(answer => answer.status === "correct").length, total: quizAttempt.question_order.length } : undefined}
+          />
         </section>
 
         {/* -------- Studio (dreapta, colapsabil) -------- */}

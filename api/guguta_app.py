@@ -42,6 +42,8 @@ from api.routers.guguta_v1 import (
     sources_router,
     speech_router,
 )
+from api.routers.guguta_voice import voice_router
+from api.services.guguta.voice import VoiceRateLimited, VoiceService, VoiceUnavailable
 from api.services.guguta.admin import AdminService
 from api.services.guguta.audio_overviews import AudioOverviewService
 from api.services.guguta.catalog import (
@@ -214,6 +216,7 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
         timeout_seconds=config.parakeet_asr_timeout_seconds,
         max_audio_mib=config.parakeet_asr_max_audio_mib,
     )
+    app.state.guguta_voice = VoiceService(engine, app.state.guguta_search)
     app.state.guguta_catalog = CatalogService(
         engine, quota_mib_per_user=config.quota_mib_per_user
     )
@@ -326,6 +329,7 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
     app.include_router(jobs_router)
     app.include_router(search_router)
     app.include_router(speech_router)
+    app.include_router(voice_router)
     app.include_router(chat_router)
     app.include_router(notes_router)
     app.include_router(audio_overviews_router)
@@ -371,6 +375,20 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
             503,
             request.headers.get("x-request-id", "-"),
         )
+
+    @app.exception_handler(VoiceUnavailable)
+    async def voice_unavailable(request: Request, exc: VoiceUnavailable) -> JSONResponse:
+        return _error(
+            "voice_unavailable", str(exc), 503, request.headers.get("x-request-id", "-")
+        )
+
+    @app.exception_handler(VoiceRateLimited)
+    async def voice_rate_limited(request: Request, exc: VoiceRateLimited) -> JSONResponse:
+        response = _error(
+            "voice_rate_limited", str(exc), 429, request.headers.get("x-request-id", "-")
+        )
+        response.headers["Retry-After"] = "30"
+        return response
 
     @app.exception_handler(OidcError)
     async def oidc_error(request: Request, exc: OidcError) -> JSONResponse:

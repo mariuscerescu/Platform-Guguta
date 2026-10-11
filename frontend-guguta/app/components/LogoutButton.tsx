@@ -19,6 +19,8 @@ export default function LogoutButton() {
     if (busy) return;
     setBusy(true);
     setError(null);
+    window.dispatchEvent(new Event("guguta:logout"));
+    try { localStorage.setItem("guguta.logout", String(Date.now())); } catch { /* Same-tab cleanup still runs. */ }
     try {
       await bootstrapCsrf();
       await api("POST", "/api/v1/auth/logout");
