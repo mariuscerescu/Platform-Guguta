@@ -1,6 +1,4 @@
 <div align="center">
-  <img src="frontend-guguta/public/assets/guguta-mascot.png" alt="Guguță" width="150">
-  <h1>Guguță</h1>
   <p><strong>Platformă educațională bazată pe inteligență artificială pentru elevii din Republica Moldova</strong></p>
   <p>
     <a href="https://tineri.math.md/edu-platform">Instanța publică</a>
