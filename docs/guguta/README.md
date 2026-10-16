@@ -15,6 +15,7 @@ versionat, iar legăturile au fost actualizate.
 | [EVALUARE_OPEN_NOTEBOOK_PENTRU_GUGUTA.md](EVALUARE_OPEN_NOTEBOOK_PENTRU_GUGUTA.md) | Componente existente, limite și migrare. |
 | [GHID_IMPLEMENTARE_LLM.md](GHID_IMPLEMENTARE_LLM.md) | Instrucțiuni concrete de execuție. |
 | [GUGUTA_IMPLEMENTATION_CHECKLIST.md](GUGUTA_IMPLEMENTATION_CHECKLIST.md) | Progresul implementării L0–L10. |
+| [IDEI_UI_ADAPTIV.md](IDEI_UI_ADAPTIV.md) | Propuneri: interfață adaptată vârstei și scena vie care reacționează la conversație. |
 | [DEPLOYMENT_READINESS_CHECKLIST.md](DEPLOYMENT_READINESS_CHECKLIST.md) | Dovezi necesare lansării. |
 | [ANALIZA_OSS.md](ANALIZA_OSS.md) | Justificarea alegerii bazei open-source. |
 | [adr/](adr/) | Arhitectura decisă (ADRs Guguță). |
