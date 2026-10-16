@@ -26,6 +26,27 @@ export class ApiError extends Error {
 
 type Json = Record<string, unknown>;
 
+function apiErrorMessage(data: { message?: unknown; detail?: unknown }, fallback: string): string {
+  const value = data.message ?? data.detail;
+  if (typeof value === "string" && value.trim()) return value;
+  if (Array.isArray(value)) {
+    const messages = value.map((item) => {
+      if (typeof item === "string") return item;
+      if (item && typeof item === "object" && "msg" in item && typeof item.msg === "string") {
+        if ("loc" in item && Array.isArray(item.loc) && item.loc.includes("source_ids")
+            && "ctx" in item && item.ctx && typeof item.ctx === "object"
+            && "max_length" in item.ctx && typeof item.ctx.max_length === "number") {
+          return `Poți selecta cel mult ${item.ctx.max_length} de materiale.`;
+        }
+        return item.msg;
+      }
+      return "";
+    }).filter(Boolean);
+    if (messages.length) return messages.join(" ");
+  }
+  return fallback;
+}
+
 export async function api<T = Json>(
   method: string,
   path: string,
@@ -48,13 +69,13 @@ export async function api<T = Json>(
   const data = (await res.json().catch(() => ({}))) as T & {
     code?: string;
     message?: string;
-    detail?: string;
+    detail?: unknown;
   };
   if (!res.ok) {
     throw new ApiError(
       res.status,
       data.code ?? "error",
-      data.message ?? data.detail ?? "Eroare neașteptată.",
+      apiErrorMessage(data, "Eroare neașteptată."),
     );
   }
   return data;

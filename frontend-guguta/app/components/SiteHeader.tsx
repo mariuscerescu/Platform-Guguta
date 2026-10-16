@@ -75,7 +75,12 @@ export default function SiteHeader() {
           </AuthEntryLink>
         )}
         <ThemeToggle />
-        {(isLibraryPage || isImportPage) && <LogoutButton />}
+        {(isLibraryPage || isImportPage) && (
+          <>
+            <a className="header-login" href={withBase("/playquiz/guguta")}>PlayQuiz</a>
+            <LogoutButton />
+          </>
+        )}
       </div>
     </header>
   );
