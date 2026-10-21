@@ -395,6 +395,11 @@ class CatalogService:
         async with actor_connection(self._engine, actor.actor_id) as conn:
             # F12: lock the template row via the definer function for the whole
             # transaction — serializes instantiate against retire/publish.
+            # RLS expands the quota joins into hundreds of expressions. JIT
+            # compilation took ~7 seconds for 30 materials, while executing the
+            # same permission-filtered query took ~2 ms. Disable compilation
+            # only in this transaction; pooled connections retain their default.
+            await conn.execute(text("SET LOCAL jit = off"))
             locked_status = (
                 await conn.execute(
                     text("SELECT guguta_template_lock(:id)"),

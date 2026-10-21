@@ -5,12 +5,13 @@ import { createPortal, flushSync } from "react-dom";
 import { useCompanionPosition } from "./useCompanionPosition";
 import CompanionChat from "./CompanionChat";
 import CompanionVoice from "./CompanionVoice";
-import { useCompanionVoice } from "./useCompanionVoice";
+import { useCompanionVoice, type VoiceProvider } from "./useCompanionVoice";
 import type { GugutaCompanionElement, GugutaContext } from "./guguta-companion";
 export type { GugutaContext } from "./guguta-companion";
 
 const CHARACTER_KEY = "guguta.companion.character";
 const COLLAPSED_KEY = "guguta.companion.collapsed";
+const VOICE_PROVIDER_KEY = "guguta.companion.voice-provider";
 const subjects = ["Limba română", "Matematică", "Științe", "Limba engleză", "Istorie", "Geografie", "Biologie", "Fizică", "Chimie", "Informatică", "Educație civică", "Dezvoltare personală"];
 const scripts = new Map<string, Promise<void>>();
 
@@ -56,6 +57,11 @@ export default function EducationCompanion({ assetBase, context, activity = "În
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [voiceOpen, setVoiceOpen] = useState(false);
+  const [voiceProvider, setVoiceProvider] = useState<VoiceProvider>("elevenlabs");
+  const [voiceProviders, setVoiceProviders] = useState<Partial<Record<VoiceProvider, boolean>>>({});
+  const [switchingVoice, setSwitchingVoice] = useState(false);
+  const switchingVoiceRef = useRef(false);
+  const companionMounted = useRef(false);
   const [chatState, setChatState] = useState<"idle" | "running" | "waiting" | "failed">("idle");
   const [chatContainer, setChatContainer] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -104,13 +110,38 @@ export default function EducationCompanion({ assetBase, context, activity = "În
     ...(!context.grade && manual.scope === scope && manual.grade ? { grade: manual.grade } : {}),
   };
   const contextJson = JSON.stringify(effectiveContext);
-  const voice = useCompanionVoice({ apiBase: `${platformBase}/guguta-api`, context: effectiveContext, scope: `${positionKey ?? scope}:${scope}` });
+  const voice = useCompanionVoice({ apiBase: `${platformBase}/guguta-api`, context: effectiveContext, scope: `${positionKey ?? scope}:${scope}`, provider: voiceProvider });
   const voiceRef = useRef(voice);
   voiceRef.current = voice;
+  const voiceChoice = useRef({ provider: voiceProvider, available: voiceProviders });
+  voiceChoice.current = { provider: voiceProvider, available: voiceProviders };
   const scopeRef = useRef(scope);
   scopeRef.current = scope;
   const controlAction = useRef(0);
   const selectorId = useId();
+
+  useEffect(() => {
+    companionMounted.current = true;
+    // Only a previously explicit choice changes the default provider.
+    try { if (localStorage.getItem(VOICE_PROVIDER_KEY) === "openai") setVoiceProvider("openai"); } catch { /* Optional preference. */ }
+    return () => { companionMounted.current = false; ++controlAction.current; };
+  }, []);
+  useEffect(() => {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 10000);
+    void fetch(platformBase + "/guguta-api/api/v1/voice/providers", { credentials: "same-origin", cache: "no-store", signal: controller.signal })
+      .then(async response => {
+        if (!response.ok) return;
+        const data = await response.json();
+        if (controller.signal.aborted || !Array.isArray(data.providers)) return;
+        const available: Partial<Record<VoiceProvider, boolean>> = {};
+        for (const item of data.providers) {
+          if ((item.id === "elevenlabs" || item.id === "openai") && typeof item.configured === "boolean") available[item.id as VoiceProvider] = item.configured;
+        }
+        setVoiceProviders(available);
+      }).catch(() => undefined).finally(() => window.clearTimeout(timeout));
+    return () => { window.clearTimeout(timeout); controller.abort(); };
+  }, [platformBase, settingsOpen]);
 
   useEffect(() => {
     const syncPreferences = () => {
@@ -152,6 +183,7 @@ export default function EducationCompanion({ assetBase, context, activity = "În
     setReady(false);
     setLoadError(false);
     const onWrite = () => {
+      if (switchingVoiceRef.current) return;
       const action = ++controlAction.current;
       const currentScope = scopeRef.current;
       setVoiceOpen(false); setNotice(""); setSettingsOpen(false);
@@ -163,11 +195,17 @@ export default function EducationCompanion({ assetBase, context, activity = "În
       });
     };
     const onVoice = () => {
+      if (switchingVoiceRef.current) return;
       ++controlAction.current;
       setSettingsOpen(false);
       if (voiceRef.current.active) {
         void voiceRef.current.stop();
       } else {
+        const choice = voiceChoice.current;
+        if (choice.available[choice.provider] === false || (choice.provider === "openai" && choice.available.openai !== true)) {
+          setNotice("Serviciul vocal ales nu este disponibil momentan. Poți alege altul din setări.");
+          return;
+        }
         // Unmount dictation before the SDK can acquire the microphone.
         flushSync(() => { setChatOpen(false); setVoiceOpen(true); setNotice(""); });
         void voiceRef.current.start();
@@ -201,7 +239,7 @@ export default function EducationCompanion({ assetBase, context, activity = "În
         gear.setAttribute("aria-label", "Setările personajului");
         gear.setAttribute("aria-expanded", "false");
         gear.setAttribute("aria-haspopup", "dialog");
-        gear.title = "Alege Guguță sau GugutaAI";
+        gear.title = "Personaj și serviciu vocal";
         gear.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9.5 3-.7 2.1-2 .9-2-.5-2 3.5 1.5 1.6v2.8L2.8 15l2 3.5 2-.5 2 .9.7 2.1h5l.7-2.1 2-.9 2 .5 2-3.5-1.5-1.6v-2.8l1.5-1.6-2-3.5-2 .5-2-.9-.7-2.1z"/><circle cx="12" cy="12" r="3"/></svg>';
         gear.addEventListener("click", onSettings);
         toolbar.append(separator, gear);
@@ -303,16 +341,46 @@ export default function EducationCompanion({ assetBase, context, activity = "În
     try { localStorage.setItem(CHARACTER_KEY, value); } catch { /* Optional preference. */ }
   }
 
+  async function chooseVoiceProvider(value: string) {
+    if ((value !== "openai" && value !== "elevenlabs") || value === voiceProvider || switchingVoiceRef.current) return;
+    if (voiceProviders[value] === false || (value === "openai" && voiceProviders.openai !== true)) return;
+    switchingVoiceRef.current = true;
+    setSwitchingVoice(true);
+    const action = ++controlAction.current;
+    const currentScope = scopeRef.current;
+    try {
+      await voiceRef.current.stop();
+      if (action !== controlAction.current || scopeRef.current !== currentScope) return;
+      setVoiceOpen(false);
+      setVoiceProvider(value);
+      try { localStorage.setItem(VOICE_PROVIDER_KEY, value); } catch { /* Optional preference. */ }
+      setSettingsOpen(false);
+      settingsButton.current?.focus();
+    } finally {
+      switchingVoiceRef.current = false;
+      if (companionMounted.current) setSwitchingVoice(false);
+    }
+  }
+
   const content = (
     <aside ref={placement.setContainer} style={placement.style} onPointerDown={placement.onPointerDown} className={`education-companion${compact ? " education-companion--compact" : ""}${placement.floating ? " education-companion--floating" : ""}${placement.dragging ? " education-companion--dragging" : ""}`} data-collapsed={collapsed} data-chat-open={chatOpen || voiceOpen} aria-label="Companionul tău">
       <div className="education-companion__avatar">
       <div className="education-companion__widget" ref={attachHost} />
       {settingsOpen && !collapsed && <div ref={settingsPanel} className="education-companion__settings" role="dialog" aria-label="Setările personajului">
-        <label htmlFor={selectorId}>Personaj</label>
-        <select id={selectorId} value={character} onChange={event => { chooseCharacter(event.target.value); setSettingsOpen(false); settingsButton.current?.focus(); }}>
-          <option value="guguta">Guguță</option>
-          <option value="guguta-ai">GugutaAI</option>
-        </select>
+        <div className="education-companion__setting-row">
+          <label htmlFor={selectorId}>Personaj</label>
+          <select id={selectorId} value={character} onChange={event => { chooseCharacter(event.target.value); setSettingsOpen(false); settingsButton.current?.focus(); }}>
+            <option value="guguta">Guguță</option>
+            <option value="guguta-ai">GugutaAI</option>
+          </select>
+        </div>
+        <div className="education-companion__setting-row">
+          <label htmlFor={selectorId + "-voice"}>Voce</label>
+          <select id={selectorId + "-voice"} value={voiceProvider} disabled={switchingVoice} onChange={event => { void chooseVoiceProvider(event.target.value); }}>
+            <option value="elevenlabs" disabled={voiceProviders.elevenlabs === false}>ElevenLabs{voiceProviders.elevenlabs === false ? " (indisponibil)" : ""}</option>
+            <option value="openai" disabled={voiceProviders.openai !== true}>OpenAI GPT-Live{voiceProviders.openai !== true ? " (indisponibil)" : ""}</option>
+          </select>
+        </div>
         <button type="button" onClick={() => { setSettingsOpen(false); settingsButton.current?.focus(); }} aria-label="Închide setările">×</button>
       </div>}
       </div>
@@ -349,6 +417,7 @@ export default function EducationCompanion({ assetBase, context, activity = "În
       onStart={() => { void voice.start(); }}
       onStop={() => { void voice.stop(); }}
       onMute={voice.toggleMuted}
+      onResumePlayback={() => { void voice.resumePlayback?.(); }}
       onClose={() => { void voice.stop(); setVoiceOpen(false); pet.current?.shadowRoot?.querySelector<HTMLButtonElement>('[part="voice-button"]')?.focus(); }}
     />, chatContainer)}
     {chatOpen && chatContainer && createPortal(<CompanionChat

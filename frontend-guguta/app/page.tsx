@@ -1,8 +1,10 @@
 import AuthEntryLink from "./components/AuthEntryLink";
+import EducationCompanion from "./components/EducationCompanion";
 import { withBase } from "../lib/paths";
 
 export default function LandingPage() {
   return (
+    <>
     <section className="landing-card" aria-label="Platforma educațională Guguță">
       <div className="landing-hero">
         <div className="hero-copy">
@@ -75,5 +77,16 @@ export default function LandingPage() {
         </div>
       </div>
     </section>
+    <div className="landing-companion">
+      <EducationCompanion
+        compact
+        positionKey="landing"
+        assetBase={withBase("/guguta-companion")}
+        context={{ source: "opennotebook", locale: "ro-MD" }}
+        activity="Bine ai venit! Eu sunt Guguță,"
+        idleStatus="mereu alături de tine :)"
+      />
+    </div>
+    </>
   );
 }

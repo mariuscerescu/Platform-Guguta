@@ -47,11 +47,11 @@ def _clamp_page(page: int, page_size: int) -> tuple[int, int]:
 # Coloanele returnate către API. `pinned_at` este momentul fixării sus
 # (NULL = nefixat); clientul primește și `pinned`, ca să nu compare date.
 _NOTEBOOK_COLUMNS = (
-    "id, owner_id, title, description, status, origin, context_revision, "
+    "id, owner_id, title, description, status, origin, current_template_version_id, context_revision, "
     "created_at, updated_at, pinned_at"
 )
 _LIST_COLUMNS = (
-    "id, title, description, status, origin, context_revision, "
+    "id, title, description, status, origin, current_template_version_id, context_revision, "
     "created_at, updated_at, pinned_at"
 )
 # Fixate primele, apoi sortarea cerută. `NULLS LAST` este obligatoriu: în

@@ -74,6 +74,10 @@ class VoiceService:
         self._api_key = os.environ.get("ELEVENLABS_API_KEY", "").strip()
         self._agent_id = os.environ.get("ELEVENLABS_AGENT_ID", "").strip()
 
+    @property
+    def configured(self) -> bool:
+        return bool(self._api_key and self._agent_id)
+
     async def create_session(
         self, actor: ActorContext, context: dict[str, Any]
     ) -> dict[str, Any]:

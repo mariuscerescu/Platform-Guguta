@@ -8,7 +8,10 @@
   --guguta-width: 280px;
   --guguta-mascot-size: max(96px, min(224px, calc(100dvh - 240px)));
 }
-.education-companion__settings { position: absolute; bottom: 64px; left: 0; right: 0; z-index: 5; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 8px; border: 1px solid #37475a; border-radius: 12px; background: #111923; box-shadow: 0 8px 24px #0006; font-size: 12px; }
+.education-companion__settings { position: absolute; bottom: 64px; left: 0; right: 0; z-index: 5; display: grid; grid-template-columns: minmax(0, 1fr) 26px; align-items: center; gap: 8px; padding: 12px 8px; border: 1px solid #37475a; border-radius: 12px; background: #111923; box-shadow: 0 8px 24px #0006; font-size: 12px; }
+.education-companion__setting-row { grid-column: 1; display: grid; grid-template-columns: 54px minmax(0, 1fr); align-items: center; gap: 5px; }
+.education-companion__setting-row select { width: 100%; min-width: 0; }
+.education-companion__settings > button { grid-column: 2; grid-row: 1 / 3; align-self: start; }
 .education-companion__avatar { position: relative; width: min(100%, 280px); margin-inline: auto; }
 .education-companion, .education-companion__avatar, .education-companion__widget, .education-companion__chat-anchor { animation: none; transition: none; }
 .education-companion__chat-anchor { width: 100%; min-width: 0; }

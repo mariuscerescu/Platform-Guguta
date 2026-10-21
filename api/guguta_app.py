@@ -44,6 +44,7 @@ from api.routers.guguta_v1 import (
 )
 from api.routers.guguta_voice import voice_router
 from api.services.guguta.voice import VoiceRateLimited, VoiceService, VoiceUnavailable
+from api.services.guguta.openai_live_voice import OpenAILiveVoiceService
 from api.services.guguta.admin import AdminService
 from api.services.guguta.audio_overviews import AudioOverviewService
 from api.services.guguta.catalog import (
@@ -217,6 +218,7 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
         max_audio_mib=config.parakeet_asr_max_audio_mib,
     )
     app.state.guguta_voice = VoiceService(engine, app.state.guguta_search)
+    app.state.guguta_openai_voice = OpenAILiveVoiceService(app.state.guguta_voice)
     app.state.guguta_catalog = CatalogService(
         engine, quota_mib_per_user=config.quota_mib_per_user
     )

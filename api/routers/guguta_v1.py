@@ -376,6 +376,18 @@ async def me(request: Request) -> MeResponse:
     )
 
 
+@auth_router.get("/playquiz-profile")
+async def playquiz_profile(request: Request) -> dict[str, Any]:
+    from api.services.guguta.playquiz import profile
+    return await profile(request.app.state.guguta_engine, get_actor(request))
+
+
+@auth_router.get("/playquiz-quizzes")
+async def playquiz_quizzes(request: Request, page: int = Query(default=1, ge=1, le=10000)) -> dict[str, Any]:
+    from api.services.guguta.playquiz import quiz_catalog
+    return await quiz_catalog(request.app.state.guguta_engine, get_actor(request), page)
+
+
 # ---------------------------------------------------------------------------
 # Notebooks
 # ---------------------------------------------------------------------------
@@ -928,7 +940,7 @@ async def save_answer_as_note(
 
 class AudioOverviewCreate(BaseModel):
     format: str = Field(pattern="^(brief|deep_dive)$")
-    source_ids: list[uuid.UUID] = Field(min_length=1, max_length=20)
+    source_ids: list[uuid.UUID] = Field(min_length=1, max_length=30)
     instructions: str | None = Field(default=None, max_length=4000)
 
 
@@ -1097,7 +1109,7 @@ async def delete_audio_overview(
 
 
 class FlashcardDeckCreate(BaseModel):
-    source_ids: list[uuid.UUID] = Field(min_length=1, max_length=20)
+    source_ids: list[uuid.UUID] = Field(min_length=1, max_length=30)
     quantity: str = Field(default="standard", pattern="^(fewer|standard|more)$")
     difficulty: str = Field(default="medium", pattern="^(easy|medium|hard)$")
     instructions: str | None = Field(default=None, max_length=4000)
@@ -1254,7 +1266,7 @@ async def export_flashcard_deck(
 
 
 class QuizCreate(BaseModel):
-    source_ids: list[uuid.UUID] = Field(min_length=1, max_length=20)
+    source_ids: list[uuid.UUID] = Field(min_length=1, max_length=30)
     quantity: str = Field(default="standard", pattern="^(fewer|standard|more)$")
     difficulty: str = Field(default="medium", pattern="^(easy|medium|hard)$")
     question_types: list[str] = Field(min_length=1, max_length=4)
