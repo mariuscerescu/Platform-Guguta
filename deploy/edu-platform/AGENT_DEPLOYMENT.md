@@ -48,6 +48,29 @@ curl -I https://tineri.math.md/audio/voice-recorder/
 
 ## Repository and Compose Commands
 
+> **Since 2026-10-21 the live stack is deployed from GitHub `main`**, not from
+> the checkout below. The running stack is a chain of ~35 compose override
+> files (see the container label `com.docker.compose.project.config_files`);
+> each one pins an image tag or adds env. Keep that chain and add the final
+> layer from `/home/jupyter-tudor/integrations/guguta-main-20261021/`:
+>
+> ```bash
+> cd /home/jupyter-tudor/integrations/playquiz/Guguta-Platform && git pull --ff-only
+> sudo /home/jupyter-tudor/integrations/guguta-main-20261021/deploy.sh <tag> <commit> build
+> sudo /home/jupyter-tudor/integrations/guguta-main-20261021/deploy.sh <tag> <commit> migrate
+> sudo /home/jupyter-tudor/integrations/guguta-main-20261021/deploy.sh <tag> <commit> up
+> sudo /home/jupyter-tudor/integrations/guguta-main-20261021/deploy.sh <tag> <commit> verify
+> ```
+>
+> `runtime/compose.main.yml` builds migrator/api/frontend from that clone
+> (worker reuses the api image) and sets `GUGUTA_COMMIT` from `<commit>`; the
+> production `.env` and the voice `env_file` (ElevenLabs/OpenAI keys) stay as
+> they are. On `KeyError: 'ContainerConfig'` remove the stopped *renamed*
+> container (`<id>_guguta-edu_<service>_1`) and run the same step again — this
+> happened for migrator, api, worker, frontend and parakeet-asr on 2026-10-21.
+> `/versionz` reports the `GUGUTA_COMMIT` env var, so only this path keeps it true.
+
+
 Repo path on the server:
 
 ```bash
