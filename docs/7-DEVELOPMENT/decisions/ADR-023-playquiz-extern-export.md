@@ -17,6 +17,10 @@ ADR-021 a integrat PlayQuiz găzduind întreaga platformă (Java, Next.js, Oracl
 
 Contractul de partener, maparea datelor, etapele și întrebările deschise sunt în `docs/guguta/PLAN_INTEGRARE_PLAYQUIZ_COM.md`.
 
+## Implementare
+
+Faza 1 (partea Guguță) este în cod din 21 octombrie 2026: configurarea `GUGUTA_PLAYQUIZ_*`, migrarea `0023_playquiz_exports` (tabelele `playquiz_exports` și `playquiz_consents`, cu RLS), serviciul `api/services/guguta/playquiz_export.py` (mapare, client de partener cu reîncercări și semnătură HMAC opțională, idempotență pe `content_hash`), endpointurile `GET`/`POST /api/v1/notebooks/{nb}/quizzes/{quiz}/playquiz`, capabilitatea `playquiz` în `/api/v1/auth/me`, butonul și dialogul de acord din dialogul quizului, testele `tests/guguta/test_playquiz_export.py` și `frontend-guguta/e2e/playquiz.spec.ts`. Endpointurile locale `/auth/playquiz-*` și serviciul `playquiz.py` au fost eliminate. Rămân: confirmarea contractului de către PlayQuiz (faza 0/2) și dezafectarea stack-ului local de pe server (faza 3).
+
 ## Consecințe
 
 - Dispar Oracle, API-ul Java și frontendul PlayQuiz de pe serverul nostru; rămâne un singur client HTTP în API-ul Guguță.

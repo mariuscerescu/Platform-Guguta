@@ -82,8 +82,11 @@ servicii AI private rulate pe serverul proiectului.
   asincron cu sinteză vocală românească privată (MOSS-TTS), cu instrucțiuni de
   focalizare.
 - **Flashcard-uri** și **quiz-uri** — generate din materiale, cu citări; quiz-urile
-  cu întrebări grilă se pot juca și în **PlayQuiz**, integrat prin aceeași
-  sesiune ([ADR-021](docs/7-DEVELOPMENT/decisions/ADR-021-playquiz-integration.md)).
+  cu întrebări grilă au butonul **„Deschide în PlayQuiz”**: cu acordul elevului,
+  quizul și contul se creează automat pe platforma parteneră play-quiz.com
+  ([ADR-023](docs/7-DEVELOPMENT/decisions/ADR-023-playquiz-extern-export.md);
+  activ când instanța are cheia de partener). Integrarea locală anterioară
+  ([ADR-021](docs/7-DEVELOPMENT/decisions/ADR-021-playquiz-integration.md)) este deprecată.
 
 **Interfață**
 

@@ -155,14 +155,22 @@ export async function loginDev(displayName: string): Promise<void> {
 
 /** F02: session is determined by an authenticated endpoint, never by
  * localStorage. The CSRF token is bootstrapped from the same session. */
-export async function me(): Promise<{ display_name: string } | null> {
+export interface MeInfo {
+  id?: string;
+  display_name: string;
+  roles?: string[];
+  /** Funcții opționale ale instanței (de exemplu `playquiz`), ca UI-ul să arate doar ce e configurat. */
+  capabilities?: Record<string, boolean>;
+}
+
+export async function me(): Promise<MeInfo | null> {
   try {
     const r = await fetch(`${API}/api/v1/auth/me`, {
       credentials: "same-origin",
     });
     if (r.status === 401) return null;
     if (!r.ok) return null;
-    const data = (await r.json()) as { display_name: string };
+    const data = (await r.json()) as MeInfo;
     if (!getCsrf()) await bootstrapCsrf();
     return data;
   } catch {

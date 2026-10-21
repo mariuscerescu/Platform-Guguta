@@ -70,6 +70,8 @@ class MeResponse(BaseModel):
     id: str
     display_name: str
     roles: list[str]
+    # Funcții opționale ale instanței, ca interfața să afișeze doar ce e configurat.
+    capabilities: dict[str, bool] = {}
 
 
 auth_router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -369,23 +371,13 @@ async def logout(request: Request, response: Response) -> dict[str, Any]:
 @auth_router.get("/me")
 async def me(request: Request) -> MeResponse:
     actor = get_actor(request)
+    config = request.app.state.guguta_config
     return MeResponse(
         id=str(actor.actor_id),
         display_name=actor.display_name,
         roles=sorted(actor.roles),
+        capabilities={"playquiz": bool(config.playquiz_enabled)},
     )
-
-
-@auth_router.get("/playquiz-profile")
-async def playquiz_profile(request: Request) -> dict[str, Any]:
-    from api.services.guguta.playquiz import profile
-    return await profile(request.app.state.guguta_engine, get_actor(request))
-
-
-@auth_router.get("/playquiz-quizzes")
-async def playquiz_quizzes(request: Request, page: int = Query(default=1, ge=1, le=10000)) -> dict[str, Any]:
-    from api.services.guguta.playquiz import quiz_catalog
-    return await quiz_catalog(request.app.state.guguta_engine, get_actor(request), page)
 
 
 # ---------------------------------------------------------------------------
@@ -1398,6 +1390,37 @@ async def quiz_results(
 ) -> dict[str, Any]:
     return await get_quiz_service(request).results(
         get_actor(request), notebook_id, quiz_id, attempt_id
+    )
+
+
+class PlayQuizExportRequest(BaseModel):
+    # Acordul explicit pentru transmiterea numelui și a e-mailului (ADR-023);
+    # se cere o singură dată per utilizator.
+    consent: bool = False
+
+
+def get_playquiz_export_service(request: Request) -> Any:
+    return request.app.state.guguta_playquiz_export
+
+
+@quizzes_router.get("/{quiz_id}/playquiz")
+async def playquiz_export_status(
+    notebook_id: uuid.UUID, quiz_id: uuid.UUID, request: Request
+) -> dict[str, Any]:
+    return await get_playquiz_export_service(request).status(
+        get_actor(request), notebook_id, quiz_id
+    )
+
+
+@quizzes_router.post("/{quiz_id}/playquiz")
+async def playquiz_export(
+    notebook_id: uuid.UUID,
+    quiz_id: uuid.UUID,
+    body: PlayQuizExportRequest,
+    request: Request,
+) -> dict[str, Any]:
+    return await get_playquiz_export_service(request).export(
+        get_actor(request), notebook_id, quiz_id, consent=body.consent
     )
 
 

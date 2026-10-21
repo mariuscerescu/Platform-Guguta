@@ -12,8 +12,6 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<string>("password");
   const destination = () => {
-    const next = new URLSearchParams(window.location.search).get("next");
-    if (next && next.startsWith(`${withBase("/playquiz")}/`) && !next.includes("\\")) return next;
     return sessionStorage.getItem("guguta_pending_import") ? withBase("/import") : withBase("/app");
   };
 

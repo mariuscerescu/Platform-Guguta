@@ -164,9 +164,22 @@ class GugutaConfig(BaseSettings):
     parakeet_asr_base_url: str = "http://host.docker.internal:8001"
     parakeet_asr_timeout_seconds: float = Field(default=120, gt=0, le=600)
     parakeet_asr_max_audio_mib: int = Field(default=15, ge=1, le=100)
+    # --- PlayQuiz extern (ADR-023): export de quiz și cont automat, server-la-server.
+    # Funcția este activă doar când URL-ul și cheia de partener sunt setate;
+    # cheia nu ajunge niciodată în browser.
+    playquiz_api_url: str = ""
+    playquiz_partner_key: SecretStr = SecretStr("")
+    playquiz_hmac_secret: SecretStr = SecretStr("")
+    playquiz_category: str = "guguta"
+    playquiz_timeout_seconds: float = Field(default=10, gt=0, le=60)
     job_lease_seconds: int = 300
     job_poll_seconds: float = 2.0
     job_worker_name: str = "worker-1"
+
+    @property
+    def playquiz_enabled(self) -> bool:
+        """Exportul către PlayQuiz extern este configurat (URL + cheie de partener)."""
+        return bool(self.playquiz_api_url and self.playquiz_partner_key.get_secret_value())
 
     @model_validator(mode="after")
     def _refuse_unsafe_production_config(self) -> "GugutaConfig":
@@ -226,6 +239,14 @@ class GugutaConfig(BaseSettings):
             raise ValueError(
                 "GUGUTA_MOSS_TTS_REFERENCE_AUDIO must be an absolute server-local path"
             )
+        if self.playquiz_api_url:
+            parsed_playquiz = urlparse(self.playquiz_api_url)
+            if parsed_playquiz.scheme not in ("http", "https") or not parsed_playquiz.hostname:
+                raise ValueError("GUGUTA_PLAYQUIZ_API_URL must be an absolute http(s) URL")
+            if not self.playquiz_partner_key.get_secret_value():
+                raise ValueError(
+                    "GUGUTA_PLAYQUIZ_PARTNER_KEY is required when GUGUTA_PLAYQUIZ_API_URL is set"
+                )
         if self.environment in _DEV_ENVIRONMENTS:
             return self
         problems: list[str] = []
@@ -276,6 +297,8 @@ class GugutaConfig(BaseSettings):
             problems.append("hash embedding provider is refused outside development/ci")
         if self.api_mode != "guguta":
             problems.append("legacy API surface is refused outside development/ci")
+        if self.playquiz_api_url and not self.playquiz_api_url.startswith("https://"):
+            problems.append("GUGUTA_PLAYQUIZ_API_URL must use https outside development/ci")
         if problems:
             raise ValueError("unsafe configuration: " + "; ".join(problems))
         return self

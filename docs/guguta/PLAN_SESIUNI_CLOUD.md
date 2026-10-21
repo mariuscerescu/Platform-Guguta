@@ -156,6 +156,9 @@ cadrul sarcinii 7.
 
 ### 7. Export către play-quiz.com cu cont automat (cloud, medie)
 
+> **Făcută local, 21 octombrie 2026** (ramura `feat/playquiz-export`, în `dev`).
+> Promptul rămâne ca referință pentru ajustări după răspunsul echipei PlayQuiz.
+
 ```
 Implementează faza 1 din docs/guguta/PLAN_INTEGRARE_PLAYQUIZ_COM.md (vezi și
 ADR-023). Contractul de partener din §4 nu este încă confirmat de PlayQuiz:

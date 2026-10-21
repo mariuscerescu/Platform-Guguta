@@ -43,7 +43,6 @@ from api.routers.guguta_v1 import (
     speech_router,
 )
 from api.routers.guguta_voice import voice_router
-from api.services.guguta.voice import VoiceRateLimited, VoiceService, VoiceUnavailable
 from api.services.guguta.admin import AdminService
 from api.services.guguta.audio_overviews import AudioOverviewService
 from api.services.guguta.catalog import (
@@ -71,6 +70,14 @@ from api.services.guguta.notes import (
     NotesService,
     NoteValidation,
 )
+from api.services.guguta.playquiz_export import (
+    PlayQuizClient,
+    PlayQuizConsentRequired,
+    PlayQuizDisabled,
+    PlayQuizExportService,
+    PlayQuizNotExportable,
+    PlayQuizUnavailable,
+)
 from api.services.guguta.quizzes import QuizService
 from api.services.guguta.search import SearchService
 from api.services.guguta.sharing import (
@@ -94,6 +101,7 @@ from api.services.guguta.speech import (
     SpeechUnavailable,
     SpeechValidation,
 )
+from api.services.guguta.voice import VoiceRateLimited, VoiceService, VoiceUnavailable
 from open_notebook.auth.guguta.actor import ActorDenied
 from open_notebook.auth.guguta.oidc import OidcError, SignedStateCodec
 from open_notebook.auth.guguta.sessions import (
@@ -211,6 +219,19 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
     )
     app.state.guguta_flashcards = FlashcardService(engine, config)
     app.state.guguta_quizzes = QuizService(engine, config)
+    playquiz_client = (
+        PlayQuizClient(
+            config.playquiz_api_url,
+            config.playquiz_partner_key.get_secret_value(),
+            hmac_secret=config.playquiz_hmac_secret.get_secret_value(),
+            timeout_seconds=config.playquiz_timeout_seconds,
+        )
+        if config.playquiz_enabled
+        else None
+    )
+    app.state.guguta_playquiz_export = PlayQuizExportService(
+        engine, config, playquiz_client
+    )
     app.state.guguta_speech = SpeechService(
         config.parakeet_asr_base_url,
         timeout_seconds=config.parakeet_asr_timeout_seconds,
@@ -355,6 +376,39 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
     async def invalid_input(request: Request, exc: InvalidInputError) -> JSONResponse:
         return _error(
             "invalid", str(exc), 422, request.headers.get("x-request-id", "-")
+        )
+
+    @app.exception_handler(PlayQuizDisabled)
+    async def playquiz_disabled(request: Request, exc: PlayQuizDisabled) -> JSONResponse:
+        return _error(
+            "playquiz_disabled", str(exc), 409, request.headers.get("x-request-id", "-")
+        )
+
+    @app.exception_handler(PlayQuizNotExportable)
+    async def playquiz_not_exportable(
+        request: Request, exc: PlayQuizNotExportable
+    ) -> JSONResponse:
+        return _error(
+            "not_exportable", str(exc), 409, request.headers.get("x-request-id", "-")
+        )
+
+    @app.exception_handler(PlayQuizConsentRequired)
+    async def playquiz_consent_required(
+        request: Request, exc: PlayQuizConsentRequired
+    ) -> JSONResponse:
+        return _error(
+            "consent_required", str(exc), 409, request.headers.get("x-request-id", "-")
+        )
+
+    @app.exception_handler(PlayQuizUnavailable)
+    async def playquiz_unavailable(
+        request: Request, exc: PlayQuizUnavailable
+    ) -> JSONResponse:
+        return _error(
+            "playquiz_unavailable",
+            str(exc),
+            503,
+            request.headers.get("x-request-id", "-"),
         )
 
     @app.exception_handler(SpeechValidation)

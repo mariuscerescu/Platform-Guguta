@@ -198,6 +198,11 @@ pentru conturile venite din Guguță.
 
 ## 6. Schimbări în Guguță
 
+> **Stare (21.10.2026):** backend-ul și frontend-ul de mai jos sunt implementate
+> (vezi ADR-023 §Implementare). Până la confirmarea contractului, exportul se
+> testează cu un server PlayQuiz simulat; pe instanța publică variabilele
+> `GUGUTA_PLAYQUIZ_*` rămân goale, deci butonul nu apare.
+
 ### Backend (`api/`, `open_notebook/`, `alembic/`)
 
 - Configurare: `GUGUTA_PLAYQUIZ_API_URL`, `GUGUTA_PLAYQUIZ_PARTNER_KEY`,
