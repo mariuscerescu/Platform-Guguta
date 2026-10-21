@@ -1,6 +1,6 @@
 # ADR-021: Integrarea PlayQuiz prin sesiunea Guguță
 
-Data: 2026-10-08. Stare: acceptat.
+Data: 2026-10-08. Stare: acceptat; **în curs de înlocuire de [ADR-023](ADR-023-playquiz-extern-export.md)** (PlayQuiz extern, play-quiz.com). Integrarea locală descrisă aici este deprecată și se dezafectează după ce fluxul nou funcționează în producție.
 
 PlayQuiz este publicat sub `/edu-platform/playquiz`, iar API-ul Java sub `/edu-platform/playquiz-api`. Folosește sesiunea HttpOnly `guguta_session`, validată de API-ul Guguță la fiecare cerere autentificată. Autentificarea JWT, înregistrarea și autentificarea socială independente sunt dezactivate în modul integrat.
 

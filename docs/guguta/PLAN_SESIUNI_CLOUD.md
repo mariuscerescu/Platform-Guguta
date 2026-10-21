@@ -148,21 +148,58 @@ de rezultat; teste backend verzi; flux Playwright nou; ADR nou cu vocabularul
 versiunii 1.
 ```
 
-### 6. Igienă: PlayQuiz din catalog numai când e configurat (cloud, mică)
+### 6. (înlocuită) Linkurile PlayQuiz locale
+
+Sarcina inițială (afișarea condiționată a linkurilor către PlayQuiz-ul local) nu
+se mai face: integrarea locală este deprecată (ADR-023). Linkurile se elimină în
+cadrul sarcinii 7.
+
+### 7. Export către play-quiz.com cu cont automat (cloud, medie)
 
 ```
-Linkurile către PlayQuiz din header și din dialogul de quiz
-(frontend-guguta/app/components/SiteHeader.tsx, app/notebook/[id]/page.tsx)
-apar necondiționat. Adaugă o capabilitate `playquiz` în răspunsul
-/api/v1/auth/me (activă când variabila GUGUTA_PLAYQUIZ_BASE_PATH este setată) și
-afișează linkurile doar atunci. Documentează variabila în .env.guguta.example
-și în deploy/edu-platform/.env.example. Teste pentru ambele stări.
+Implementează faza 1 din docs/guguta/PLAN_INTEGRARE_PLAYQUIZ_COM.md (vezi și
+ADR-023). Contractul de partener din §4 nu este încă confirmat de PlayQuiz:
+izolează clientul HTTP și maparea într-un singur modul ca să fie ușor de ajustat.
+
+Backend:
+- variabile GUGUTA_PLAYQUIZ_API_URL, GUGUTA_PLAYQUIZ_PARTNER_KEY,
+  GUGUTA_PLAYQUIZ_HMAC_SECRET (opțional), GUGUTA_PLAYQUIZ_CATEGORY,
+  GUGUTA_PLAYQUIZ_TIMEOUT_S; documentate în .env.guguta.example și
+  deploy/edu-platform/.env.example; capabilitatea `playquiz` în /api/v1/auth/me
+  activă doar când URL-ul și cheia sunt setate;
+- serviciu api/services/guguta/playquiz_export.py: client httpx (timeout,
+  2 reîncercări la 5xx), maparea din §5 (single/multiple, limite 50/10/1000,
+  time_per_question după dificultate), content_hash, idempotență, jurnal fără
+  date personale; apelurile accounts → quizzes → handoff din §4;
+- migrare Alembic nouă: tabel playquiz_exports (quiz_id, playquiz_quiz_id,
+  playquiz_account_id, content_hash, exported_at, last_handoff_at) cu RLS ca la
+  quizzes;
+- POST /api/v1/notebooks/{nb}/quizzes/{quiz}/playquiz → {url, quiz_id, created};
+  GET …/playquiz → starea exportului; 409 dacă quizul are întrebări non-grilă,
+  503 dacă PlayQuiz nu răspunde;
+- elimină GET /auth/playquiz-profile, GET /auth/playquiz-quizzes și
+  api/services/guguta/playquiz.py;
+- teste în tests/guguta/ cu respx: mapare, idempotență (al doilea apel nu
+  recreează quizul), eroare PlayQuiz, capabilitate inactivă.
+Frontend (frontend-guguta/):
+- butonul „Deschide în PlayQuiz” în dialogul quizului din app/notebook/[id]/page.tsx,
+  cu window.open sincron la click, stări (inactiv cu tooltip, se trimite, eroare)
+  și dialog de consimțământ la primul export, reținut pe utilizator;
+- elimină linkul PlayQuiz din app/components/SiteHeader.tsx și lista albă
+  /playquiz din app/login/page.tsx;
+- test Playwright: fără capabilitate butonul lipsește; cu API simulat, apăsarea
+  deschide URL-ul primit.
+Acceptare: ruff, mypy și testele verzi; npm run build curat; ADR-023 actualizat
+dacă ai deviat de la contract; descrierea PR enumeră ce s-a eliminat din
+integrarea locală.
 ```
 
 ---
 
 ## D. Ordine recomandată
 
-Paralel, în sesiuni separate: 2, 3, 4, 6. Sarcina 5 după ce PR-ul de la 2 este
+Paralel, în sesiuni separate: 2, 3, 4, 7. Sarcina 5 după ce PR-ul de la 2 este
 în `dev` (are nevoie de `data-profile`). Sarcina 1 se face local, pe server,
-oricând după ce `dev` conține ce vrem să fie live.
+oricând după ce `dev` conține ce vrem să fie live. Dezafectarea integrării
+locale PlayQuiz (faza 3 din PLAN_INTEGRARE_PLAYQUIZ_COM.md) se face pe server
+după ce sarcina 7 este în producție și PlayQuiz a livrat endpointurile.
