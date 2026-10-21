@@ -20,7 +20,11 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from api.services.guguta.search import SearchService
 from open_notebook.auth.guguta.actor import ActorContext
 from open_notebook.database.guguta.engine import actor_connection
-from open_notebook.exceptions import ExternalServiceError, NotFoundError, OpenNotebookError
+from open_notebook.exceptions import (
+    ExternalServiceError,
+    NotFoundError,
+    OpenNotebookError,
+)
 
 
 class VoiceUnavailable(ExternalServiceError):
@@ -73,6 +77,10 @@ class VoiceService:
         # Read only on the server. Never include either in context or logs.
         self._api_key = os.environ.get("ELEVENLABS_API_KEY", "").strip()
         self._agent_id = os.environ.get("ELEVENLABS_AGENT_ID", "").strip()
+
+    @property
+    def configured(self) -> bool:
+        return bool(self._api_key and self._agent_id)
 
     async def create_session(
         self, actor: ActorContext, context: dict[str, Any]

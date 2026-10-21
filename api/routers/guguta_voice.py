@@ -1,4 +1,4 @@
-"""Authenticated, CSRF-protected ElevenLabs sessions and notebook tool context."""
+"""Authenticated voice providers, CSRF-protected sessions and notebook context."""
 
 from __future__ import annotations
 
@@ -6,9 +6,10 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Request, Response
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from api.routers.guguta_v1 import get_actor
+from api.services.guguta.openai_live_voice import MAX_SDP_LENGTH
 
 
 class VoiceOption(BaseModel):
@@ -50,10 +51,28 @@ class VoiceContextRequest(VoiceSessionRequest):
     query: str | None = Field(default=None, max_length=1000)
 
 
-voice_router = APIRouter(prefix="/api/v1/voice/elevenlabs", tags=["voice"])
+class OpenAIVoiceSessionRequest(VoiceSessionRequest):
+    model_config = ConfigDict(extra="forbid")
+    sdp: str = Field(min_length=1, max_length=MAX_SDP_LENGTH)
 
 
-@voice_router.post("/session")
+voice_router = APIRouter(prefix="/api/v1/voice", tags=["voice"])
+
+
+@voice_router.get("/providers")
+async def voice_providers(request: Request, response: Response) -> dict:
+    get_actor(request)
+    response.headers["Cache-Control"] = "no-store"
+    return {
+        "providers": [
+            {"id": "elevenlabs", "configured": request.app.state.guguta_voice.configured},
+            {"id": "openai", "configured": request.app.state.guguta_openai_voice.configured},
+        ],
+        "defaultProvider": "elevenlabs",
+    }
+
+
+@voice_router.post("/elevenlabs/session")
 async def start_voice_session(
     body: VoiceSessionRequest, request: Request, response: Response
 ) -> dict:
@@ -64,7 +83,7 @@ async def start_voice_session(
     )
 
 
-@voice_router.post("/context")
+@voice_router.post("/elevenlabs/context")
 async def voice_context(
     body: VoiceContextRequest, request: Request, response: Response
 ) -> dict[str, str]:
@@ -72,6 +91,30 @@ async def voice_context(
     response.headers["Cache-Control"] = "no-store"
     return {
         "contextText": await request.app.state.guguta_voice.context(
+            actor, body.context.model_dump(exclude_none=True), query=body.query
+        )
+    }
+
+
+@voice_router.post("/openai/session")
+async def start_openai_voice_session(
+    body: OpenAIVoiceSessionRequest, request: Request, response: Response
+) -> dict:
+    actor = get_actor(request)
+    response.headers["Cache-Control"] = "no-store"
+    return await request.app.state.guguta_openai_voice.create_session(
+        actor, body.context.model_dump(exclude_none=True), body.sdp
+    )
+
+
+@voice_router.post("/openai/context")
+async def openai_voice_context(
+    body: VoiceContextRequest, request: Request, response: Response
+) -> dict[str, str]:
+    actor = get_actor(request)
+    response.headers["Cache-Control"] = "no-store"
+    return {
+        "contextText": await request.app.state.guguta_openai_voice.context(
             actor, body.context.model_dump(exclude_none=True), query=body.query
         )
     }

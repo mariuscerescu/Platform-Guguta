@@ -70,6 +70,7 @@ from api.services.guguta.notes import (
     NotesService,
     NoteValidation,
 )
+from api.services.guguta.openai_live_voice import OpenAILiveVoiceService
 from api.services.guguta.playquiz_export import (
     PlayQuizClient,
     PlayQuizConsentRequired,
@@ -238,6 +239,7 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
         max_audio_mib=config.parakeet_asr_max_audio_mib,
     )
     app.state.guguta_voice = VoiceService(engine, app.state.guguta_search)
+    app.state.guguta_openai_voice = OpenAILiveVoiceService(app.state.guguta_voice)
     app.state.guguta_catalog = CatalogService(
         engine, quota_mib_per_user=config.quota_mib_per_user
     )

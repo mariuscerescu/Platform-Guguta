@@ -1042,6 +1042,14 @@ function NotebookWorkspace({ nbId }: { nbId: string }) {
   async function openQuiz(id:string, retake=false) {
     try {
       const quiz=await api<QuizArtifact>("GET",`/api/v1/notebooks/${nbId}/quizzes/${id}`);
+      // PlayQuiz currently supports complete quizzes made only of grid questions.
+      // Check their actual types before creating an attempt or opening a local dialog.
+      if (quiz.status === "ready" && quiz.questions?.length && quiz.questions.every(
+        (question) => question.question_type === "multiple_choice" || question.question_type === "multiple_select"
+      )) {
+        window.location.assign(withBase(`/playquiz/quiz/categorized/${encodeURIComponent(quiz.id)}?notebook=${encodeURIComponent(nbId)}`));
+        return;
+      }
       const attempt=!retake&&quiz.active_attempt?quiz.active_attempt:await api<QuizAttempt>("POST",`/api/v1/notebooks/${nbId}/quizzes/${id}/attempts`,{});
       setActiveQuiz(quiz);setQuizAttempt(attempt);setQuizResponse("");setQuizHint(false);setQuizExplanation(null);
     } catch(err){setError((err as Error).message);}

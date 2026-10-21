@@ -1,4 +1,5 @@
 /* Preserve the attached notice style while giving the conversation room to read. */
+.companion-voice__disclosure { margin: -5px 0 0; color: var(--text-secondary, #b4c1cf); font-size: 11px; line-height: 1.4; }
 .companion-chat { box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; width: 100%; min-height: 132px; max-height: min(420px, max(180px, calc(100dvh - 390px))); margin: 10px 0 0; padding: 12px; border: 1px solid #37475a; border-radius: 10px; background: #16212d; color: #e6edf3; font-size: 16px; line-height: 1.55; }
 .companion-chat__messages { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; gap: 12px; }
 .companion-chat, .companion-chat__messages, .companion-chat__composer { animation: none; transition: none; scroll-behavior: auto; }

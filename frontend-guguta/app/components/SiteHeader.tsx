@@ -74,6 +74,7 @@ export default function SiteHeader() {
             Intră în cont
           </AuthEntryLink>
         )}
+        {(isLibraryPage || isImportPage) && <a className="header-login" href={withBase("/playquiz/guguta")}>PlayQuiz</a>}
         <ThemeToggle />
         {(isLibraryPage || isImportPage) && (
           <>

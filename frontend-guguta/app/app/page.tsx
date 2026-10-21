@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { api, me, CatalogTemplate, Notebook } from "../../lib/api";
 import NotebookMenu from "../components/NotebookMenu";
+import EducationCompanion from "../components/EducationCompanion";
 import { withBase, API_BASE } from "../../lib/paths";
 
 type Tab = "mine" | "school";
@@ -89,6 +91,7 @@ function formatDate(iso?: string) {
 }
 
 export default function HomePage() {
+  const router = useRouter();
   const [notebooks, setNotebooks] = useState<Notebook[] | null>(null);
   const [catalog, setCatalog] = useState<CatalogTemplate[] | null>(null);
   const [authed, setAuthed] = useState<boolean | null>(null);
@@ -106,32 +109,79 @@ export default function HomePage() {
   const [importing, setImporting] = useState(false);
   const [importPreview,setImportPreview]=useState<ImportPreview|null>(null);
   const [importedNotebookId,setImportedNotebookId]=useState<string|null>(null);
+  const mountedRef = useRef(true);
+  const initialLoadRef = useRef<Promise<void> | null>(null);
+  const notebooksLoadRef = useRef<Promise<Notebook[] | null> | null>(null);
+  const notebooksReloadRef = useRef(false);
+  const completeNotebooksRef = useRef<Notebook[] | null>(null);
+  const schoolOpeningRef = useRef(false);
 
   // Reîncărcabilă: meniul fiecărui carnet o cheamă după redenumire, fixare sau
   // ștergere, ca lista să reflecte imediat schimbarea (inclusiv ordinea).
-  const loadNotebooks = useCallback(async () => {
-    try {
-      const list = await api<{ items: Notebook[] }>("GET", "/api/v1/notebooks");
-      setNotebooks(list.items);
-    } catch (err) {
-      if ((err as { status?: number }).status === 401) setAuthed(false);
-      else setError((err as Error).message);
+  const loadNotebooks = useCallback((refreshAfterPending = true): Promise<Notebook[] | null> => {
+    if (notebooksLoadRef.current) {
+      if (refreshAfterPending) notebooksReloadRef.current = true;
+      return notebooksLoadRef.current;
     }
+    completeNotebooksRef.current = null;
+    const request = (async () => {
+      try {
+        let complete: Notebook[] = [];
+        do {
+          notebooksReloadRef.current = false;
+          const collected = new Map<string, Notebook>();
+          let page = 1;
+          let hasNext = true;
+          while (hasNext) {
+            const list = await api<{ items: Notebook[]; has_next: boolean }>(
+              "GET", `/api/v1/notebooks?page=${page}&page_size=100`,
+            );
+            if (!mountedRef.current) return null;
+            for (const notebook of list.items) collected.set(notebook.id, notebook);
+            setNotebooks([...collected.values()]);
+            hasNext = list.has_next;
+            page += 1;
+          }
+          complete = [...collected.values()];
+        } while (notebooksReloadRef.current && mountedRef.current);
+        completeNotebooksRef.current = complete;
+        return complete;
+      } catch (err) {
+        if (mountedRef.current) {
+          if ((err as { status?: number }).status === 401) setAuthed(false);
+          else setError((err as Error).message);
+        }
+        return null;
+      } finally {
+        notebooksLoadRef.current = null;
+      }
+    })();
+    notebooksLoadRef.current = request;
+    return request;
   }, []);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/v1/catalog/templates`);
-        setCatalog(res.ok ? await res.json() : []);
-      } catch {
-        setCatalog([]);
-      }
-      const user = await me();
-      setAuthed(user !== null);
-      if (!user) return;
-      await loadNotebooks();
-    })();
+    mountedRef.current = true;
+    if (!initialLoadRef.current) {
+      initialLoadRef.current = Promise.all([
+        (async () => {
+          try {
+            const res = await fetch(`${API_BASE}/api/v1/catalog/templates`);
+            const items = res.ok ? await res.json() : [];
+            if (mountedRef.current) setCatalog(items);
+          } catch {
+            if (mountedRef.current) setCatalog([]);
+          }
+        })(),
+        (async () => {
+          const user = await me();
+          if (!mountedRef.current) return;
+          setAuthed(user !== null);
+          if (user) await loadNotebooks(false);
+        })(),
+      ]).then(() => undefined);
+    }
+    return () => { mountedRef.current = false; };
   }, [loadNotebooks]);
 
   useEffect(() => {
@@ -166,7 +216,7 @@ export default function HomePage() {
       const nb = await api<Notebook>("POST", "/api/v1/notebooks", {
         title: "Carnet nou",
       });
-      window.location.href = withBase(`/notebook/${nb.id}`);
+      router.push(`/notebook/${nb.id}`);
     } catch (err) {
       setError((err as Error).message);
       setCreating(false);
@@ -180,7 +230,7 @@ export default function HomePage() {
       const result = await api<{ notebook_id: string }>("POST", `/api/v1/catalog/templates/${templateId}/instances`, {
         idempotency_key: crypto.randomUUID(),
       });
-      window.location.href = withBase(`/notebook/${result.notebook_id}`);
+      router.push(`/notebook/${result.notebook_id}`);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -188,21 +238,30 @@ export default function HomePage() {
     }
   }
 
-  function openSchoolTemplate(template: CatalogTemplate) {
+  async function openSchoolTemplate(template: CatalogTemplate) {
     if (!authed) {
-      window.location.href = withBase("/login");
+      router.push("/login");
       return;
     }
-    const owned = notebooks?.find((notebook) =>
-      (notebook.origin === "school" || notebook.origin === "template") &&
-      template.current_version_id &&
-      notebook.current_template_version_id === template.current_version_id
-    );
-    if (owned) {
-      window.location.href = withBase(`/notebook/${owned.id}`);
-      return;
+    if (schoolOpeningRef.current) return;
+    schoolOpeningRef.current = true;
+    setImporting(true);
+    try {
+      // A school notebook may live beyond the first API page. Wait for the
+      // complete owned list before deciding that a new copy is needed.
+      const ownedNotebooks = completeNotebooksRef.current ?? await loadNotebooks(false);
+      if (!ownedNotebooks || !mountedRef.current) return;
+      const owned = ownedNotebooks.find((notebook) =>
+        (notebook.origin === "school" || notebook.origin === "template") &&
+        template.current_version_id &&
+        notebook.current_template_version_id === template.current_version_id
+      );
+      if (owned) router.push(`/notebook/${owned.id}`);
+      else await instantiate(template.id);
+    } finally {
+      schoolOpeningRef.current = false;
+      if (mountedRef.current) setImporting(false);
     }
-    void instantiate(template.id);
   }
 
   async function importPackage() {
@@ -220,8 +279,7 @@ export default function HomePage() {
       });
       setImportedNotebookId(result.notebook_id);
       setTab("mine");
-      const list = await api<{ items: Notebook[] }>("GET", "/api/v1/notebooks");
-      setNotebooks(list.items);
+      await loadNotebooks();
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -272,6 +330,7 @@ export default function HomePage() {
   const loadingCards = Array.from({ length: 4 }, (_, i) => i);
 
   return (
+    <div className="library-with-companion">
     <div className="library-shell">
       <section className="library-heading" aria-label="Acțiuni pentru carnete">
         <div className="library-primary-actions">
@@ -447,12 +506,12 @@ export default function HomePage() {
                   <tr
                     key={nb.id}
                     onClick={() => {
-                      window.location.href = withBase(`/notebook/${nb.id}`);
+                      router.push(`/notebook/${nb.id}`);
                     }}
                     tabIndex={0}
                     onKeyDown={(e) => {
                       if (e.key === "Enter")
-                        window.location.href = withBase(`/notebook/${nb.id}`);
+                        router.push(`/notebook/${nb.id}`);
                     }}
                   >
                     <td className="col-title">
@@ -470,7 +529,7 @@ export default function HomePage() {
                     <td className="col-menu">
                       <NotebookMenu
                         notebook={nb}
-                        onChanged={loadNotebooks}
+                        onChanged={async () => { await loadNotebooks(); }}
                         onError={setError}
                       />
                     </td>
@@ -491,17 +550,17 @@ export default function HomePage() {
                   role="link"
                   tabIndex={0}
                   onClick={() => {
-                    window.location.href = withBase(`/notebook/${nb.id}`);
+                    router.push(`/notebook/${nb.id}`);
                   }}
                   onKeyDown={(e) => {
-                    if (e.key === "Enter") window.location.href = withBase(`/notebook/${nb.id}`);
+                    if (e.key === "Enter") router.push(`/notebook/${nb.id}`);
                   }}
                 >
                   <div className="nb-top">
                     <span className="nb-icon"><NotebookIcon origin={nb.origin} /></span>
                     <NotebookMenu
                       notebook={nb}
-                      onChanged={loadNotebooks}
+                      onChanged={async () => { await loadNotebooks(); }}
                       onError={setError}
                     />
                   </div>
@@ -676,6 +735,10 @@ export default function HomePage() {
           </div>
         </div>
       )}
+    </div>
+    <div className="library-companion-rail">
+      <EducationCompanion positionKey="library" followPointer assetBase={withBase("/guguta-companion")} context={{ source: "opennotebook", locale: "ro-MD" }} activity="Alege un carnet și începem" />
+    </div>
     </div>
   );
 }
