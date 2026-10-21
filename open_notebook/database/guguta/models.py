@@ -97,6 +97,9 @@ class User(GugutaBase):
     id: Mapped[uuid.UUID] = _uuid_pk()
     display_name: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[Optional[str]] = mapped_column(String(320), nullable=True)
+    # Profil școlar declarat la înregistrare (migrarea 0024); clasa în cifre romane I–XII.
+    school: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    class_level: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
     status: Mapped[str] = mapped_column(
         String(20), nullable=False, default="active", server_default="active"
     )  # active | suspended | deleted

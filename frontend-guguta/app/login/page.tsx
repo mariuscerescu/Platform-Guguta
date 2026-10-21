@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import AuthConversation, { type TalkStep, type TalkValues } from "../components/AuthConversation";
 import { authMode, loginDev, loginPassword } from "../../lib/api";
 import { withBase, API_BASE } from "../../lib/paths";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [devName, setDevName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,20 +23,6 @@ export default function LoginPage() {
     });
   }, []);
 
-  async function submitPassword(e: React.FormEvent) {
-    e.preventDefault();
-    if (!email.trim() || !password) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await loginPassword(email.trim(), password);
-      window.location.href = destination();
-    } catch (err) {
-      setError((err as Error).message);
-      setBusy(false);
-    }
-  }
-
   async function submitDev(e: React.FormEvent) {
     e.preventDefault();
     if (!devName.trim()) return;
@@ -52,6 +37,42 @@ export default function LoginPage() {
     }
   }
 
+  const steps = useMemo<TalkStep[]>(() => [
+    {
+      id: "email", kind: "email", field: { label: "E-mail" }, autoComplete: "email", placeholder: "nume@exemplu.md",
+      ask: () => "Bine ai revenit! Spune-mi e-mailul cu care te-ai înregistrat.",
+      validate: (v) => (/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v) ? null : "Adresa de e-mail nu arată bine."),
+    },
+    {
+      id: "password", kind: "password", field: { label: "Parola", mask: true }, autoComplete: "current-password", placeholder: "Parola ta",
+      ask: () => "Acum parola, cheia de la dulapul tău cu carnete.",
+    },
+  ], []);
+
+  async function completeLogin(values: TalkValues) {
+    try {
+      await loginPassword(values.email, values.password);
+      window.location.href = destination();
+      return null;
+    } catch (err) {
+      return { error: `${(err as Error).message} Hai să încercăm din nou.`, stepId: "email" };
+    }
+  }
+
+  if (mode === "password") {
+    return (
+      <AuthConversation
+        title="Intră în Guguță"
+        intro={["Bună! Eu sunt Guguță."]}
+        steps={steps}
+        sheetTitle="Contul tău"
+        submitLabel="Te-am recunoscut. Deschid carnetele…"
+        onComplete={completeLogin}
+        footer={<p className="auth-switch">Nu ai cont? <a href={withBase("/register")}>Creează unul</a></p>}
+      />
+    );
+  }
+
   return (
     <section className="auth-shell" aria-labelledby="login-title">
       <div className="auth-visual">
@@ -61,37 +82,6 @@ export default function LoginPage() {
 
       <div className="auth-card">
         {error && <p className="error-text">{error}</p>}
-
-        {mode === "password" && (
-          <form onSubmit={submitPassword} className="auth-form">
-            <label>
-              <span>Email</span>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="nume@exemplu.md"
-                autoComplete="email"
-              />
-            </label>
-            <label>
-              <span>Parolă</span>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Parola ta"
-                autoComplete="current-password"
-              />
-            </label>
-            <button className="primary auth-submit" disabled={busy || !email.trim() || !password}>
-              {busy ? "Se conectează…" : "Intră în cont"}
-            </button>
-            <p className="auth-switch">
-              Nu ai cont? <a href={withBase("/register")}>Creează unul</a>
-            </p>
-          </form>
-        )}
 
         {mode === "test" && (
           <form onSubmit={submitDev} className="auth-form">

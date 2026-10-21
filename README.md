@@ -88,6 +88,16 @@ servicii AI private rulate pe serverul proiectului.
   activ când instanța are cheia de partener). Integrarea locală anterioară
   ([ADR-021](docs/7-DEVELOPMENT/decisions/ADR-021-playquiz-integration.md)) este deprecată.
 
+**Cont, confidențialitate**
+
+- **Înregistrarea ca o conversație cu Guguță**: întreabă numele, școala, clasa și
+  e-mailul, cere acordurile (politica de confidențialitate; pentru clasele
+  I–VIII și acordul unui părinte), recapitulează și abia apoi cere parola
+  ([ADR-024](docs/7-DEVELOPMENT/decisions/ADR-024-inregistrare-conversationala-consimtaminte.md)).
+- **Drepturile elevului**: pagina „Contul meu” pentru acces, corectare și
+  ștergerea contului; informare despre cookie-uri (doar strict necesare),
+  politică de confidențialitate și termeni în platformă.
+
 **Interfață**
 
 - În română (`ro-MD`), în stilul unui caiet de lucru cu trei panouri

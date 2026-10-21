@@ -109,33 +109,58 @@ export async function loginPassword(email: string, password: string): Promise<vo
   if (csrf) setCsrf(csrf);
 }
 
-export async function registerPassword(
-  firstName: string,
-  lastName: string,
-  email: string,
-  password: string,
-): Promise<void> {
+export interface RegistrationInput {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  school: string;
+  classLevel: string;
+  privacyAccepted: boolean;
+  parentConsent: boolean;
+}
+
+export async function registerPassword(input: RegistrationInput): Promise<void> {
   const res = await fetch(`${API}/api/v1/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
     body: JSON.stringify({
-      first_name: firstName,
-      last_name: lastName,
-      email,
-      password,
+      first_name: input.firstName,
+      last_name: input.lastName,
+      email: input.email,
+      password: input.password,
+      school: input.school,
+      class_level: input.classLevel,
+      privacy_accepted: input.privacyAccepted,
+      parent_consent: input.parentConsent,
     }),
   });
   if (!res.ok) {
-    const data = (await res.json().catch(() => ({}))) as { message?: string; detail?: string };
+    const data = (await res.json().catch(() => ({}))) as { message?: string; detail?: unknown };
     throw new ApiError(
       res.status,
       "registration_failed",
-      data.message ?? data.detail ?? serverAuthErrorMessage(res.status, "Înregistrarea a eșuat."),
+      apiErrorMessage(data, serverAuthErrorMessage(res.status, "Înregistrarea a eșuat.")),
     );
   }
   const csrf = res.headers.get("X-Guguta-CSRF");
   if (csrf) setCsrf(csrf);
+}
+
+/** Profilul propriu (școală, clasă, nume afișat) — dreptul la rectificare. */
+export async function updateProfile(input: { displayName?: string; school?: string; classLevel?: string }): Promise<MeInfo> {
+  return api<MeInfo>("PATCH", "/api/v1/auth/me", {
+    ...(input.displayName !== undefined ? { display_name: input.displayName } : {}),
+    ...(input.school !== undefined ? { school: input.school } : {}),
+    ...(input.classLevel !== undefined ? { class_level: input.classLevel } : {}),
+  });
+}
+
+/** Ștergerea contului (dreptul la ștergere): carnetele, credențialele și sesiunile dispar. */
+export async function deleteAccount(): Promise<void> {
+  await api<{ ok: boolean }>("DELETE", "/api/v1/auth/me");
+  localStorage.removeItem(CSRF_KEY);
 }
 
 export async function loginDev(displayName: string): Promise<void> {
@@ -161,6 +186,30 @@ export interface MeInfo {
   roles?: string[];
   /** Funcții opționale ale instanței (de exemplu `playquiz`), ca UI-ul să arate doar ce e configurat. */
   capabilities?: Record<string, boolean>;
+  email?: string | null;
+  school?: string | null;
+  /** Clasa în cifre romane, I–XII. */
+  class_level?: string | null;
+  /** kind → versiunea politicii acceptate (privacy, terms, parent). */
+  consents?: Record<string, string>;
+}
+
+export interface AuthConfig {
+  auth_mode: string;
+  privacy_version?: string;
+}
+
+export async function authConfig(): Promise<AuthConfig> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 1800);
+  try {
+    const r = await fetch(`${API}/api/v1/auth/config`, { signal: controller.signal });
+    if (r.ok) return (await r.json()) as AuthConfig;
+  } catch { }
+  finally {
+    window.clearTimeout(timeout);
+  }
+  return { auth_mode: "password" };
 }
 
 export async function me(): Promise<MeInfo | null> {

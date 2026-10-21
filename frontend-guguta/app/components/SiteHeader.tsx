@@ -75,7 +75,12 @@ export default function SiteHeader() {
           </AuthEntryLink>
         )}
         <ThemeToggle />
-        {(isLibraryPage || isImportPage) && <LogoutButton />}
+        {(isLibraryPage || isImportPage) && (
+          <>
+            <a className="header-login" href={withBase("/cont")}>Contul meu</a>
+            <LogoutButton />
+          </>
+        )}
       </div>
     </header>
   );

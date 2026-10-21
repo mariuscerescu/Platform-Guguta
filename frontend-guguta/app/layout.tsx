@@ -8,6 +8,8 @@ import "./components/landing-companion.css";
 import "./components/companion-chat.css";
 import "./theme.css";
 import SiteHeader from "./components/SiteHeader";
+import SiteFooter from "./components/SiteFooter";
+import CookieNotice from "./components/CookieNotice";
 import { THEME_INIT_SCRIPT } from "../lib/theme";
 
 export const metadata: Metadata = {
@@ -76,6 +78,8 @@ export default function RootLayout({
         {/* Header-ul își schimbă culoarea și butonul după rută (vezi SiteHeader). */}
         <SiteHeader />
         <main className="container">{children}</main>
+        <SiteFooter />
+        <CookieNotice />
       </body>
     </html>
   );

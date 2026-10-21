@@ -64,6 +64,19 @@ class PasswordLoginRequest(BaseModel):
 class PasswordRegisterRequest(PasswordLoginRequest):
     first_name: str = Field(min_length=1, max_length=120)
     last_name: str = Field(min_length=1, max_length=120)
+    # Profil școlar și consimțăminte (migrarea 0024). Politica de
+    # confidențialitate trebuie acceptată explicit; pentru clasele I–VIII
+    # elevul confirmă că un părinte sau tutore știe și este de acord.
+    school: str = Field(min_length=2, max_length=200)
+    class_level: str = Field(min_length=1, max_length=20)
+    privacy_accepted: bool = False
+    parent_consent: bool = False
+
+
+class ProfileUpdateRequest(BaseModel):
+    display_name: Optional[str] = Field(default=None, min_length=1, max_length=255)
+    school: Optional[str] = Field(default=None, min_length=2, max_length=200)
+    class_level: Optional[str] = Field(default=None, min_length=1, max_length=20)
 
 
 class MeResponse(BaseModel):
@@ -72,6 +85,44 @@ class MeResponse(BaseModel):
     roles: list[str]
     # Funcții opționale ale instanței, ca interfața să afișeze doar ce e configurat.
     capabilities: dict[str, bool] = {}
+    email: Optional[str] = None
+    school: Optional[str] = None
+    class_level: Optional[str] = None
+    # kind -> versiunea acceptată ('privacy', 'terms', 'parent').
+    consents: dict[str, str] = {}
+
+
+# Versiunea politicii de confidențialitate și a termenilor afișate în interfață
+# (frontend-guguta/app/confidentialitate, /termeni). La schimbare, interfața
+# cere din nou acordul utilizatorilor cu o versiune mai veche.
+PRIVACY_POLICY_VERSION = "2026-10-21"
+
+CLASS_LEVELS: tuple[str, ...] = (
+    "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"
+)
+# Clasele pentru care se cere confirmarea părintelui/tutorelui (decizia D-07
+# din docs/guguta/DECIZII_EXTERNE.md rămâne deschisă; pragul este provizoriu).
+PARENT_CONSENT_CLASSES: frozenset[str] = frozenset(CLASS_LEVELS[:8])
+
+
+def _normalize_class_level(value: str) -> str:
+    """Acceptă „V”, „5”, „a V-a”, „clasa a 5-a” și întoarce cifra romană canonică."""
+    raw = value.strip().upper().replace("CLASA", "").replace("A ", " ").strip()
+    raw = raw.strip(" .-").replace("-A", "").strip(" .-")
+    if raw.isdigit():
+        index = int(raw)
+        if 1 <= index <= 12:
+            return CLASS_LEVELS[index - 1]
+    if raw in CLASS_LEVELS:
+        return raw
+    raise InvalidInputError("Clasa trebuie să fie între I și XII.")
+
+
+def _normalize_school(value: str) -> str:
+    school = " ".join(value.strip().split())
+    if len(school) < 2:
+        raise InvalidInputError("Școala este obligatorie.")
+    return school[:200]
 
 
 auth_router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -183,6 +234,16 @@ async def password_register(
     first_name = _normalize_name(body.first_name, "Prenumele")
     last_name = _normalize_name(body.last_name, "Numele")
     display_name = f"{first_name} {last_name}"
+    school = _normalize_school(body.school)
+    class_level = _normalize_class_level(body.class_level)
+    if not body.privacy_accepted:
+        raise InvalidInputError(
+            "Contul se poate crea doar după acceptarea politicii de confidențialitate."
+        )
+    if class_level in PARENT_CONSENT_CLASSES and not body.parent_consent:
+        raise InvalidInputError(
+            "Pentru clasele I–VIII este nevoie de confirmarea unui părinte sau tutore."
+        )
     password_hash = _hash_password(body.password)
     engine = request.app.state.guguta_engine
     from sqlalchemy import text
@@ -214,6 +275,24 @@ async def password_register(
             ),
             {"user_id": user_id, "email": email, "password_hash": password_hash},
         )
+    from open_notebook.database.guguta.engine import actor_connection
+
+    async with actor_connection(engine, user_id) as conn:
+        await conn.execute(
+            text("UPDATE users SET school=:school, class_level=:class_level WHERE id=:id"),
+            {"school": school, "class_level": class_level, "id": user_id},
+        )
+        consents = [("privacy", PRIVACY_POLICY_VERSION), ("terms", PRIVACY_POLICY_VERSION)]
+        if body.parent_consent:
+            consents.append(("parent", PRIVACY_POLICY_VERSION))
+        for kind, version in consents:
+            await conn.execute(
+                text(
+                    "INSERT INTO user_consents (user_id, kind, version) VALUES (:u, :k, :v) "
+                    "ON CONFLICT (user_id, kind) DO UPDATE SET version=EXCLUDED.version, accepted_at=now()"
+                ),
+                {"u": user_id, "k": kind, "v": version},
+            )
     return await _open_session_for_user(user_id, display_name, request, response)
 
 
@@ -343,7 +422,7 @@ async def auth_config(request: Request) -> dict[str, str]:
         mode = config.auth_mode
     except AttributeError:
         mode = "oidc"
-    return {"auth_mode": mode}
+    return {"auth_mode": mode, "privacy_version": PRIVACY_POLICY_VERSION}
 
 
 @auth_router.get("/csrf")
@@ -371,13 +450,99 @@ async def logout(request: Request, response: Response) -> dict[str, Any]:
 @auth_router.get("/me")
 async def me(request: Request) -> MeResponse:
     actor = get_actor(request)
+    return await _me_response(request, actor)
+
+
+async def _me_response(request: Request, actor: ActorContext) -> MeResponse:
     config = request.app.state.guguta_config
+    from sqlalchemy import text
+
+    from open_notebook.database.guguta.engine import actor_connection
+
+    async with actor_connection(request.app.state.guguta_engine, actor.actor_id) as conn:
+        row = (
+            (
+                await conn.execute(
+                    text("SELECT display_name, email, school, class_level FROM users WHERE id=:id"),
+                    {"id": actor.actor_id},
+                )
+            )
+            .mappings()
+            .first()
+        )
+        consents = (
+            await conn.execute(
+                text("SELECT kind, version FROM user_consents WHERE user_id=:id"),
+                {"id": actor.actor_id},
+            )
+        ).all()
     return MeResponse(
         id=str(actor.actor_id),
-        display_name=actor.display_name,
+        display_name=str(row["display_name"]) if row else actor.display_name,
         roles=sorted(actor.roles),
         capabilities={"playquiz": bool(config.playquiz_enabled)},
+        email=row["email"] if row else None,
+        school=row["school"] if row else None,
+        class_level=row["class_level"] if row else None,
+        consents={str(kind): str(version) for kind, version in consents},
     )
+
+
+@auth_router.patch("/me")
+async def update_me(body: ProfileUpdateRequest, request: Request) -> MeResponse:
+    """Profilul propriu: nume afișat, școală, clasă (dreptul la rectificare)."""
+    actor = get_actor(request)
+    updates: dict[str, Any] = {}
+    if body.display_name is not None:
+        updates["display_name"] = _normalize_name(body.display_name, "Numele")[:255]
+    if body.school is not None:
+        updates["school"] = _normalize_school(body.school)
+    if body.class_level is not None:
+        updates["class_level"] = _normalize_class_level(body.class_level)
+    if not updates:
+        raise InvalidInputError("Nimic de actualizat.")
+    from sqlalchemy import text
+
+    from open_notebook.database.guguta.engine import actor_connection
+
+    assignments = ", ".join(f"{column}=:{column}" for column in updates)
+    async with actor_connection(request.app.state.guguta_engine, actor.actor_id) as conn:
+        await conn.execute(
+            text(f"UPDATE users SET {assignments} WHERE id=:id"),
+            {**updates, "id": actor.actor_id},
+        )
+    return await _me_response(request, actor)
+
+
+@auth_router.delete("/me")
+async def delete_me(request: Request, response: Response) -> dict[str, bool]:
+    """Dreptul la ștergere: carnetele proprii se șterg (cu fișierele lor, prin
+    mecanismele existente de ștergere), identitățile, credențialele, sesiunile
+    și consimțămintele dispar, iar contul rămâne doar ca rând anonimizat cu
+    status 'deleted' (referințele RESTRICT din audit/catalog/partajări)."""
+    actor = get_actor(request)
+    from sqlalchemy import text
+
+    from open_notebook.database.guguta.engine import actor_connection
+
+    engine = request.app.state.guguta_engine
+    async with actor_connection(engine, actor.actor_id) as conn:
+        await conn.execute(
+            text("DELETE FROM digital_notebooks WHERE owner_id=:id"), {"id": actor.actor_id}
+        )
+        for table in ("user_consents", "password_credentials", "identities", "sessions"):
+            await conn.execute(
+                text(f"DELETE FROM {table} WHERE user_id=:id"), {"id": actor.actor_id}
+            )
+        await conn.execute(
+            text(
+                "UPDATE users SET display_name='Cont șters', email=NULL, school=NULL, "
+                "class_level=NULL, status='deleted' WHERE id=:id"
+            ),
+            {"id": actor.actor_id},
+        )
+    clear_session_cookie(response, request)
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------------------
