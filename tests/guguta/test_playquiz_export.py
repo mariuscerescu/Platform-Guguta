@@ -328,6 +328,22 @@ async def test_export_flow_consent_idempotency_and_capability(
         "exported": False, "play_url": None, "exported_at": None,
     }
 
+    # Previzualizarea arată exact corpurile care ar pleca spre PlayQuiz, fără apel extern.
+    preview = await client.get(f"{url}/payload", cookies=_cookies(auth))
+    assert preview.status_code == 200, preview.text
+    preview = preview.json()
+    assert preview["enabled"] is True and preview["consent_given"] is False and preview["already_exported"] is False
+    assert [r["path"] for r in preview["requests"]] == [
+        "/partner/guguta/accounts", "/partner/guguta/quizzes", "/partner/guguta/handoff",
+    ]
+    account_body, quiz_body = preview["requests"][0]["body"], preview["requests"][1]["body"]
+    assert account_body["external_id"] == me["id"] and account_body["language"] == "RO"
+    assert quiz_body["external_id"] == quiz and quiz_body["account_external_id"] == me["id"]
+    assert quiz_body["title"] == "Adunarea" and quiz_body["quiz_type"] == "MULTIPLE_CHOICE"
+    assert quiz_body["questions"][0] == {"content": "Întrebarea 1", "answers": ["7"], "wrong_answers": ["6", "8"]}
+    assert quiz_body["content_hash"].startswith("sha256:")
+    assert fake.calls == []
+
     denied = await client.post(url, json={}, cookies=_cookies(auth), headers=_headers(auth))
     assert denied.status_code == 409 and denied.json()["code"] == "consent_required"
     assert fake.calls == []
@@ -421,5 +437,9 @@ async def test_capability_off_without_configuration(guguta_db: dict[str, Any], e
         assert (await client.get(url, cookies=_cookies(auth))).json()["enabled"] is False
         off = await client.post(url, json={"consent": True}, cookies=_cookies(auth), headers=_headers(auth))
         assert off.status_code == 409 and off.json()["code"] == "playquiz_disabled"
+        # Previzualizarea JSON-ului funcționează și fără conexiune configurată.
+        preview = await client.get(f"{url}/payload", cookies=_cookies(auth))
+        assert preview.status_code == 200 and preview.json()["enabled"] is False
+        assert preview.json()["requests"][1]["body"]["quiz_type"] == "SINGLE_CHOICE"
         for legacy in ("/api/v1/auth/playquiz-profile", "/api/v1/auth/playquiz-quizzes"):
             assert (await client.get(legacy, cookies=_cookies(auth))).status_code == 404

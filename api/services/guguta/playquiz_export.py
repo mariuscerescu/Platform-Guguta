@@ -212,8 +212,8 @@ class PlayQuizClient:
             "PlayQuiz nu este disponibil acum. Încearcă din nou mai târziu."
         ) from last_error
 
-    async def ensure_account(
-        self,
+    @staticmethod
+    def account_payload(
         *,
         external_id: str,
         email: str | None,
@@ -230,6 +230,24 @@ class PlayQuizClient:
             payload["email"] = email
         if class_level:
             payload["class_level"] = class_level
+        return payload
+
+    async def ensure_account(
+        self,
+        *,
+        external_id: str,
+        email: str | None,
+        display_name: str,
+        language: str = "RO",
+        class_level: str | None = None,
+    ) -> dict[str, Any]:
+        payload = self.account_payload(
+            external_id=external_id,
+            email=email,
+            display_name=display_name,
+            language=language,
+            class_level=class_level,
+        )
         return await self._post("/partner/guguta/accounts", payload)
 
     async def upsert_quiz(self, payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -342,6 +360,55 @@ class PlayQuizExportService:
             "exported_at": export["exported_at"].isoformat() if export else None,
         }
 
+    async def _identity(self, actor: ActorContext) -> tuple[str, str | None]:
+        async with actor_connection(self._engine, actor.actor_id) as conn:
+            user = (
+                (
+                    await conn.execute(
+                        text("SELECT display_name, email FROM users WHERE id=:id"),
+                        {"id": actor.actor_id},
+                    )
+                )
+                .mappings()
+                .first()
+            )
+        display_name = (user["display_name"] if user else None) or actor.display_name or "Elev Guguță"
+        email = (user["email"] if user else None) or None
+        return str(display_name), email
+
+    async def preview(
+        self, actor: ActorContext, notebook_id: uuid.UUID, quiz_id: uuid.UUID
+    ) -> dict[str, Any]:
+        """Corpurile exacte pe care le-ar trimite exportul către PlayQuiz (plan §4).
+
+        Nu face niciun apel extern și nu înregistrează consimțământ; servește la
+        verificarea mapării (de către elev/profesor sau de echipa PlayQuiz).
+        """
+        quiz, questions, export, consent = await self._load(actor, notebook_id, quiz_id)
+        payload = build_payload(quiz, questions, category=self._config.playquiz_category)
+        display_name, email = await self._identity(actor)
+        external_user = str(actor.actor_id)
+        account = PlayQuizClient.account_payload(
+            external_id=external_user, email=email, display_name=display_name
+        )
+        body = dict(payload)
+        body["external_id"] = str(quiz_id)
+        body["account_external_id"] = external_user
+        return {
+            "enabled": self.enabled,
+            "consent_given": consent,
+            "already_exported": export is not None and export["content_hash"] == payload["content_hash"],
+            "requests": [
+                {"method": "POST", "path": "/partner/guguta/accounts", "body": account},
+                {"method": "POST", "path": "/partner/guguta/quizzes", "body": body},
+                {
+                    "method": "POST",
+                    "path": "/partner/guguta/handoff",
+                    "body": {"account_external_id": external_user, "quiz_id": "<quiz_id primit de la PlayQuiz>"},
+                },
+            ],
+        }
+
     async def export(
         self,
         actor: ActorContext,
@@ -366,18 +433,7 @@ class PlayQuizExportService:
                     ),
                     {"u": actor.actor_id},
                 )
-            user = (
-                (
-                    await conn.execute(
-                        text("SELECT display_name, email FROM users WHERE id=:id"),
-                        {"id": actor.actor_id},
-                    )
-                )
-                .mappings()
-                .first()
-            )
-        display_name = (user["display_name"] if user else None) or actor.display_name or "Elev Guguță"
-        email = (user["email"] if user else None) or None
+        display_name, email = await self._identity(actor)
         external_user = str(actor.actor_id)
         external_quiz = str(quiz_id)
 
@@ -389,7 +445,7 @@ class PlayQuizExportService:
             play_url = export["play_url"]
         else:
             account = await self._client.ensure_account(
-                external_id=external_user, email=email, display_name=str(display_name)
+                external_id=external_user, email=email, display_name=display_name
             )
             account_id = _required_str(account, "account_id")
             body = dict(payload)

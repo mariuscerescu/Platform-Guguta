@@ -220,6 +220,9 @@ pentru conturile venite din Guguță.
   `exported_at`, `last_handoff_at`), RLS pe utilizator ca la `quizzes`.
 - Endpoint `POST /api/v1/notebooks/{nb}/quizzes/{quiz}/playquiz` → `{url, quiz_id, created}`;
   `GET …/playquiz` → starea exportului (pentru a afișa „Deschide din nou”).
+  `GET …/playquiz/payload` → previzualizare: cele trei corpuri JSON exact așa cum ar pleca
+  spre PlayQuiz (`accounts`, `quizzes`, `handoff`), fără apel extern — util pentru
+  verificarea mapării și ca exemplu concret pentru echipa PlayQuiz.
 - Se elimină: `GET /auth/playquiz-profile`, `GET /auth/playquiz-quizzes`,
   `api/services/guguta/playquiz.py` (toate deservesc integrarea locală).
 - Teste în `tests/guguta/`: mapare (single/multiple/mixt/limite), idempotență,

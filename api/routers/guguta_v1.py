@@ -1577,6 +1577,16 @@ async def playquiz_export_status(
     )
 
 
+@quizzes_router.get("/{quiz_id}/playquiz/payload")
+async def playquiz_export_payload(
+    notebook_id: uuid.UUID, quiz_id: uuid.UUID, request: Request
+) -> dict[str, Any]:
+    """Previzualizare: JSON-ul exact care ar pleca spre PlayQuiz (fără apel extern)."""
+    return await get_playquiz_export_service(request).preview(
+        get_actor(request), notebook_id, quiz_id
+    )
+
+
 @quizzes_router.post("/{quiz_id}/playquiz")
 async def playquiz_export(
     notebook_id: uuid.UUID,
