@@ -13,6 +13,7 @@ import pytest
 from sqlalchemy import text
 
 from api.services.guguta.search import (
+    RetrievedChunk,
     _diverse_pages,
     _interleave_ids,
     _or_tsquery,
@@ -28,7 +29,11 @@ worker = worker_fixture
 
 
 def test_vector_candidates_cannot_be_starved_by_text_hits():
-    assert _interleave_ids([1,2,3,4],[8,9,2,10])[:4] == [1,8,2,9]
+    ids = {value: uuid.UUID(int=value) for value in (1, 2, 3, 4, 8, 9, 10)}
+    assert _interleave_ids(
+        [ids[value] for value in (1, 2, 3, 4)],
+        [ids[value] for value in (8, 9, 2, 10)],
+    )[:4] == [ids[value] for value in (1, 8, 2, 9)]
 
 
 def test_romanian_query_fold_and_retrieval_instructions():
@@ -62,8 +67,20 @@ async def test_text_search_understands_inflection_and_old_diacritics(client, wor
 
 
 def test_duplicate_page_chunks_do_not_crowd_out_other_topics():
-    chunks = [SimpleNamespace(material_version_id="book",chunk_id=i,locator={"page":page})
-              for i,page in enumerate([7,7,7,8,9])]
+    material_version_id = uuid.uuid4()
+    source_id = uuid.uuid4()
+    chunks = [
+        RetrievedChunk(
+            chunk_id=uuid.UUID(int=i),
+            text="Synthetic page text",
+            locator={"page": page},
+            notebook_source_id=source_id,
+            material_version_id=material_version_id,
+            local_name="book",
+            score=1.0,
+        )
+        for i, page in enumerate([7, 7, 7, 8, 9])
+    ]
     assert [c.locator["page"] for c in _diverse_pages(chunks,3)] == [7,8,9]
     assert len(_diverse_pages(chunks,8)) == 5
 
@@ -159,6 +176,7 @@ async def test_pdf_cache_still_checks_selected_source(client, worker):
         app.state.guguta_engine, FilesystemStorage("./.guguta-test-storage")
     )
     enriched = await enricher.enrich(actor, nb, chunks)
+    assert enriched[0].image_url is not None
     assert enriched[0].image_url.startswith("data:image/png;base64,")
     assert enriched[0].chunk_id == chunks[0].chunk_id
     assert enriched[0].extracted_text == chunks[0].text

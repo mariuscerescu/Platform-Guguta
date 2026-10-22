@@ -18,6 +18,7 @@ from copy import copy
 from dataclasses import replace
 
 from sqlalchemy import bindparam
+from sqlalchemy.engine import RowMapping
 
 from api.services.guguta.search import RetrievedChunk, source_scope_sql
 from open_notebook.database.guguta.engine import actor_connection
@@ -86,36 +87,37 @@ class PdfPageEvidence:
                 .all()
             )
         assets = {r["id"]: r for r in rows}
-        seen = set()
+        seen: set[tuple[str, int]] = set()
         enriched = []
         for chunk in chunks:
             asset = assets.get(chunk.material_version_id)
             page = chunk.locator.get("page")
-            key = (str(asset["sha256"]), page) if asset is not None else None
             if (
                 asset is None
                 or type(page) is not int
                 or page < 1
-                or key in seen
-                or len(seen) >= self._max_pages
             ):
                 enriched.append(chunk)
                 continue
-            seen.add(key)
+            cache_key = (str(asset["sha256"]), page)
+            if cache_key in seen or len(seen) >= self._max_pages:
+                enriched.append(chunk)
+                continue
+            seen.add(cache_key)
             try:
                 async with self._render_lock:
-                    png = self._cache.get(key)
+                    png = self._cache.get(cache_key)
                     if png is None:
                         png = await asyncio.to_thread(
                             self._render_asset, asset, page
                         )
-                        self._cache[key] = png
+                        self._cache[cache_key] = png
                         self._size += len(png)
                         while self._size > self._cache_bytes and self._cache:
                             _, old = self._cache.popitem(last=False)
                             self._size -= len(old)
-                    elif key in self._cache:
-                        self._cache.move_to_end(key)
+                    elif cache_key in self._cache:
+                        self._cache.move_to_end(cache_key)
                 enriched.append(
                     replace(
                         chunk,
@@ -198,7 +200,10 @@ class PdfPageEvidence:
                   "Coordonatele se raportează la pagina originală întreagă."),
         )
 
-    def _render_asset(self, asset, page_number, region=None):
+    def _render_asset(
+        self, asset: RowMapping, page_number: int,
+        region: tuple[float, float, float, float] | None = None,
+    ) -> bytes:
         if asset["mime_type"] == "image/png":
             if page_number != 1:
                 raise ValueError("Image page out of range")

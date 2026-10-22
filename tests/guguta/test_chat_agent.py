@@ -6,10 +6,12 @@ import io
 import json
 import uuid
 from dataclasses import replace
+from unittest.mock import Mock
 
 import httpx
 import pytest
 from PIL import Image
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from api.services.guguta.chat import ChatService
 from api.services.guguta.chat_agent import NotebookChatAgent
@@ -89,7 +91,7 @@ class Pdf:
 
 
 def turn(name=None, args=None, index=1):
-    message = {"role": "assistant", "content": None}
+    message: dict[str, object] = {"role": "assistant", "content": None}
     if name:
         message["tool_calls"] = [
             {
@@ -101,13 +103,20 @@ def turn(name=None, args=None, index=1):
     return {"message": message, "usage": (12, 3, 0.001)}
 
 
+class NonStreamingProvider:
+    model_name = "synthetic"
+
+    def generate_stream(self, *args, **kwargs):
+        raise AssertionError("agent tests must not use the legacy streaming path")
+
+
 @pytest.mark.asyncio
 async def test_followup_reopens_original_page_and_accounts_for_agent_calls():
     item = chunk()
     search = Search(item)
     calls = []
 
-    class Provider:
+    class Provider(NonStreamingProvider):
         model_name = "synthetic-vision"
 
         async def choose_tools(self, messages, tools):
@@ -142,7 +151,7 @@ async def test_followup_reopens_original_page_and_accounts_for_agent_calls():
             ],
         }
     ]
-    service = ChatService(None, search, Provider())
+    service = ChatService(Mock(spec=AsyncEngine), search, Provider())
     service._agent = NotebookChatAgent(search, Pdf())
     answer, context = await service._answer(
         uuid.uuid4(), uuid.uuid4(), "How many objects are there?", [], history
@@ -411,7 +420,7 @@ async def test_current_document_precedes_old_files_and_unrelated_notebook_image(
     search = AttachmentSearch(note)
     turns = []
 
-    class Provider:
+    class Provider(NonStreamingProvider):
         async def choose_tools(self, messages, tools):
             turns.append(messages)
             metadata = json.loads(messages[-1]["content"][0]["text"])["untrusted_evidence"]
@@ -438,7 +447,7 @@ async def test_current_document_precedes_old_files_and_unrelated_notebook_image(
                 assert chunks[2].source_scope == "chat_attachment"
             return ChatAnswer("Documentul conține un exercițiu despre fracții.", [0, 1], "synthetic")
 
-    service = ChatService(None, search, Provider())
+    service = ChatService(Mock(spec=AsyncEngine), search, Provider())
     service._attachment_ids = [document.notebook_source_id]
     service._agent = NotebookChatAgent(search, Pdf())
     if tight_budget:

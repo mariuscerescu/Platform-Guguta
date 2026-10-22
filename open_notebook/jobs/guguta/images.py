@@ -56,7 +56,8 @@ def normalize_image(
 def render_image(
     data: bytes, region: tuple[float, float, float, float] | None = None
 ) -> bytes:
-    with Image.open(io.BytesIO(data)) as image:
+    with Image.open(io.BytesIO(data)) as original:
+        image: Image.Image = original
         image.load()
         if region is not None:
             width, height = image.size

@@ -257,7 +257,8 @@ async def test_tool_page_access_and_cached_crop_respect_rls_and_selection(
         app.state.guguta_engine, FilesystemStorage("./.guguta-test-storage")
     )
     loaded = (await pdf.enrich(actor, own_nb, chunks))[0]
-    assert (await pdf.crop(actor, own_nb, loaded, (0.1, 0.1, 0.9, 0.9))).image_url
+    cropped = await pdf.crop(actor, own_nb, loaded, (0.1, 0.1, 0.9, 0.9))
+    assert cropped is not None and cropped.image_url
     await app.state.guguta_sources.update(
         ActorContext(actor_id=actor, display_name="Synthetic"),
         own_nb,

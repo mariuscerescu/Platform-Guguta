@@ -5,7 +5,6 @@ Cheia OpenRouter este preluată din .env.guguta.local FĂRĂ a fi afișată.
 Scriptul tipărește fișierul rezultat cu secretele mascate, pentru verificare.
 """
 import pathlib
-import re
 import secrets
 
 REPO = pathlib.Path(r"D:\Disk D 13-09-25\CS\AI Guguta\Platforma Guguta\open-notebook")

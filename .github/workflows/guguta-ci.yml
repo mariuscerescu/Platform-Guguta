@@ -14,7 +14,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Secret scan (gitleaks)
@@ -22,24 +22,24 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v8.1.0
         with:
           python-version: "3.12"
       - name: Ruff
-        run: uv run ruff check open_notebook/database/guguta open_notebook/auth/guguta api/services/guguta api/routers/guguta_v1.py api/guguta_app.py alembic tests/guguta
+        run: uv run ruff check open_notebook/database/guguta open_notebook/auth/guguta api/services/guguta api/routers/guguta_v1.py api/routers/guguta_voice.py api/guguta_app.py alembic tests/guguta
 
   typecheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v8.1.0
         with:
           python-version: "3.12"
       - name: Sync dependencies
         run: uv sync
       - name: Mypy (Guguță package)
-        run: uv run mypy open_notebook/database/guguta open_notebook/auth/guguta api/services/guguta api/routers/guguta_v1.py api/guguta_app.py tests/guguta
+        run: uv run mypy open_notebook/database/guguta open_notebook/auth/guguta api/services/guguta api/routers/guguta_v1.py api/routers/guguta_voice.py api/guguta_app.py tests/guguta
 
   tests:
     runs-on: ubuntu-latest
@@ -60,9 +60,9 @@ jobs:
       GUGUTA_PG_API_PASSWORD: guguta_dev_api
       GUGUTA_PG_WORKER_PASSWORD: guguta_dev_worker
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v8.1.0
         with:
           python-version: "3.12"
       - name: Sync dependencies

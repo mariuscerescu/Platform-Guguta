@@ -12,6 +12,7 @@ import uuid
 
 from sqlalchemy import text
 
+from open_notebook.ai.guguta.openrouter import invoke
 from open_notebook.database.guguta.config import GugutaConfig
 from open_notebook.database.guguta.engine import create_migrator_engine
 from open_notebook.jobs.guguta.embeddings import get_provider
@@ -51,7 +52,7 @@ async def reindex(config: GugutaConfig) -> int:
                 ), {"s": space_id, "lim": batch_size})).all()
             if not chunks:
                 break
-            vectors = await provider.embed([c.text for c in chunks])
+            vectors = await invoke(provider.embed, [c.text for c in chunks])
             async with engine.begin() as conn:
                 for chunk, vector in zip(chunks, vectors, strict=True):
                     await conn.execute(text(

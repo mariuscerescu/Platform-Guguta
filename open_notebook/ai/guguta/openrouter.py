@@ -290,7 +290,7 @@ class OpenRouterChatProvider:
                 }})
             if choice["finish_reason"] == "tool_calls" and not cleaned:
                 raise ValueError()
-            message = {"role": "assistant", "content": None}
+            message: dict[str, Any] = {"role": "assistant", "content": None}
             if cleaned:
                 message["tool_calls"] = cleaned
             return {"message": message, "usage": self._validated_usage(data)}

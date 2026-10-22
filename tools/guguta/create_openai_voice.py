@@ -28,8 +28,8 @@ async def create_voice(args: argparse.Namespace) -> str:
             raise RuntimeError("Fișierul .env indicat nu există.")
         load_dotenv(args.env_file, override=False)
 
-    voice_id = os.environ.get("GUGUTA_OPENAI_VOICE_ID", "").strip()
-    if voice_id:
+    existing_voice_id = os.environ.get("GUGUTA_OPENAI_VOICE_ID", "").strip()
+    if existing_voice_id:
         raise RuntimeError("GUGUTA_OPENAI_VOICE_ID există deja; nu creez o voce duplicată.")
     api_key = os.environ.get("GUGUTA_OPENAI_API_KEY", "").strip() or (
         os.environ.get("OPENAI_API_KEY", "").strip()

@@ -22,7 +22,11 @@ from api.services.guguta.openai_live_voice import MAX_SDP_LENGTH, OpenAILiveVoic
 from api.services.guguta.openai_voice_profile import VOICE_PROMPT
 from api.services.guguta.voice import VoiceRateLimited, VoiceService, VoiceUnavailable
 from open_notebook.auth.guguta.actor import ActorContext
-from open_notebook.exceptions import AuthenticationError, InvalidInputError, NotFoundError
+from open_notebook.exceptions import (
+    AuthenticationError,
+    InvalidInputError,
+    NotFoundError,
+)
 
 OFFER = "v=0\r\no=- 1 1 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\n"
 ANSWER = "v=0\r\no=- 2 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\n"

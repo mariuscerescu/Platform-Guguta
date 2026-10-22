@@ -65,7 +65,7 @@ async def _load(
         )
     if len({r["source_id"] for r in rows}) != len(ids):
         raise ValueError("Un material selectat nu mai este gata sau nu mai există.")
-    evidence = []
+    evidence: list[dict[str, str]] = []
     lookup = {}
     remaining = max_chars
     for row in rows:

@@ -47,10 +47,10 @@ class FlashcardGenerator:
     ) -> GeneratedDeck:
         target = CARD_TARGETS[quantity]
         if self._provider == "mock":
-            cards = []
+            mock_cards = []
             for index, item in enumerate(evidence[:target]):
                 excerpt = " ".join(item["text"].split())
-                cards.append(
+                mock_cards.append(
                     GeneratedCard(
                         front=f"Care este ideea esențială din fragmentul {index + 1}?",
                         back=excerpt[:420],
@@ -58,9 +58,9 @@ class FlashcardGenerator:
                         evidence_ids=(item["id"],),
                     )
                 )
-            if not cards:
+            if not mock_cards:
                 raise ValueError("Materialele selectate nu conțin fragmente utilizabile.")
-            return GeneratedDeck("Cartonașe de recapitulare", tuple(cards), "guguta-mock-flashcards")
+            return GeneratedDeck("Cartonașe de recapitulare", tuple(mock_cards), "guguta-mock-flashcards")
         if self._client is None:
             raise ConfigurationError("Furnizorul pentru flashcards nu este configurat.")
 

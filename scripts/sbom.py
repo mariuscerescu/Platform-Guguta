@@ -20,9 +20,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def _run(cmd: list[str], **kw: object) -> subprocess.CompletedProcess:
+def _run(cmd: list[str], *, cwd: str | Path = ROOT) -> subprocess.CompletedProcess[str]:
     print(f"$ {' '.join(cmd)}")
-    r = subprocess.run(cmd, capture_output=True, text=True, cwd=str(ROOT), **kw)
+    r = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
     print(r.stdout[-2000:] if r.stdout else "(no stdout)")
     if r.returncode != 0:
         print(f"  exit code: {r.returncode}")

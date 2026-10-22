@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import builtins
 import json
 import uuid
 from datetime import datetime, timezone
@@ -293,7 +294,7 @@ class QuizService:
         attempt_id: uuid.UUID,
         *,
         question_id: uuid.UUID,
-        response: str | list[str],
+        response: str | builtins.list[str],
         hint_used: bool,
     ) -> dict[str, Any]:
         async with actor_connection(self._engine, actor.actor_id) as conn:

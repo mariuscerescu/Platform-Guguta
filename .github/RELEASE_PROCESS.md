@@ -130,6 +130,28 @@ accepted improvements immediately — update this document, the scripts under
 
 ## Docker Image Publishing (reference)
 
+### CI registry configuration
+
+The *Development Build* and *Build and Release* workflows publish to
+`ghcr.io/<repository-owner>/<repository-name>` using the current GitHub repository,
+converted to lowercase. For this repository, the destination is
+`ghcr.io/mariuscerescu/platform-guguta`. Both image variants use that repository
+with their existing regular and `-single` tags. Authentication uses the workflow's
+`GITHUB_TOKEN` with `packages: write` permission.
+
+Docker Hub publishing is optional. To enable it, configure all three under
+**Settings → Secrets and variables → Actions**:
+
+- Repository variable `DOCKERHUB_IMAGE`: the owned destination, for example
+  `your-account/platform-guguta` (without a registry prefix or tag).
+- Repository secret `DOCKER_USERNAME`: an account allowed to push to that destination.
+- Repository secret `DOCKER_PASSWORD`: that account's Docker Hub access token.
+
+Without all three, CI continues to publish to GHCR and skips Docker Hub. No
+workflow defaults to the upstream author's registry namespace. Pull-request
+builds do not publish images. The local `make docker-*` commands have separate
+image defaults; configure those explicitly when using them outside CI.
+
 | Command | What it does | Updates latest? |
 |---------|--------------|-----------------|
 | `make docker-build-local` | Build for current platform only (tags `<version>` + `local`) | No registry push |

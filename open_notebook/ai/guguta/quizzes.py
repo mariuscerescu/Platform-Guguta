@@ -7,7 +7,7 @@ import re
 import unicodedata
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypedDict
 
 from open_notebook.ai.guguta.openrouter import OpenRouterClient, OpenRouterError
 from open_notebook.exceptions import ConfigurationError
@@ -15,6 +15,12 @@ from open_notebook.exceptions import ConfigurationError
 PROMPT_VERSION = "guguta-quizzes-2"
 QUESTION_TARGETS = {"fewer": 6, "standard": 12, "more": 20}
 QUESTION_TYPES = {"multiple_choice", "multiple_select", "fill_in_blank", "short_answer"}
+
+
+class _QuestionEvidence(TypedDict):
+    hint: str
+    concepts: tuple[str, ...]
+    evidence_ids: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -67,16 +73,16 @@ class QuizGenerator:
         if not allowed or any(value not in QUESTION_TYPES for value in allowed):
             raise ValueError("Tipurile de întrebări nu sunt valide.")
         if self._provider == "mock":
-            questions = [
+            mock_questions = [
                 self._mock_question(allowed[index % len(allowed)], item, index)
                 for index, item in enumerate(evidence[:target])
             ]
-            if not questions:
+            if not mock_questions:
                 raise ValueError(
                     "Materialele selectate nu conțin fragmente utilizabile."
                 )
             return GeneratedQuiz(
-                "Quiz de recapitulare", tuple(questions), "guguta-mock-quizzes"
+                "Quiz de recapitulare", tuple(mock_questions), "guguta-mock-quizzes"
             )
         if self._client is None:
             raise ConfigurationError("Furnizorul pentru quiz-uri nu este configurat.")
@@ -292,7 +298,7 @@ class QuizGenerator:
     ) -> GeneratedQuestion:
         excerpt = " ".join(item["text"].split())[:360]
         concept = item["source_name"][:200]
-        common = {
+        common: _QuestionEvidence = {
             "hint": "Recitește ideea principală a fragmentului.",
             "concepts": (concept,),
             "evidence_ids": (item["id"],),

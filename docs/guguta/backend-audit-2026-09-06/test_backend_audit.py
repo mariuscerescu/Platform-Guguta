@@ -6,7 +6,6 @@ on disk; monkeypatches below simulate concurrency/faults in this test process.
 """
 import asyncio
 import hashlib
-import io
 import os
 import time
 import uuid
@@ -20,8 +19,8 @@ from httpx import ASGITransport, AsyncClient
 
 from api.guguta_app import create_guguta_app
 from open_notebook.ai.guguta.chat import ChatAnswer
-from open_notebook.database.guguta.engine import actor_connection, system_connection
-from open_notebook.jobs.guguta.queue import claim, enqueue
+from open_notebook.database.guguta.engine import system_connection
+from open_notebook.jobs.guguta.queue import claim
 from open_notebook.jobs.guguta.worker import Worker
 from tests.guguta.test_materials_worker import _config, _make_pdf
 
@@ -159,7 +158,7 @@ async def test_worker_publication_atomic_if_outer_transaction_fails(env, monkeyp
     from open_notebook.jobs.guguta import handlers
     h,_=await login(env)
     nb=await notebook(env,h)
-    sid=await source(env,h,nb,process=False)
+    await source(env,h,nb,process=False)
     job=await claim(env.worker._engine)
     assert job
     real_system=handlers.system_connection
@@ -236,7 +235,8 @@ async def test_import_same_key_concurrent_replays(env,monkeypatch):
         nonlocal arrived
         value=await original(*args)
         arrived+=1
-        if arrived==2: barrier.set()
+        if arrived==2:
+            barrier.set()
         await asyncio.wait_for(barrier.wait(),3)
         return value
     monkeypatch.setattr(service,"_idempotent_lookup",synchronized)
@@ -265,6 +265,7 @@ async def test_same_email_distinct_oidc_subjects_can_provision(env):
 async def test_oidc_required_claim_is_mandatory(missing):
     from authlib.jose import JsonWebToken
     from cryptography.hazmat.primitives.asymmetric import rsa
+
     from open_notebook.auth.guguta.oidc import OidcClient, OidcConfig, OidcError
     from tests.guguta.test_oidc_http_f01 import _int_b64
     key=rsa.generate_private_key(public_exponent=65537,key_size=2048)
@@ -282,8 +283,8 @@ async def test_oidc_required_claim_is_mandatory(missing):
 
 
 async def test_oidc_real_routes_with_isolated_dsn(env):
+    from open_notebook.auth.guguta.oidc import OidcClient, OidcConfig
     from tests.guguta import test_oidc_http_f01 as t
-    from open_notebook.auth.guguta.oidc import OidcClient,OidcConfig
     cfg=t._oidc_config().model_copy(update={"database_url_api":env.dsns["api_dsn"]})
     app=create_guguta_app(cfg)
     await app.state.guguta_oidc.aclose()

@@ -11,8 +11,13 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 
-from tests.guguta.test_search_chat import client, worker, _drain
-from tests.guguta.test_materials_worker import _login, _cookies, _headers
+from tests.guguta.test_materials_worker import _cookies, _headers, _login
+from tests.guguta.test_search_chat import _drain
+from tests.guguta.test_search_chat import client as client_fixture
+from tests.guguta.test_search_chat import worker as worker_fixture
+
+client = client_fixture
+worker = worker_fixture
 
 pytest_plugins = ["tests.guguta.conftest"]
 pytestmark = pytest.mark.asyncio
@@ -89,9 +94,9 @@ async def test_provider_failure_leaves_retry_pending(client, worker):
 
 
 async def test_stale_worker_publishes_before_fencing(client, worker):
-    from open_notebook.jobs.guguta.queue import claim
-    from open_notebook.jobs.guguta.handlers import process_material_version
     from open_notebook.database.guguta.engine import system_connection
+    from open_notebook.jobs.guguta.handlers import process_material_version
+    from open_notebook.jobs.guguta.queue import claim
     auth = await _login(client, "audit-worker-" + uuid.uuid4().hex)
     kw = dict(cookies=_cookies(auth), headers=_headers(auth))
     nb = (await client.post("/api/v1/notebooks", json={"title": "Worker"}, **kw)).json()["id"]

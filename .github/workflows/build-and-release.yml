@@ -15,15 +15,13 @@ permissions:
   contents: read
   packages: write
 
-env:
-  GHCR_IMAGE: ghcr.io/lfnovo/open-notebook
-  DOCKERHUB_IMAGE: lfnovo/open_notebook
-
 jobs:
   extract-version:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      ghcr_image: ${{ steps.check.outputs.ghcr_image }}
+      dockerhub_image: ${{ steps.check.outputs.dockerhub_image }}
       has_dockerhub_secrets: ${{ steps.check.outputs.has_dockerhub_secrets }}
     steps:
       - name: Checkout
@@ -36,23 +34,31 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "Extracted version: $VERSION"
 
-      - name: Check for Docker Hub credentials
+      - name: Resolve registry destinations and check Docker Hub configuration
         id: check
         env:
           SECRET_DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           SECRET_DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          CONFIG_DOCKERHUB_IMAGE: ${{ vars.DOCKERHUB_IMAGE }}
         run: |
-          if [[ -n ""$SECRET_DOCKER_USERNAME"" && -n ""$SECRET_DOCKER_PASSWORD"" ]]; then
+          # GHCR belongs to this repository; image names must be lowercase.
+          echo "ghcr_image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          echo "dockerhub_image=${CONFIG_DOCKERHUB_IMAGE,,}" >> "$GITHUB_OUTPUT"
+
+          if [[ -n "$CONFIG_DOCKERHUB_IMAGE" && -n "$SECRET_DOCKER_USERNAME" && -n "$SECRET_DOCKER_PASSWORD" ]]; then
             echo "has_dockerhub_secrets=true" >> $GITHUB_OUTPUT
-            echo "Docker Hub credentials available"
+            echo "Docker Hub destination and credentials configured"
           else
             echo "has_dockerhub_secrets=false" >> $GITHUB_OUTPUT
-            echo "Docker Hub credentials not available - will only push to GHCR"
+            echo "Docker Hub publication disabled (destination or credentials not configured) - will only push to GHCR"
           fi
 
   build-regular:
     needs: extract-version
     runs-on: ubuntu-latest
+    env:
+      GHCR_IMAGE: ${{ needs.extract-version.outputs.ghcr_image }}
+      DOCKERHUB_IMAGE: ${{ needs.extract-version.outputs.dockerhub_image }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -145,6 +151,9 @@ jobs:
   build-single:
     needs: extract-version
     runs-on: ubuntu-latest
+    env:
+      GHCR_IMAGE: ${{ needs.extract-version.outputs.ghcr_image }}
+      DOCKERHUB_IMAGE: ${{ needs.extract-version.outputs.dockerhub_image }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -238,6 +247,9 @@ jobs:
     needs: [extract-version, build-regular, build-single]
     runs-on: ubuntu-latest
     if: always()
+    env:
+      GHCR_IMAGE: ${{ needs.extract-version.outputs.ghcr_image }}
+      DOCKERHUB_IMAGE: ${{ needs.extract-version.outputs.dockerhub_image }}
     steps:
       - name: Build Summary
         env:
@@ -255,7 +267,7 @@ jobs:
           if [[ "${{ needs.extract-version.outputs.has_dockerhub_secrets }}" == "true" ]]; then
             echo "✅ **Docker Hub:** \`"$ENV_DOCKERHUB_IMAGE"\`" >> $GITHUB_STEP_SUMMARY
           else
-            echo "⏭️ **Docker Hub:** Skipped (credentials not configured)" >> $GITHUB_STEP_SUMMARY
+            echo "⏭️ **Docker Hub:** Skipped (destination or credentials not configured)" >> $GITHUB_STEP_SUMMARY
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Images Built:" >> $GITHUB_STEP_SUMMARY

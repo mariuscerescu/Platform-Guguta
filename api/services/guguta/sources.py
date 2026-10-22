@@ -163,6 +163,7 @@ class SourcesService:
         byte_limit = min(self._max_bytes, self._attachment_bytes) if chat_session_id else self._max_bytes
         if len(data) > byte_limit:
             raise SourceValidation(f"Fișierul depășește limita de {byte_limit // (1024*1024)} MiB.")
+        page_count: int | None
         if kind == "pdf":
             # validate page budget before storing anything heavy (GHID §6.1)
             import io

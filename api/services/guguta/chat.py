@@ -22,7 +22,7 @@ import uuid
 from copy import copy
 from dataclasses import replace
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine
@@ -39,6 +39,11 @@ from open_notebook.exceptions import (
 )
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from api.services.guguta.chat_agent import NotebookChatAgent
+    from api.services.guguta.chat_attachments import ChatAttachmentsService
+    from api.services.guguta.pdf_evidence import PdfPageEvidence
 
 MAX_CONTEXT_CHARS = 24000
 MAX_HISTORY_MESSAGES = 10
@@ -84,14 +89,14 @@ class ChatService:
         self._engine = engine
         self._search = search
         self._provider = provider
-        self._pdf_evidence = None
-        self._agent = None
+        self._pdf_evidence: PdfPageEvidence | None = None
+        self._agent: NotebookChatAgent | None = None
         self._max_context_chars = max_context_chars
         self._max_history = max_history_messages
         # F09: a 'pending' generation older than this is recovered on retry
         self._pending_recovery_seconds = 300
-        self._attachments = None
-        self._attachment_ids = []
+        self._attachments: ChatAttachmentsService | None = None
+        self._attachment_ids: list[uuid.UUID] = []
 
     def for_session(self, session_id, attachment_ids=()):
         scoped = copy(self)
@@ -257,7 +262,7 @@ class ChatService:
                     pump_task.cancel()
                     await asyncio.gather(pump_task, return_exceptions=True)
                 full_text = "".join(full_content).strip()
-                if not full_text:
+                if not full_text or answer is None:
                     raise ChatValidation("Răspunsul gol al modelului.")
 
                 # Phase 3: save assistant message + citations (one tx)

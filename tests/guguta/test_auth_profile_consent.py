@@ -60,7 +60,9 @@ async def _register(client: AsyncClient, **overrides: Any) -> tuple[dict[str, An
     body = _registration(**overrides)
     resp = await client.post("/api/v1/auth/register", json=body, headers=ORIGIN)
     assert resp.status_code == 200, resp.text
-    auth = {"guguta_session": resp.cookies.get("guguta_session", "")}
+    session = resp.cookies.get("guguta_session")
+    assert session is not None
+    auth = {"guguta_session": session}
     headers = {"X-Guguta-CSRF": resp.headers.get("X-Guguta-CSRF", ""), **ORIGIN}
     return body, auth, headers
 
@@ -140,6 +142,8 @@ async def test_delete_account_removes_notebooks_credentials_and_session(password
     assert login.status_code == 401
     again = await password_client.post("/api/v1/auth/register", json=_registration(email=body["email"]), headers=ORIGIN)
     assert again.status_code == 200, again.text
-    fresh = {"guguta_session": again.cookies.get("guguta_session", "")}
+    session = again.cookies.get("guguta_session")
+    assert session is not None
+    fresh = {"guguta_session": session}
     notebooks = (await password_client.get("/api/v1/notebooks", cookies=fresh)).json()
     assert all(item["title"] != "Al meu" for item in (notebooks if isinstance(notebooks, list) else notebooks.get("items", [])))

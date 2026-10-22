@@ -6,18 +6,21 @@ No application volumes, existing databases or runtime services are touched.
 import asyncio
 import hashlib
 import os
-from pathlib import Path
 import shutil
 import subprocess
 import uuid
+from pathlib import Path
 
-from httpx import ASGITransport,AsyncClient
 import pytest
 import sqlalchemy as sa
+from httpx import ASGITransport, AsyncClient
+from test_backend_audit import env as env_fixture
+from test_backend_audit import login, notebook
 
-from test_backend_audit import env,login,notebook,source
 from api.guguta_app import create_guguta_app
 from tests.guguta.test_materials_worker import _make_pdf
+
+env = env_fixture
 
 pytest_plugins=["tests.guguta.conftest"]
 pytestmark=pytest.mark.asyncio
@@ -79,7 +82,8 @@ async def test_restore_database_files_and_authorization(env,tmp_path):
             replay=await client.post("/api/v1/imports",headers=recipient,json={"token":share["token"],"idempotency_key":key})
             assert replay.json()["notebook_id"]==copied_nb
     finally:
-        if restored_app:await restored_app.state.guguta_engine.dispose()
+        if restored_app:
+            await restored_app.state.guguta_engine.dispose()
         with server.connect() as c:
             c.exec_driver_sql(f'DROP DATABASE "{target}" WITH (FORCE)')
         server.dispose()
@@ -89,7 +93,8 @@ async def test_upgrade_0008_to_0009_preserves_existing_rows(env):
     server=guarded_server(env)
     target="guguta_backend_upgrade_"+uuid.uuid4().hex[:8]
     url=sa.make_url(env.dsns["migrator_dsn"]).set(database=target)
-    with server.connect() as c:c.exec_driver_sql(f'CREATE DATABASE "{target}"')
+    with server.connect() as c:
+        c.exec_driver_sql(f'CREATE DATABASE "{target}"')
     engine=sa.create_engine(url)
     task_env=os.environ.copy()
     task_env["GUGUTA_DATABASE_URL_MIGRATOR"]=url.render_as_string(hide_password=False)
@@ -109,5 +114,6 @@ async def test_upgrade_0008_to_0009_preserves_existing_rows(env):
             assert c.execute(sa.text("SELECT to_regprocedure('guguta_share_lock(uuid)') IS NOT NULL")).scalar_one()
     finally:
         engine.dispose()
-        with server.connect() as c:c.exec_driver_sql(f'DROP DATABASE "{target}" WITH (FORCE)')
+        with server.connect() as c:
+            c.exec_driver_sql(f'DROP DATABASE "{target}" WITH (FORCE)')
         server.dispose()

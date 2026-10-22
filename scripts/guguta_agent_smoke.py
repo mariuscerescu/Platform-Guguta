@@ -22,6 +22,7 @@ from api.services.guguta.pdf_evidence import PdfPageEvidence
 from api.services.guguta.search import SearchService
 from open_notebook.ai.guguta.chat import get_chat_provider
 from open_notebook.ai.guguta.local_retrieval import LocalReranker
+from open_notebook.ai.guguta.openrouter import invoke
 from open_notebook.database.guguta.config import GugutaConfig
 from open_notebook.database.guguta.engine import (
     actor_connection,
@@ -88,7 +89,7 @@ async def main(args):
             acquired = await agent.retrieve(
                 actor, notebook, provider, args.question, history, initial
             )
-            answer = await provider.generate(args.question, acquired.chunks, history)
+            answer = await invoke(provider.generate, args.question, acquired.chunks, history)
         output = Path(args.output)
         output.parent.mkdir(parents=True, exist_ok=True)
         report = {

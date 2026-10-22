@@ -175,6 +175,7 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
     from api.services.guguta.chat_attachments import ChatAttachmentsService
 
     app.state.guguta_attachments = ChatAttachmentsService(app.state.guguta_sources)
+    reranker: OpenRouterReranker | LocalReranker | None
     if config.rerank_provider == "openrouter":
         from open_notebook.ai.guguta.openrouter import OpenRouterReranker
 

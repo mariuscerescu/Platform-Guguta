@@ -10,9 +10,11 @@ from __future__ import annotations
 import json
 import logging
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
 from typing import Any, Literal, TypedDict
 
+from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import StructuredTool
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from langgraph.graph import END, START, StateGraph
@@ -88,7 +90,7 @@ def _metadata(chunk: RetrievedChunk, index: int) -> dict[str, Any]:
 
 def evidence_content(chunks: list[RetrievedChunk]) -> list[dict[str, Any]]:
     """Send actual pixels, including region/source identity, to the model."""
-    content = [
+    content: list[dict[str, Any]] = [
         {
             "type": "text",
             "text": json.dumps(
@@ -239,8 +241,8 @@ class NotebookChatAgent:
                 refs = message.get("source_refs", [])
                 if not refs:
                     continue
-                refreshed = []
-                seen_pages = set()
+                refreshed: list[RetrievedChunk] = []
+                seen_pages: set[tuple[str, int]] = set()
                 for ref in refs:
                     try:
                         key = (ref["source_id"], ref["locator"]["page"])
@@ -346,7 +348,7 @@ class NotebookChatAgent:
             )
             return {"image_available": chunk is not None}, [chunk] if chunk else []
 
-        definitions = [
+        definitions: list[tuple[Callable[..., Awaitable[ToolResult]], type[BaseModel]]] = [
             (list_sources, _Empty),
             (search_pages, _Search),
             (open_page, _Page),
@@ -401,7 +403,7 @@ class NotebookChatAgent:
                 args = json.loads(call["function"]["arguments"])
                 fingerprint = json.dumps([name, args], sort_keys=True)
                 status = "ok"
-                result = {"error": "Unealta sau argumentele nu sunt disponibile."}
+                result: dict[str, Any] = {"error": "Unealta sau argumentele nu sunt disponibile."}
                 if count >= self._max_calls:
                     status, result = (
                         "limit",
@@ -447,7 +449,7 @@ class NotebookChatAgent:
                             "coordonatele decupajului sunt între 0 și 1, "
                             "cu left < right și top < bottom.",
                             "accepted_arguments": list(
-                                tools[name].args_schema.model_fields
+                                tools[name].args
                             ),
                         }
                 else:
@@ -487,7 +489,7 @@ class NotebookChatAgent:
                 else "decide"
             )
 
-        graph = StateGraph(_State)
+        graph: StateGraph[_State, None, _State, _State] = StateGraph(_State)
         graph.add_node("decide", decide)
         graph.add_node("tools", execute)
         graph.add_edge(START, "decide")
@@ -547,18 +549,20 @@ class NotebookChatAgent:
             ],
             {"role": "user", "content": question},
         ]
+        initial_state: _State = {
+            "evidence": evidence,
+            "messages": messages,
+            "calls": [],
+            "rounds": 0,
+            "call_count": 0,
+            "seen": set(),
+            "usage": [],
+            "trace": [],
+        }
+        graph_config: RunnableConfig = {"recursion_limit": 2 * self._max_rounds + 3}
         result = await graph.compile().ainvoke(
-            {
-                "evidence": evidence,
-                "messages": messages,
-                "calls": [],
-                "rounds": 0,
-                "call_count": 0,
-                "seen": set(),
-                "usage": [],
-                "trace": [],
-            },
-            config={"recursion_limit": 2 * self._max_rounds + 3},
+            initial_state,
+            config=graph_config,
         )
         await verify_revision()
         chunks = await self._search.authorize_chunks(

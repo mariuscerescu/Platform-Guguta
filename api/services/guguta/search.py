@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from sqlalchemy import bindparam, text
+from sqlalchemy.engine import RowMapping
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from open_notebook.ai.guguta.openrouter import invoke
@@ -270,7 +271,7 @@ class SearchService:
         ).bindparams(bindparam("ids", expanding=True))
         async with actor_connection(self._engine, actor_id) as conn:
             rows = (await conn.execute(statement, {"nb": notebook_id, "ids": source_ids})).mappings().all()
-        indexed = {}
+        indexed: dict[uuid.UUID, list[RowMapping]] = {}
         for row in rows:
             indexed.setdefault(row["source_id"], []).append(row)
         return [RetrievedChunk(r["id"], r["text"], r["locator"], r["source_id"],
@@ -347,8 +348,8 @@ class SearchService:
                     qvec=qvec, space_id=space_id,
                 ))
 
-        by_id: dict[uuid.UUID, RetrievedChunk] = {}
-        fusion: dict[uuid.UUID, float] = {}
+        by_id: dict[uuid.UUID | None, RetrievedChunk] = {}
+        fusion: dict[uuid.UUID | None, float] = {}
         for found in ranked_lists:
             for rank, chunk in enumerate(found):
                 by_id.setdefault(chunk.chunk_id, chunk)

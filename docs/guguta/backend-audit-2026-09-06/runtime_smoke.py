@@ -6,6 +6,7 @@ import uuid
 from pathlib import Path
 
 import httpx
+
 from tests.guguta.test_materials_worker import _make_pdf
 
 results = {}

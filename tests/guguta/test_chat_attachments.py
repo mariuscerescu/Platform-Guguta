@@ -119,6 +119,7 @@ async def test_material_image_ocr_and_original_vision(client, worker, fmt):
     assert chunks and chunks[0].locator["image"] is True
     evidence = PdfPageEvidence(search._engine, worker._storage)
     enriched = await evidence.enrich(data.actor, uuid.UUID(data.nb), chunks)
+    assert enriched[0].image_url is not None
     assert enriched[0].image_url.startswith("data:image/png;base64,")
     crop = await evidence.crop(
         data.actor, uuid.UUID(data.nb), chunks[0], (0.1, 0.1, 0.8, 0.8)
@@ -452,7 +453,9 @@ async def test_animated_images_rejected_and_transparency_preserved():
     image = Image.new("RGBA", (10, 10), (255, 0, 0, 0))
     image.save(output, format="PNG")
     with Image.open(io.BytesIO(normalize_image(output.getvalue()))) as normalized:
-        assert normalized.getpixel((0, 0))[3] == 0
+        pixel = normalized.getpixel((0, 0))
+        assert isinstance(pixel, tuple)
+        assert pixel[3] == 0
     output = io.BytesIO()
     image.save(
         output,

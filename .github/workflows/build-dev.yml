@@ -26,15 +26,13 @@ permissions:
   contents: read
   packages: write
 
-env:
-  GHCR_IMAGE: ghcr.io/lfnovo/open-notebook
-  DOCKERHUB_IMAGE: lfnovo/open_notebook
-
 jobs:
   extract-version:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      ghcr_image: ${{ steps.check.outputs.ghcr_image }}
+      dockerhub_image: ${{ steps.check.outputs.dockerhub_image }}
       has_dockerhub_secrets: ${{ steps.check.outputs.has_dockerhub_secrets }}
       is_push_to_main: ${{ steps.check.outputs.is_push_to_main }}
     steps:
@@ -53,14 +51,19 @@ jobs:
         env:
           SECRET_DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           SECRET_DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          CONFIG_DOCKERHUB_IMAGE: ${{ vars.DOCKERHUB_IMAGE }}
         run: |
-          # Check for Docker Hub credentials
-          if [[ -n "$SECRET_DOCKER_USERNAME" && -n "$SECRET_DOCKER_PASSWORD" ]]; then
+          # GHCR belongs to this repository; image names must be lowercase.
+          echo "ghcr_image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          echo "dockerhub_image=${CONFIG_DOCKERHUB_IMAGE,,}" >> "$GITHUB_OUTPUT"
+
+          # Docker Hub publication requires an explicit destination and credentials
+          if [[ -n "$CONFIG_DOCKERHUB_IMAGE" && -n "$SECRET_DOCKER_USERNAME" && -n "$SECRET_DOCKER_PASSWORD" ]]; then
             echo "has_dockerhub_secrets=true" >> $GITHUB_OUTPUT
-            echo "Docker Hub credentials available"
+            echo "Docker Hub destination and credentials configured"
           else
             echo "has_dockerhub_secrets=false" >> $GITHUB_OUTPUT
-            echo "Docker Hub credentials not available"
+            echo "Docker Hub publication disabled (destination or credentials not configured)"
           fi
 
           # Check if this is a push to main (not a PR)
@@ -109,6 +112,9 @@ jobs:
   build-regular:
     needs: [extract-version, changes]
     runs-on: ubuntu-latest
+    env:
+      GHCR_IMAGE: ${{ needs.extract-version.outputs.ghcr_image }}
+      DOCKERHUB_IMAGE: ${{ needs.extract-version.outputs.dockerhub_image }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -170,7 +176,7 @@ jobs:
             echo "platforms=linux/amd64,linux/arm64" >> $GITHUB_OUTPUT
           else
             # PR or manual: test build only
-            echo "tags=${{ env.DOCKERHUB_IMAGE }}:${{ needs.extract-version.outputs.version }}-dev" >> $GITHUB_OUTPUT
+            echo "tags=${{ env.GHCR_IMAGE }}:${{ needs.extract-version.outputs.version }}-dev" >> $GITHUB_OUTPUT
             echo "push=false" >> $GITHUB_OUTPUT
             echo "platforms=${{ github.event.inputs.platform || 'linux/amd64' }}" >> $GITHUB_OUTPUT
           fi
@@ -199,6 +205,9 @@ jobs:
     # Only build single image on push to main
     if: needs.extract-version.outputs.is_push_to_main == 'true'
     runs-on: ubuntu-latest
+    env:
+      GHCR_IMAGE: ${{ needs.extract-version.outputs.ghcr_image }}
+      DOCKERHUB_IMAGE: ${{ needs.extract-version.outputs.dockerhub_image }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -267,6 +276,9 @@ jobs:
     needs: [extract-version, build-regular, build-single]
     runs-on: ubuntu-latest
     if: always()
+    env:
+      GHCR_IMAGE: ${{ needs.extract-version.outputs.ghcr_image }}
+      DOCKERHUB_IMAGE: ${{ needs.extract-version.outputs.dockerhub_image }}
     steps:
       - name: Development Build Summary
         run: |

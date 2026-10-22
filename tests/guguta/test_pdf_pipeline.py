@@ -172,7 +172,10 @@ async def test_hybrid_extractor_replaces_only_routed_pages(monkeypatch: pytest.M
         ],
     )
 
-    class FakeOcr:
+    class FakeOcr(PpOcrClient):
+        def __init__(self) -> None:
+            pass
+
         async def parse_page(self, image: bytes, *, page_number: int):
             assert image == b"page-two"
             assert page_number == 2
@@ -187,7 +190,7 @@ async def test_hybrid_extractor_replaces_only_routed_pages(monkeypatch: pytest.M
         async def aclose(self) -> None:
             return None
 
-    extractor = HybridPdfExtractor(  # type: ignore[arg-type]
+    extractor = HybridPdfExtractor(
         FakeOcr(),
         ocr_every_page=False,
     )
@@ -229,7 +232,10 @@ async def test_full_page_mode_ocr_checks_native_pages_and_keeps_both_texts(
         ],
     )
 
-    class FakeOcr:
+    class FakeOcr(PpOcrClient):
+        def __init__(self) -> None:
+            pass
+
         async def parse_page(self, image: bytes, *, page_number: int):
             assert image == b"page-one"
             assert page_number == 1
@@ -253,7 +259,7 @@ async def test_full_page_mode_ocr_checks_native_pages_and_keeps_both_texts(
         async def aclose(self) -> None:
             return None
 
-    extractor = HybridPdfExtractor(FakeOcr())  # type: ignore[arg-type]
+    extractor = HybridPdfExtractor(FakeOcr())
     monkeypatch.setattr(extractor, "_parse_native", lambda _: native)
     monkeypatch.setattr(
         extractor,
@@ -306,7 +312,7 @@ def test_complete_page_unit_detects_printed_footer_and_avoids_tiny_chunks() -> N
 
 def test_complete_page_unit_retains_native_text_when_ocr_is_empty() -> None:
     native = [
-        SimpleNamespace(text="Text nativ păstrat.", locator={"engine": "liteparse"})
+        TextUnit(text="Text nativ păstrat.", locator={"engine": "liteparse"})
     ]
     page = OcrPage(
         markdown="",
@@ -316,7 +322,7 @@ def test_complete_page_unit_retains_native_text_when_ocr_is_empty() -> None:
         model="PP-OCRv5-mobile-latin",
     )
 
-    units = _complete_page_units(  # type: ignore[arg-type]
+    units = _complete_page_units(
         native,
         page,
         page_number=5,
@@ -360,9 +366,12 @@ async def test_hybrid_extractor_limits_parallel_ocr_requests(
         ],
     )
 
-    class FakeOcr:
+    class FakeOcr(PpOcrClient):
         active = 0
         max_active = 0
+
+        def __init__(self) -> None:
+            pass
 
         async def parse_page(self, image: bytes, *, page_number: int):
             assert image == f"page-{page_number}".encode()
@@ -385,7 +394,7 @@ async def test_hybrid_extractor_limits_parallel_ocr_requests(
             return None
 
     ocr = FakeOcr()
-    extractor = HybridPdfExtractor(  # type: ignore[arg-type]
+    extractor = HybridPdfExtractor(
         ocr,
         render_batch_pages=3,
         ocr_concurrency=2,

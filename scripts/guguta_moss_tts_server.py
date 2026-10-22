@@ -14,7 +14,7 @@ import io
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 import soundfile as sf
 import torch
@@ -66,9 +66,11 @@ class MossRomanianEngine:
             "MOSS_TTS_REFERENCE_API_PATH", "/voices/romanian.wav"
         )
         self.device = torch.device(os.environ.get("MOSS_TTS_DEVICE", "cuda:0"))
-        self.processor = None
-        self.model = None
-        self.reference_codes = None
+        # These classes are supplied by the model's trust_remote_code package,
+        # not by the Transformers Auto* factories' static interfaces.
+        self.processor: Any | None = None
+        self.model: Any | None = None
+        self.reference_codes: torch.Tensor | None = None
         self._lock = asyncio.Lock()
 
     def load(self) -> None:
