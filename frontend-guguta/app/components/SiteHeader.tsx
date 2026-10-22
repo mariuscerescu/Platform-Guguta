@@ -69,6 +69,7 @@ export default function SiteHeader() {
         <span>Platforma educațională Guguță</span>
       </a>
       <div className="header-actions">
+        {(isLanding || isLibraryPage) && <a className="header-login" href={withBase("/sondaj")}>Sondaj</a>}
         {isLanding && (
           <AuthEntryLink className="header-login" next="/app">
             Intră în cont

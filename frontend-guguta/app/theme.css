@@ -41,6 +41,10 @@
 .theme-toggle svg { width: 22px; height: 22px; }
 .theme-toggle:hover { background: var(--accent-soft); color: var(--accent); border-color: var(--accent-border); }
 .header-actions { display: flex; gap: 12px; }
+@media (max-width: 720px) {
+  .header .header-actions { flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+  .header .header-login { padding: 8px 10px; min-height: 40px; font-size: .85rem; }
+}
 
 .notebook-chat-toggle {
   display: inline-flex;

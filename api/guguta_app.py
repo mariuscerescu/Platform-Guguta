@@ -23,6 +23,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
+from api.routers.guguta_survey import survey_router
 from api.routers.guguta_v1 import (
     admin_catalog_router,
     admin_router,
@@ -102,6 +103,7 @@ from api.services.guguta.speech import (
     SpeechUnavailable,
     SpeechValidation,
 )
+from api.services.guguta.survey import PUBLIC_SURVEY_PATHS, SurveyService
 from api.services.guguta.voice import VoiceRateLimited, VoiceService, VoiceUnavailable
 from open_notebook.auth.guguta.actor import ActorDenied
 from open_notebook.auth.guguta.oidc import OidcError, SignedStateCodec
@@ -142,6 +144,7 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
     # disposed on shutdown.
     engine = create_engine_for_role(config, "api")
     app.state.guguta_engine = engine
+    app.state.guguta_survey = SurveyService(engine, config.server_secret)
     app.state.guguta_sessions = SessionService(
         engine,
         server_secret=config.server_secret,
@@ -282,6 +285,19 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
 
     @app.middleware("http")
     async def session_middleware(request: Request, call_next: Any) -> Any:
+        if request.url.path in PUBLIC_SURVEY_PATHS:
+            # Never resolve the account or update its session for survey traffic.
+            # No account, cookie, IP, user-agent or request ID enters the survey data.
+            try:
+                body_size = int(request.headers.get("content-length", "0") or "0")
+            except ValueError:
+                return _error("survey_invalid_size", "Cerere invalidă.", 400, "-")
+            if body_size > 16_000:
+                return _error("survey_too_large", "Răspunsurile sunt prea lungi.", 413, "-")
+            response = await call_next(request)
+            response.headers["Cache-Control"] = "no-store"
+            response.headers["Referrer-Policy"] = "no-referrer"
+            return response
         # Resolve actor from the session cookie (server-side truth only).
         token = request.cookies.get(SESSION_COOKIE)
         if token:
@@ -348,6 +364,7 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
             return JSONResponse(status_code=503, content={"status": "db-unreachable"})
 
     app.include_router(auth_router)
+    app.include_router(survey_router)
     app.include_router(notebooks_router)
     app.include_router(sources_router)
     app.include_router(jobs_router)

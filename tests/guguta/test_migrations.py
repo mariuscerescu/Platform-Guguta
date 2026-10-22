@@ -20,6 +20,7 @@ EXPECTED_TABLES = [
     "notes", "audio_overviews", "flashcard_decks", "flashcards", "flashcard_sessions",
     "quizzes", "quiz_questions", "quiz_attempts",
     "processing_jobs", "outbox_events", "audit_events",
+    "survey_responses",
 ]
 
 RLS_TABLES = EXPECTED_TABLES  # every Guguță table carries RLS

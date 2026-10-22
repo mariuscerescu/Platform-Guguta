@@ -50,6 +50,7 @@ COPY api/__init__.py api/__init__.py
 COPY api/routers/__init__.py api/routers/__init__.py
 COPY api/routers/guguta_v1.py api/routers/guguta_v1.py
 COPY api/routers/guguta_voice.py api/routers/guguta_voice.py
+COPY api/routers/guguta_survey.py api/routers/guguta_survey.py
 COPY api/services/guguta ./api/services/guguta
 COPY api/guguta_app.py api/guguta_app.py
 COPY scripts/guguta_reindex_openrouter.py scripts/guguta_reindex_openrouter.py

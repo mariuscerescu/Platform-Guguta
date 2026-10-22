@@ -69,7 +69,12 @@ export default function PrivacyPage() {
       <h2>8. Securitate</h2>
       <p>Conexiuni criptate (HTTPS), parole stocate doar ca hash, izolarea datelor fiecărui utilizator la nivelul bazei de date (politici pe rând), fișiere private neaccesibile direct din web, chei de acces criptate. Codul platformei este public: <a href="https://github.com/mariuscerescu/Platform-Guguta" rel="noopener" target="_blank">github.com/mariuscerescu/Platform-Guguta</a>.</p>
 
-      <h2>9. Modificări</h2>
+      <h2>9. Sondajul pentru elevi</h2>
+      <p><a href={withBase("/sondaj")}>Sondajul despre Guguță</a> se completează voluntar, fără cont. Răspunsurile nu sunt asociate contului, numelui, emailului sau școlii. În înregistrările sondajului păstrăm răspunsurile, versiunea întrebărilor, data completării și un cod aleatoriu pentru a evita dublarea unei trimiteri. Nu includem IP-ul, cookie-urile sau datele browserului în aceste înregistrări; jurnalele tehnice ale serverului sunt separate.</p>
+      <p>Distribuțiile răspunsurilor și textele de la cele două întrebări opționale sunt <a href={withBase("/sondaj/rezultate")}>publice</a>, inclusiv în export. Nu afișăm profilul complet de răspunsuri al unui elev. Nu scrie nume, școala, contacte sau alte informații care te identifică pe tine ori pe altcineva. Răspunsurile sunt folosite pentru îmbunătățirea platformei și cercetare educațională și nu sunt trimise furnizorilor AI.</p>
+      <p>Formularul netrimis se păstrează în memoria sesiunii filei browserului, pentru a putea continua după o reîncărcare. Răspunsurile din browser se elimină după confirmarea trimiterii sau la închiderea sesiunii filei. Sondajele salvate nu sunt șterse odată cu un cont, deoarece nu sunt legate de acesta.</p>
+
+      <h2>10. Modificări</h2>
       <p>La schimbarea acestei informări, versiunea de mai sus se actualizează. Dacă se schimbă scopurile sau temeiul prelucrării, instituția responsabilă stabilește măsurile de informare și, când este necesar, obține un nou consimțământ.</p>
     </article>
   );
