@@ -166,7 +166,7 @@ izolează clientul HTTP și maparea într-un singur modul ca să fie ușor de aj
 
 Backend:
 - variabile GUGUTA_PLAYQUIZ_API_URL, GUGUTA_PLAYQUIZ_PARTNER_KEY,
-  GUGUTA_PLAYQUIZ_HMAC_SECRET (opțional), GUGUTA_PLAYQUIZ_CATEGORY,
+  (contract actual: X-Partner-Key; vezi PLAN_INTEGRARE_PLAYQUIZ_COM.md),
   GUGUTA_PLAYQUIZ_TIMEOUT_S; documentate în .env.guguta.example și
   deploy/edu-platform/.env.example; capabilitatea `playquiz` în /api/v1/auth/me
   activă doar când URL-ul și cheia sunt setate;

@@ -8,8 +8,8 @@ const QUESTION_ID = "33333333-3333-4333-8333-333333333333";
 const ATTEMPT_ID = "44444444-4444-4444-8444-444444444444";
 const title = "Adunarea până la 10";
 
-type Setup = { enabled?: boolean; kind?: string; outage?: boolean };
-async function setup(page: Page, { enabled = true, kind = "multiple_choice", outage = false }: Setup = {}) {
+type Setup = { enabled?: boolean; kind?: string; outage?: boolean; conflict?: boolean };
+async function setup(page: Page, { enabled = true, kind = "multiple_choice", outage = false, conflict = false }: Setup = {}) {
   let consentGiven = false;
   const bodies: Array<{ consent?: boolean }> = [];
   const summary = { id: QUIZ_ID, status: "ready", title, quantity: "fewer", difficulty: "easy",
@@ -29,11 +29,15 @@ async function setup(page: Page, { enabled = true, kind = "multiple_choice", out
     if (path === "/voice/providers") return route.fulfill({ json: { providers: [] } });
     if (path === `/notebooks/${NOTEBOOK_ID}`) return route.fulfill({ json: { id: NOTEBOOK_ID, title: "Carnet fictiv", status: "active", origin: "personal", context_revision: 1 } });
     if (path.endsWith("/playquiz")) {
-      if (route.request().method() === "GET") return route.fulfill({ json: { enabled, consent_given: consentGiven, exportable: true, exported: false } });
+      if (route.request().method() === "GET") return route.fulfill({ json: { enabled, consent_given: consentGiven, exportable: true, exported: conflict && consentGiven, play_url: conflict && consentGiven ? "https://play-quiz.example/partners/play/synthetic" : null } });
       const body = route.request().postDataJSON() as { consent?: boolean };
       bodies.push(body);
       expect(route.request().headers()["x-guguta-csrf"]).toBe("synthetic-csrf");
       if (!enabled) return route.fulfill({ status: 409, json: { code: "playquiz_disabled", message: "Conexiunea cu PlayQuiz nu este încă disponibilă. Poți continua quizul aici." } });
+      if (conflict) {
+        consentGiven = true;
+        return route.fulfill({ status: 409, json: { code: "playquiz_account_conflict", message: "Există deja un cont PlayQuiz cu acest e-mail." } });
+      }
       if (outage) return route.fulfill({ status: 503, json: { code: "playquiz_unavailable", message: "PlayQuiz nu este disponibil acum." } });
       consentGiven = true;
       return route.fulfill({ json: { url: `${BASE_PATH}/handoff-simulat?token=synthetic`, quiz_id: "99", created: true } });
@@ -102,4 +106,15 @@ test("partner failure keeps the native quiz available and allows retry", async (
   await expect(page.getByRole("heading", { name: "Deschide în PlayQuiz" })).toBeHidden();
   expect(bodies).toEqual([{ consent: true }]);
   await expect(page.getByTestId("open-in-playquiz")).toBeEnabled();
+});
+
+
+test("existing PlayQuiz email offers the saved quiz link without repeated export", async ({ page }) => {
+  const bodies = await setup(page, { conflict: true });
+  await page.getByTestId("open-in-playquiz").click();
+  await expect(page.getByText("La prima intrare vei alege o parolă", { exact: false })).toBeVisible();
+  await page.getByTestId("playquiz-consent-accept").click();
+  await expect(page.getByRole("alert").filter({ hasText: "Există deja un cont" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Conectează-te în PlayQuiz și deschide quizul" })).toHaveAttribute("href", "https://play-quiz.example/partners/play/synthetic");
+  expect(bodies).toEqual([{ consent: true }]);
 });

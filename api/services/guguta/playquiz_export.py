@@ -1,26 +1,20 @@
 """Export de quiz către PlayQuiz extern (play-quiz.com) cu cont automat (ADR-023).
 
-Fluxul este server-la-server: API-ul Guguță creează (sau actualizează) contul
-elevului la PlayQuiz, urcă quizul și cere un token de handoff de unică folosință;
-browserul primește doar URL-ul de handoff. Cheia de partener nu părăsește
-procesul API.
-
-Contractul de partener (docs/guguta/PLAN_INTEGRARE_PLAYQUIZ_COM.md §4) nu este
-încă confirmat de echipa PlayQuiz: clientul HTTP și maparea stau în acest modul
-ca ajustările să fie ieftine. Nu se trimit indicii, concepte sau dovezi; nu se
-jurnalizează date personale.
+Contract verificat în EduPlatform-BE e39a0c3: quiz cu X-Partner-Key, apoi
+cont + play_token → login_url. Linkul quizului se păstrează înainte de cererea
+pentru cont. POST-urile nu se repetă automat: PlayQuiz nu deduplică quizurile.
+Nu se trimit indicii, concepte sau dovezi și nu se jurnalizează date personale.
 """
 
 from __future__ import annotations
 
 import hashlib
-import hmac
 import json
 import logging
-import time
 import uuid
 from collections.abc import Mapping, Sequence
 from typing import Any
+from urllib.parse import parse_qs, urlsplit
 
 import httpx
 from sqlalchemy import text
@@ -37,9 +31,8 @@ GRID_QUESTION_TYPES = ("multiple_choice", "multiple_select")
 MAX_QUESTIONS = 50
 MAX_ANSWERS = 10
 MAX_CONTENT_CHARS = 1000
-MAX_TITLE_CHARS = 200
 TIME_PER_QUESTION = {"easy": 40, "medium": 30, "hard": 20}
-PAYLOAD_VERSION = "1"
+PAYLOAD_VERSION = "2"
 
 
 class PlayQuizDisabled(OpenNotebookError):
@@ -58,6 +51,10 @@ class PlayQuizUnavailable(OpenNotebookError):
     """PlayQuiz nu a răspuns sau a răspuns cu eroare."""
 
 
+class PlayQuizAccountConflict(OpenNotebookError):
+    """Emailul are deja un cont PlayQuiz care trebuie accesat separat."""
+
+
 class PlayQuizExportNotFound(NotFoundError):
     pass
 
@@ -70,15 +67,8 @@ def _clip(value: str, limit: int) -> str:
 def build_payload(
     quiz: Mapping[str, Any],
     questions: Sequence[Mapping[str, Any]],
-    *,
-    category: str,
-    language: str = "RO",
 ) -> dict[str, Any]:
-    """Maparea Guguță → PlayQuiz (plan §5). Pură, fără I/O.
-
-    Returnează corpul pentru ``POST /partner/guguta/quizzes`` fără identificatorii
-    externi (``external_id``, ``account_external_id``), pe care îi adaugă serviciul.
-    """
+    """Corpul exact pentru POST /api/partner/quizzes, fără metadate locale."""
     if quiz.get("status") != "ready":
         raise PlayQuizNotExportable("Quizul nu este încă gata.")
     if not questions:
@@ -96,121 +86,135 @@ def build_payload(
                 "Doar quizurile alcătuite integral din întrebări grilă pot fi deschise în PlayQuiz."
             )
         options = list(question.get("options") or [])
-        answers = [_clip(str(o.get("text", "")), MAX_CONTENT_CHARS) for o in options if o.get("is_correct")]
-        wrong = [_clip(str(o.get("text", "")), MAX_CONTENT_CHARS) for o in options if not o.get("is_correct")]
-        answers = [a for a in answers if a]
-        wrong = [w for w in wrong if w]
+        answers = [
+            str(o.get("text", "")).strip() for o in options if o.get("is_correct")
+        ]
+        wrong = [
+            str(o.get("text", "")).strip() for o in options if not o.get("is_correct")
+        ]
         if not answers:
             raise PlayQuizNotExportable("O întrebare nu are răspuns corect.")
+        if not wrong:
+            raise PlayQuizNotExportable(
+                "Fiecare întrebare grilă trebuie să aibă și un răspuns greșit."
+            )
+        if any(not a or len(a) > MAX_CONTENT_CHARS for a in answers + wrong):
+            raise PlayQuizNotExportable(
+                "Variantele de răspuns trebuie să conțină între 1 și 1000 de caractere."
+            )
         if len(answers) + len(wrong) > MAX_ANSWERS:
             raise PlayQuizNotExportable(
                 f"PlayQuiz acceptă cel mult {MAX_ANSWERS} variante de răspuns la o întrebare."
             )
         if kind == "multiple_select" or len(answers) > 1:
             multiple = True
-        content = _clip(str(question.get("prompt", "")), MAX_CONTENT_CHARS)
+        content = str(question.get("prompt", "")).strip()
         if not content:
             raise PlayQuizNotExportable("O întrebare nu are enunț.")
-        mapped.append({"content": content, "answers": answers, "wrong_answers": wrong})
-    title = _clip(str(quiz.get("title") or ""), MAX_TITLE_CHARS) or "Quiz Guguță"
+        if len(content) > MAX_CONTENT_CHARS:
+            raise PlayQuizNotExportable(
+                "PlayQuiz acceptă enunțuri de cel mult 1000 de caractere."
+            )
+        mapped.append({"content": content, "answers": answers, "wrongAnswers": wrong})
     quiz_type = "MULTIPLE_CHOICE" if multiple else "SINGLE_CHOICE"
     difficulty = str(quiz.get("difficulty") or "medium")
     body: dict[str, Any] = {
-        "title": title,
-        "language": language,
-        "quiz_type": quiz_type,
-        "category": category,
-        "time_per_question": TIME_PER_QUESTION.get(difficulty, TIME_PER_QUESTION["medium"]),
+        "quizType": quiz_type,
+        "timePerQuestion": TIME_PER_QUESTION.get(
+            difficulty, TIME_PER_QUESTION["medium"]
+        ),
         "questions": mapped,
     }
+    return body
+
+
+def payload_hash(payload: Mapping[str, Any]) -> str:
+    """Hash local al întregului conținut trimis, inclusiv timpul pe întrebare."""
     digest = hashlib.sha256(
         json.dumps(
-            {"v": PAYLOAD_VERSION, "title": title, "quiz_type": quiz_type, "questions": mapped},
+            {"v": PAYLOAD_VERSION, "payload": payload},
             ensure_ascii=False,
             sort_keys=True,
             separators=(",", ":"),
         ).encode("utf-8")
     ).hexdigest()
-    body["content_hash"] = f"sha256:{digest}"
-    return body
+    return f"sha256:{digest}"
 
 
 class PlayQuizClient:
-    """Client HTTP pentru endpointurile de partener (plan §4)."""
+    """Client pentru contractul activ PlayQuiz; nu repetă POST-uri nesigure."""
 
     def __init__(
         self,
         base_url: str,
         partner_key: str,
         *,
-        hmac_secret: str = "",
         timeout_seconds: float = 10,
-        retries: int = 2,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._partner_key = partner_key
-        self._hmac_secret = hmac_secret
         self._timeout = timeout_seconds
-        self._retries = max(0, retries)
         self._transport = transport
 
-    def _headers(self, body: bytes) -> dict[str, str]:
-        headers = {
-            "Authorization": f"Bearer {self._partner_key}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-            "X-Guguta-Timestamp": str(int(time.time())),
-            "Idempotency-Key": uuid.uuid4().hex,
-        }
-        if self._hmac_secret:
-            message = headers["X-Guguta-Timestamp"].encode("ascii") + b"." + body
-            headers["X-Guguta-Signature"] = hmac.new(
-                self._hmac_secret.encode("utf-8"), message, hashlib.sha256
-            ).hexdigest()
-        return headers
-
     async def _post(self, path: str, payload: Mapping[str, Any]) -> dict[str, Any]:
-        body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        url = f"{self._base_url}{path}"
-        last_error: Exception | None = None
-        headers = self._headers(body)
-        for attempt in range(self._retries + 1):
-            try:
-                async with httpx.AsyncClient(
-                    timeout=self._timeout, transport=self._transport, follow_redirects=False,
-                ) as client:
-                    response = await client.post(url, content=body, headers=headers)
-            except httpx.HTTPError as exc:
-                last_error = exc
-                logger.warning("playquiz request failed path=%s attempt=%s", path, attempt + 1)
-                continue
-            if response.status_code >= 500:
-                last_error = PlayQuizUnavailable(f"PlayQuiz a răspuns {response.status_code}.")
-                logger.warning(
-                    "playquiz server error path=%s status=%s attempt=%s",
-                    path,
-                    response.status_code,
-                    attempt + 1,
+        try:
+            async with httpx.AsyncClient(
+                timeout=self._timeout,
+                transport=self._transport,
+                follow_redirects=False,
+            ) as client:
+                response = await client.post(
+                    f"{self._base_url}{path}",
+                    json=dict(payload),
+                    headers={
+                        "X-Partner-Key": self._partner_key,
+                        "Accept": "application/json",
+                    },
                 )
-                continue
-            if response.status_code >= 300:
-                logger.error(
-                    "playquiz rejected request path=%s status=%s", path, response.status_code
-                )
+        except httpx.HTTPError as exc:
+            logger.warning("playquiz request failed path=%s", path)
+            raise PlayQuizUnavailable(
+                "PlayQuiz nu a răspuns. Quizul rămâne disponibil aici."
+            ) from exc
+        if response.status_code >= 300:
+            logger.warning(
+                "playquiz rejected request path=%s status=%s",
+                path,
+                response.status_code,
+            )
+            # Recunoaștem conflictul fără a returna/jurnaliza corpul cu emailul elevului.
+            if path.endswith("/accounts") and response.status_code in (400, 409):
+                message = response.text.lower()
+                if any(
+                    marker in message
+                    for marker in (
+                        "err_partner_email_taken",
+                        "already has a play quiz account",
+                        "are deja un cont play quiz",
+                        "deja există un cont play quiz",
+                    )
+                ):
+                    raise PlayQuizAccountConflict(
+                        "Există deja un cont PlayQuiz cu acest e-mail. "
+                        "Conectează-te în PlayQuiz cu parola acelui cont, apoi deschide quizul."
+                    )
+            if response.status_code in (401, 403):
                 raise PlayQuizUnavailable(
-                    "PlayQuiz a refuzat cererea. Încearcă din nou mai târziu."
+                    "Conectarea la PlayQuiz nu este configurată corect. Încearcă mai târziu."
                 )
-            try:
-                data = response.json()
-            except ValueError as exc:
-                raise PlayQuizUnavailable("PlayQuiz a răspuns într-un format neașteptat.") from exc
-            if not isinstance(data, dict):
-                raise PlayQuizUnavailable("PlayQuiz a răspuns într-un format neașteptat.")
-            return data
-        raise PlayQuizUnavailable(
-            "PlayQuiz nu este disponibil acum. Încearcă din nou mai târziu."
-        ) from last_error
+            raise PlayQuizUnavailable(
+                "PlayQuiz nu poate finaliza cererea acum. Quizul rămâne disponibil aici."
+            )
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise PlayQuizUnavailable(
+                "PlayQuiz a răspuns într-un format neașteptat."
+            ) from exc
+        if not isinstance(data, dict):
+            raise PlayQuizUnavailable("PlayQuiz a răspuns într-un format neașteptat.")
+        return data
 
     @staticmethod
     def account_payload(
@@ -218,46 +222,69 @@ class PlayQuizClient:
         external_id: str,
         email: str | None,
         display_name: str,
-        language: str = "RO",
-        class_level: str | None = None,
+        play_token: str,
     ) -> dict[str, Any]:
-        payload: dict[str, Any] = {
+        if not email or not email.strip():
+            raise PlayQuizNotExportable(
+                "Ai nevoie de o adresă de e-mail în contul Guguță pentru a folosi PlayQuiz."
+            )
+        return {
             "external_id": external_id,
-            "display_name": display_name,
-            "language": language,
+            "email": email.strip(),
+            "display_name": _clip(display_name, 100),
+            "language": "RO",
+            "play_token": play_token,
         }
-        if email:
-            payload["email"] = email
-        if class_level:
-            payload["class_level"] = class_level
-        return payload
 
-    async def ensure_account(
-        self,
-        *,
-        external_id: str,
-        email: str | None,
-        display_name: str,
-        language: str = "RO",
-        class_level: str | None = None,
-    ) -> dict[str, Any]:
-        payload = self.account_payload(
-            external_id=external_id,
-            email=email,
-            display_name=display_name,
-            language=language,
-            class_level=class_level,
-        )
+    async def ensure_account(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         return await self._post("/partner/guguta/accounts", payload)
 
-    async def upsert_quiz(self, payload: Mapping[str, Any]) -> dict[str, Any]:
-        return await self._post("/partner/guguta/quizzes", payload)
+    async def create_quiz(self, payload: Mapping[str, Any]) -> dict[str, Any]:
+        return await self._post("/partner/quizzes", payload)
 
-    async def handoff(self, *, account_external_id: str, quiz_id: str) -> dict[str, Any]:
-        return await self._post(
-            "/partner/guguta/handoff",
-            {"account_external_id": account_external_id, "quiz_id": quiz_id},
-        )
+    def _url(self, value: Any, path: str) -> str:
+        """Acceptăm numai linkuri de pe originea configurată, fără credentiale."""
+        url = str(value or "")
+        try:
+            parsed, base = urlsplit(url), urlsplit(self._base_url)
+            same_origin = (parsed.scheme, parsed.hostname, parsed.port) == (
+                base.scheme,
+                base.hostname,
+                base.port,
+            )
+        except ValueError:
+            same_origin = False
+        if (
+            not same_origin
+            or parsed.username
+            or parsed.password
+            or parsed.fragment
+            or parsed.path != path
+        ):
+            raise PlayQuizUnavailable("PlayQuiz a întors un link neașteptat.")
+        return url
+
+    def play_link(self, value: Any) -> tuple[str, str]:
+        raw = str(value or "")
+        try:
+            token = str(uuid.UUID(urlsplit(raw).path.rsplit("/", 1)[-1]))
+            url = self._url(raw, f"/partners/play/{token}")
+            if urlsplit(url).query:
+                raise ValueError("unexpected query")
+        except ValueError as exc:
+            raise PlayQuizUnavailable(
+                "PlayQuiz a întors un link de quiz neașteptat."
+            ) from exc
+        return url, token
+
+    def login_link(self, value: Any, play_token: str) -> str:
+        url = self._url(value, "/login")
+        query = parse_qs(urlsplit(url).query)
+        if len(query.get("partner", [])) != 1 or query.get("play") != [play_token]:
+            raise PlayQuizUnavailable(
+                "PlayQuiz a întors un link de autentificare neașteptat."
+            )
+        return url
 
 
 def _required_str(data: Mapping[str, Any], key: str) -> str:
@@ -318,7 +345,7 @@ class PlayQuizExportService:
                 (
                     await conn.execute(
                         text(
-                            "SELECT quiz_id,playquiz_account_id,playquiz_quiz_id,play_url,content_hash,exported_at,last_handoff_at FROM playquiz_exports WHERE quiz_id=:id"
+                            "SELECT quiz_id,playquiz_account_id,play_token,play_url,content_hash,exported_at,last_handoff_at FROM playquiz_exports WHERE quiz_id=:id"
                         ),
                         {"id": quiz_id},
                     )
@@ -346,7 +373,12 @@ class PlayQuizExportService:
         exportable = True
         reason: str | None = None
         try:
-            build_payload(quiz, questions, category=self._config.playquiz_category)
+            build_payload(quiz, questions)
+            _, email = await self._identity(actor)
+            if not email:
+                raise PlayQuizNotExportable(
+                    "Ai nevoie de o adresă de e-mail în contul Guguță pentru a folosi PlayQuiz."
+                )
         except PlayQuizNotExportable as exc:
             exportable = False
             reason = str(exc)
@@ -372,41 +404,50 @@ class PlayQuizExportService:
                 .mappings()
                 .first()
             )
-        display_name = (user["display_name"] if user else None) or actor.display_name or "Elev Guguță"
+        display_name = (
+            (user["display_name"] if user else None)
+            or actor.display_name
+            or "Elev Guguță"
+        )
         email = (user["email"] if user else None) or None
         return str(display_name), email
 
     async def preview(
         self, actor: ActorContext, notebook_id: uuid.UUID, quiz_id: uuid.UUID
     ) -> dict[str, Any]:
-        """Corpurile exacte pe care le-ar trimite exportul către PlayQuiz (plan §4).
-
-        Nu face niciun apel extern și nu înregistrează consimțământ; servește la
-        verificarea mapării (de către elev/profesor sau de echipa PlayQuiz).
-        """
+        """Contractul efectiv, fără cereri externe sau înregistrarea acordului."""
         quiz, questions, export, consent = await self._load(actor, notebook_id, quiz_id)
-        payload = build_payload(quiz, questions, category=self._config.playquiz_category)
-        display_name, email = await self._identity(actor)
-        external_user = str(actor.actor_id)
-        account = PlayQuizClient.account_payload(
-            external_id=external_user, email=email, display_name=display_name
+        payload = build_payload(quiz, questions)
+        reuse = bool(
+            export
+            and export.get("play_token")
+            and export["content_hash"] == payload_hash(payload)
         )
-        body = dict(payload)
-        body["external_id"] = str(quiz_id)
-        body["account_external_id"] = external_user
+        token = (
+            str(export["play_token"])
+            if reuse and export
+            else "<play_token din playUrl>"
+        )
+        display_name, email = await self._identity(actor)
+        account = PlayQuizClient.account_payload(
+            external_id=str(actor.actor_id),
+            email=email,
+            display_name=display_name,
+            play_token=token,
+        )
+        requests = []
+        if not reuse:
+            requests.append(
+                {"method": "POST", "path": "/api/partner/quizzes", "body": payload}
+            )
+        requests.append(
+            {"method": "POST", "path": "/api/partner/guguta/accounts", "body": account}
+        )
         return {
             "enabled": self.enabled,
             "consent_given": consent,
-            "already_exported": export is not None and export["content_hash"] == payload["content_hash"],
-            "requests": [
-                {"method": "POST", "path": "/partner/guguta/accounts", "body": account},
-                {"method": "POST", "path": "/partner/guguta/quizzes", "body": body},
-                {
-                    "method": "POST",
-                    "path": "/partner/guguta/handoff",
-                    "body": {"account_external_id": external_user, "quiz_id": "<quiz_id primit de la PlayQuiz>"},
-                },
-            ],
+            "already_exported": reuse,
+            "requests": requests,
         }
 
     async def export(
@@ -418,78 +459,110 @@ class PlayQuizExportService:
         consent: bool,
     ) -> dict[str, Any]:
         if self._client is None:
-            raise PlayQuizDisabled("Conexiunea cu PlayQuiz nu este încă disponibilă. Poți continua quizul aici.")
-        quiz, questions, export, consent_given = await self._load(actor, notebook_id, quiz_id)
-        payload = build_payload(quiz, questions, category=self._config.playquiz_category)
+            raise PlayQuizDisabled(
+                "Conexiunea cu PlayQuiz nu este încă disponibilă. Poți continua quizul aici."
+            )
+        # Blocare între procese/workeri. Conexiunea separată păstrează lockul și
+        # permite salvarea linkului înainte de autentificarea care poate eșua.
+        lock_key = int.from_bytes(
+            hashlib.sha256(quiz_id.bytes).digest()[:8], "big", signed=True
+        )
+        async with actor_connection(self._engine, actor.actor_id) as lock:
+            acquired = await lock.scalar(
+                text("SELECT pg_try_advisory_xact_lock(:key)"), {"key": lock_key}
+            )
+            if not acquired:
+                raise PlayQuizUnavailable(
+                    "Quizul este deja în curs de trimitere. Încearcă din nou peste câteva secunde."
+                )
+            return await self._export_locked(
+                actor, notebook_id, quiz_id, consent=consent
+            )
+
+    async def _export_locked(
+        self,
+        actor: ActorContext,
+        notebook_id: uuid.UUID,
+        quiz_id: uuid.UUID,
+        *,
+        consent: bool,
+    ) -> dict[str, Any]:
+        assert self._client is not None
+        quiz, questions, export, consent_given = await self._load(
+            actor, notebook_id, quiz_id
+        )
+        payload = build_payload(quiz, questions)
+        digest = payload_hash(payload)
         if not consent_given and not consent:
             raise PlayQuizConsentRequired(
                 "Este nevoie de acordul tău ca numele și e-mailul să fie transmise către PlayQuiz."
             )
-        async with actor_connection(self._engine, actor.actor_id) as conn:
-            if not consent_given:
-                await conn.execute(
-                    text(
-                        "INSERT INTO playquiz_consents (user_id) VALUES (:u) ON CONFLICT (user_id) DO NOTHING"
-                    ),
-                    {"u": actor.actor_id},
-                )
         display_name, email = await self._identity(actor)
-        external_user = str(actor.actor_id)
-        external_quiz = str(quiz_id)
-
-        created = False
-        updated = False
-        if export and export["content_hash"] == payload["content_hash"]:
-            account_id = export["playquiz_account_id"]
-            playquiz_quiz_id = export["playquiz_quiz_id"]
-            play_url = export["play_url"]
-        else:
-            account = await self._client.ensure_account(
-                external_id=external_user, email=email, display_name=display_name
-            )
-            account_id = _required_str(account, "account_id")
-            body = dict(payload)
-            body["external_id"] = external_quiz
-            body["account_external_id"] = external_user
-            result = await self._client.upsert_quiz(body)
-            playquiz_quiz_id = _required_str(result, "quiz_id")
-            play_url = str(result.get("play_url") or "")
-            created = export is None
-            updated = export is not None
-        handoff = await self._client.handoff(
-            account_external_id=external_user, quiz_id=playquiz_quiz_id
+        # Validăm emailul înainte de orice efect extern.
+        account_payload = PlayQuizClient.account_payload(
+            external_id=str(actor.actor_id),
+            email=email,
+            display_name=display_name,
+            play_token="pending",
         )
-        url = _required_str(handoff, "url")
-
         async with actor_connection(self._engine, actor.actor_id) as conn:
             await conn.execute(
                 text(
-                    "INSERT INTO playquiz_exports (quiz_id,user_id,playquiz_account_id,playquiz_quiz_id,play_url,content_hash,last_handoff_at) "
-                    "VALUES (:q,:u,:a,:p,:url,:h,now()) "
-                    "ON CONFLICT (quiz_id) DO UPDATE SET playquiz_account_id=EXCLUDED.playquiz_account_id, playquiz_quiz_id=EXCLUDED.playquiz_quiz_id, "
-                    "play_url=EXCLUDED.play_url, content_hash=EXCLUDED.content_hash, last_handoff_at=now(), "
-                    "exported_at=CASE WHEN playquiz_exports.content_hash=EXCLUDED.content_hash THEN playquiz_exports.exported_at ELSE now() END"
+                    "INSERT INTO playquiz_consents (user_id) VALUES (:u) ON CONFLICT (user_id) DO NOTHING"
                 ),
-                {
-                    "q": quiz_id,
-                    "u": actor.actor_id,
-                    "a": account_id,
-                    "p": playquiz_quiz_id,
-                    "url": play_url,
-                    "h": payload["content_hash"],
-                },
+                {"u": actor.actor_id},
+            )
+
+        reused = bool(
+            export and export.get("play_token") and export["content_hash"] == digest
+        )
+        if reused and export:
+            # Revalidăm inclusiv linkurile persistate (originea poate fi schimbată).
+            play_url, token = self._client.play_link(export["play_url"])
+            if token != export["play_token"]:
+                raise PlayQuizUnavailable("Linkul quizului salvat nu este valid.")
+        else:
+            result = await self._client.create_quiz(payload)
+            play_url, token = self._client.play_link(result.get("playUrl"))
+            # Confirmăm tokenul chiar dacă cererea următoare de cont eșuează.
+            async with actor_connection(self._engine, actor.actor_id) as conn:
+                await conn.execute(
+                    text(
+                        "INSERT INTO playquiz_exports (quiz_id,user_id,play_token,play_url,content_hash) "
+                        "VALUES (:q,:u,:t,:url,:h) "
+                        "ON CONFLICT (quiz_id) DO UPDATE SET play_token=EXCLUDED.play_token, "
+                        "playquiz_quiz_id=NULL, play_url=EXCLUDED.play_url, content_hash=EXCLUDED.content_hash, "
+                        "last_handoff_at=NULL, exported_at=now()"
+                    ),
+                    {
+                        "q": quiz_id,
+                        "u": actor.actor_id,
+                        "t": token,
+                        "url": play_url,
+                        "h": digest,
+                    },
+                )
+        account_payload["play_token"] = token
+        account = await self._client.ensure_account(account_payload)
+        account_id = _required_str(account, "account_id")
+        url = self._client.login_link(account.get("login_url"), token)
+        async with actor_connection(self._engine, actor.actor_id) as conn:
+            await conn.execute(
+                text(
+                    "UPDATE playquiz_exports SET playquiz_account_id=:a,last_handoff_at=now() WHERE quiz_id=:q"
+                ),
+                {"a": account_id, "q": quiz_id},
             )
         logger.info(
-            "playquiz export quiz=%s created=%s updated=%s questions=%s",
+            "playquiz export quiz=%s reused=%s questions=%s",
             quiz_id,
-            created,
-            updated,
+            reused,
             len(questions),
         )
         return {
             "url": url,
-            "quiz_id": playquiz_quiz_id,
+            "play_token": token,
             "play_url": play_url,
-            "created": created,
-            "updated": updated,
+            "created": not reused and export is None,
+            "updated": not reused and export is not None,
         }

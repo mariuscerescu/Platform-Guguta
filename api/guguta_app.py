@@ -72,6 +72,7 @@ from api.services.guguta.notes import (
 )
 from api.services.guguta.openai_live_voice import OpenAILiveVoiceService
 from api.services.guguta.playquiz_export import (
+    PlayQuizAccountConflict,
     PlayQuizClient,
     PlayQuizConsentRequired,
     PlayQuizDisabled,
@@ -225,7 +226,6 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
         PlayQuizClient(
             config.playquiz_api_url,
             config.playquiz_partner_key.get_secret_value(),
-            hmac_secret=config.playquiz_hmac_secret.get_secret_value(),
             timeout_seconds=config.playquiz_timeout_seconds,
         )
         if config.playquiz_enabled
@@ -402,6 +402,10 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
         return _error(
             "consent_required", str(exc), 409, request.headers.get("x-request-id", "-")
         )
+
+    @app.exception_handler(PlayQuizAccountConflict)
+    async def playquiz_account_conflict(request: Request, exc: PlayQuizAccountConflict) -> JSONResponse:
+        return _error("playquiz_account_conflict", str(exc), 409, request.headers.get("x-request-id", "-"))
 
     @app.exception_handler(PlayQuizUnavailable)
     async def playquiz_unavailable(

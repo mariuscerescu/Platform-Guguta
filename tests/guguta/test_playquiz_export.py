@@ -1,7 +1,8 @@
-"""PlayQuiz extern (ADR-023): mapare, client de partener, export idempotent, consimțământ."""
+"""Actual PlayQuiz contract, persistence, consent, isolation and failure recovery."""
 
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from collections.abc import AsyncIterator
@@ -12,209 +13,255 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from pydantic import SecretStr
+from sqlalchemy import text
 
 from api.services.guguta.playquiz_export import (
     PlayQuizClient,
     PlayQuizNotExportable,
     PlayQuizUnavailable,
     build_payload,
+    payload_hash,
 )
 from open_notebook.database.guguta.config import GugutaConfig
-from tests.guguta.test_materials_worker import (
-    _config,
-    _cookies,
-    _drain,
-    _headers,
-    _login,
-)
+from open_notebook.database.guguta.engine import actor_connection
+from tests.guguta.test_materials_worker import _config, _cookies, _drain, _headers
+from tests.guguta.test_materials_worker import _login as dev_login
+
+TOKEN = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+PLAY_URL = f"https://pq.example/partners/play/{TOKEN}"
 
 
 def _quiz(**overrides: Any) -> dict[str, Any]:
-    base = {"id": uuid.uuid4(), "title": "Fracții", "difficulty": "medium", "status": "ready"}
-    base.update(overrides)
-    return base
+    return {
+        "id": uuid.uuid4(),
+        "title": "Fracții",
+        "difficulty": "medium",
+        "status": "ready",
+        **overrides,
+    }
 
 
-def _question(kind: str, correct: list[str], wrong: list[str], prompt: str = "Cât fac 3 + 4?") -> dict[str, Any]:
-    options = [{"id": f"c{i}", "text": t, "is_correct": True} for i, t in enumerate(correct)]
-    options += [{"id": f"w{i}", "text": t, "is_correct": False} for i, t in enumerate(wrong)]
-    return {"id": uuid.uuid4(), "position": 0, "question_type": kind, "prompt": prompt, "options": options}
-
-
-# --- maparea (plan §5) -------------------------------------------------------
-
-
-def test_payload_single_choice_mapping_and_hash_is_stable() -> None:
-    questions = [_question("multiple_choice", ["7"], ["6", "8", "12"])]
-    payload = build_payload(_quiz(), questions, category="guguta")
-    assert payload["quiz_type"] == "SINGLE_CHOICE"
-    assert payload["language"] == "RO"
-    assert payload["category"] == "guguta"
-    assert payload["time_per_question"] == 30
-    assert payload["questions"] == [
-        {"content": "Cât fac 3 + 4?", "answers": ["7"], "wrong_answers": ["6", "8", "12"]}
+def _question(
+    kind: str = "multiple_choice",
+    correct: list[str] | None = None,
+    wrong: list[str] | None = None,
+    prompt: str = "Cât fac 3 + 4?",
+) -> dict[str, Any]:
+    options = [
+        {"text": t, "is_correct": True}
+        for t in (correct if correct is not None else ["7"])
     ]
-    assert payload["content_hash"].startswith("sha256:")
-    again = build_payload(_quiz(id=uuid.uuid4()), questions, category="altceva")
-    assert again["content_hash"] == payload["content_hash"]  # hash-ul nu depinde de id/categorie
-    changed = build_payload(_quiz(), [_question("multiple_choice", ["7"], ["6", "8", "13"])], category="guguta")
-    assert changed["content_hash"] != payload["content_hash"]
-
-
-def test_payload_multiple_select_difficulty_and_clipping() -> None:
-    questions = [
-        _question("multiple_choice", ["2"], ["3"]),
-        _question("multiple_select", ["2", "8"], ["3", "9"], prompt="  Care   sunt  pare? " + "x" * 2000),
+    options += [
+        {"text": t, "is_correct": False}
+        for t in (wrong if wrong is not None else ["6", "8"])
     ]
-    payload = build_payload(_quiz(difficulty="hard", title="t" * 500), questions, category="guguta")
-    assert payload["quiz_type"] == "MULTIPLE_CHOICE"
-    assert payload["time_per_question"] == 20
-    assert len(payload["title"]) == 200
-    assert payload["questions"][1]["content"].startswith("Care sunt pare? x")
-    assert len(payload["questions"][1]["content"]) == 1000
-    assert payload["questions"][1]["answers"] == ["2", "8"]
+    return {"question_type": kind, "prompt": prompt, "options": options}
+
+
+def test_exact_quiz_payload_and_hash() -> None:
+    payload = build_payload(_quiz(), [_question()])
+    assert payload == {
+        "quizType": "SINGLE_CHOICE",
+        "timePerQuestion": 30,
+        "questions": [
+            {"content": "Cât fac 3 + 4?", "answers": ["7"], "wrongAnswers": ["6", "8"]}
+        ],
+    }
+    assert payload_hash(payload) == payload_hash(
+        build_payload(_quiz(title="Alt titlu"), [_question()])
+    )
+    assert payload_hash(payload) != payload_hash(
+        build_payload(_quiz(difficulty="hard"), [_question()])
+    )
+    multiple = build_payload(
+        _quiz(), [_question(), _question("multiple_select", ["2", "8"], ["3"])]
+    )
+    assert multiple["quizType"] == "MULTIPLE_CHOICE"
 
 
 @pytest.mark.parametrize(
     "quiz,questions",
     [
-        (_quiz(status="generating"), [_question("multiple_choice", ["7"], ["6"])]),
+        (_quiz(status="generating"), [_question()]),
         (_quiz(), []),
-        (_quiz(), [_question("fill_in_blank", ["7"], [])]),
-        (_quiz(), [_question("multiple_choice", ["7"], ["6"]), _question("short_answer", ["7"], [])]),
-        (_quiz(), [_question("multiple_choice", [], ["6", "8"])]),
-        (_quiz(), [_question("multiple_choice", ["7"], [str(i) for i in range(10)])]),
-        (_quiz(), [_question("multiple_choice", ["7"], ["6"]) for _ in range(51)]),
+        (_quiz(), [_question("short_answer")]),
+        (_quiz(), [_question(), _question("fill_in_blank")]),
+        (_quiz(), [_question(correct=[])]),
+        (_quiz(), [_question(wrong=[])]),
+        (_quiz(), [_question(wrong=[" "])]),
+        (_quiz(), [_question(correct=["x" * 1001])]),
+        (_quiz(), [_question(prompt="x" * 1001)]),
+        (_quiz(), [_question(wrong=[str(i) for i in range(10)])]),
+        (_quiz(), [_question() for _ in range(51)]),
     ],
 )
-def test_payload_refuses_non_exportable(quiz: dict[str, Any], questions: list[dict[str, Any]]) -> None:
+def test_no_silent_truncation_or_incompatible_quizzes(
+    quiz: dict[str, Any], questions: list[dict[str, Any]]
+) -> None:
     with pytest.raises(PlayQuizNotExportable):
-        build_payload(quiz, questions, category="guguta")
-
-
-# --- clientul de partener (plan §4) -------------------------------------------
+        build_payload(quiz, questions)
 
 
 @pytest.mark.asyncio
-async def test_client_sends_partner_headers_and_hmac_signature() -> None:
-    seen: list[httpx.Request] = []
+async def test_client_exact_header_account_and_no_redirects() -> None:
+    seen = []
 
-    async def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx.Request) -> httpx.Response:
         seen.append(request)
-        return httpx.Response(200, json={"account_id": 42, "created": True})
+        return httpx.Response(200, json={"account_id": 42})
 
     client = PlayQuizClient(
-        "https://play-quiz.example/api/",
-        "partner-key",
-        hmac_secret="hmac-secret",
+        "https://pq.example/api/",
+        "synthetic-key",
         transport=httpx.MockTransport(handler),
     )
-    result = await client.ensure_account(external_id="u1", email="a@b.md", display_name="Ana")
-    assert result == {"account_id": 42, "created": True}
-    request = seen[0]
-    assert str(request.url) == "https://play-quiz.example/api/partner/guguta/accounts"
-    assert request.headers["authorization"] == "Bearer partner-key"
-    assert request.headers["idempotency-key"]
-    assert request.headers["x-guguta-timestamp"].isdigit()
-    import hashlib
-    import hmac as hmac_mod
-
-    expected = hmac_mod.new(
-        b"hmac-secret",
-        request.headers["x-guguta-timestamp"].encode() + b"." + request.content,
-        hashlib.sha256,
-    ).hexdigest()
-    assert request.headers["x-guguta-signature"] == expected
-    assert json.loads(request.content) == {
-        "external_id": "u1", "display_name": "Ana", "language": "RO", "email": "a@b.md"
+    body = client.account_payload(
+        external_id="u1", email="a@b.md", display_name="Ana", play_token=TOKEN
+    )
+    assert body == {
+        "external_id": "u1",
+        "email": "a@b.md",
+        "display_name": "Ana",
+        "language": "RO",
+        "play_token": TOKEN,
     }
-
-
-@pytest.mark.asyncio
-async def test_client_retries_on_5xx_then_succeeds() -> None:
-    calls = {"n": 0}
-    keys = []
-
-    async def handler(request: httpx.Request) -> httpx.Response:
-        calls["n"] += 1
-        keys.append(request.headers["Idempotency-Key"])
-        if calls["n"] < 3:
-            return httpx.Response(503, text="down")
-        return httpx.Response(200, json={"url": "https://play-quiz.example/handoff?token=t", "expires_in": 60})
-
-    client = PlayQuizClient("https://play-quiz.example/api", "k", retries=2, transport=httpx.MockTransport(handler))
-    result = await client.handoff(account_external_id="u1", quiz_id="5")
-    assert result["url"].endswith("token=t")
-    assert calls["n"] == 3
-    assert len(set(keys)) == 1  # aceeași cerere nu se dublează când răspunsul se pierde
-
-
-@pytest.mark.asyncio
-async def test_client_does_not_follow_partner_redirects() -> None:
-    calls = []
+    await client.ensure_account(body)
+    assert str(seen[0].url) == "https://pq.example/api/partner/guguta/accounts"
+    assert seen[0].headers["X-Partner-Key"] == "synthetic-key"
+    assert (
+        "authorization" not in seen[0].headers
+        and "idempotency-key" not in seen[0].headers
+    )
+    assert json.loads(seen[0].content) == body
+    seen.clear()
 
     def redirect(request: httpx.Request) -> httpx.Response:
-        calls.append(str(request.url))
-        return httpx.Response(307, headers={"Location": "https://other.example/collect"})
+        seen.append(request)
+        return httpx.Response(
+            307, headers={"Location": "https://other.example/collect"}
+        )
 
-    client = PlayQuizClient("https://pq.example/api", "synthetic-key", transport=httpx.MockTransport(redirect))
+    client = PlayQuizClient(
+        "https://pq.example/api", "k", transport=httpx.MockTransport(redirect)
+    )
     with pytest.raises(PlayQuizUnavailable):
-        await client.ensure_account(external_id="synthetic-user", email=None, display_name="Elev fictiv")
-    assert calls == ["https://pq.example/api/partner/guguta/accounts"]
+        await client.create_quiz({})
+    assert len(seen) == 1
 
 
+@pytest.mark.parametrize("failure", ["timeout", "503", "403", "invalid_json"])
 @pytest.mark.asyncio
-async def test_client_gives_up_after_retries_and_rejects_4xx() -> None:
-    async def down(request: httpx.Request) -> httpx.Response:
-        raise httpx.ConnectError("refused", request=request)
+async def test_client_never_retries_non_idempotent_posts(failure: str) -> None:
+    calls = []
 
-    client = PlayQuizClient("https://play-quiz.example/api", "k", retries=1, transport=httpx.MockTransport(down))
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        if failure == "timeout":
+            raise httpx.ReadTimeout("synthetic", request=request)
+        if failure == "invalid_json":
+            return httpx.Response(200, text="bad")
+        return httpx.Response(int(failure), json={"message": "failed"})
+
+    client = PlayQuizClient(
+        "https://pq.example/api", "k", transport=httpx.MockTransport(handler)
+    )
     with pytest.raises(PlayQuizUnavailable):
-        await client.handoff(account_external_id="u1", quiz_id="5")
+        await client.create_quiz({})
+    assert len(calls) == 1
 
-    async def forbidden(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(403, json={"message": "bad key"})
 
-    client = PlayQuizClient("https://play-quiz.example/api", "k", transport=httpx.MockTransport(forbidden))
+def test_url_validation_and_pending_config() -> None:
+    client = PlayQuizClient("https://pq.example/api", "k")
+    assert client.play_link(PLAY_URL) == (PLAY_URL, TOKEN)
+    assert client.login_link(
+        f"https://pq.example/login?partner=one-use&play={TOKEN}", TOKEN
+    )
+    for url in [
+        f"https://evil.example/partners/play/{TOKEN}",
+        f"javascript:alert(1)",
+        f"https://pq.example@evil.example/partners/play/{TOKEN}",
+        PLAY_URL + "?extra=1",
+    ]:
+        with pytest.raises(PlayQuizUnavailable):
+            client.play_link(url)
     with pytest.raises(PlayQuizUnavailable):
-        await client.upsert_quiz({"external_id": "q"})
-
-
-# --- configurarea ---------------------------------------------------------------
-
-
-def test_config_requires_partner_key_with_url() -> None:
+        client.login_link("https://pq.example/login?partner=x&play=wrong", TOKEN)
+    assert not GugutaConfig(
+        playquiz_api_url="https://play-quiz.com/api"
+    ).playquiz_enabled
+    assert GugutaConfig(
+        playquiz_api_url="https://play-quiz.com/api", playquiz_partner_key="k"
+    ).playquiz_enabled
     with pytest.raises(ValueError):
-        GugutaConfig(playquiz_api_url="https://play-quiz.com/api")
-    cfg = GugutaConfig(playquiz_api_url="https://play-quiz.com/api", playquiz_partner_key="k")
-    assert cfg.playquiz_enabled is True
-    assert GugutaConfig().playquiz_enabled is False
-
-
-# --- fluxul prin API (PostgreSQL de test) ----------------------------------------
+        GugutaConfig(playquiz_api_url="https://user:secret@play-quiz.com/api")
 
 
 class FakePlayQuiz:
-    """Server de partener simulat: numără apelurile și întoarce răspunsuri conforme cu §4."""
-
     def __init__(self) -> None:
         self.calls: list[tuple[str, dict[str, Any]]] = []
+        self.account_status = 200
+        self.quiz_status = 200
+        self.quiz_wait: asyncio.Event | None = None
+        self.quiz_started = asyncio.Event()
 
     async def __call__(self, request: httpx.Request) -> httpx.Response:
-        path = request.url.path
-        body = json.loads(request.content)
+        path, body = request.url.path, json.loads(request.content)
         self.calls.append((path, body))
-        if path.endswith("/accounts"):
-            return httpx.Response(200, json={"account_id": 7, "created": True})
-        if path.endswith("/quizzes"):
-            return httpx.Response(200, json={"quiz_id": 99, "play_url": "https://pq.example/quiz/custom/99"})
-        if path.endswith("/handoff"):
-            return httpx.Response(200, json={"url": f"https://pq.example/handoff?token={len(self.calls)}", "expires_in": 60})
-        return httpx.Response(404)
+        assert request.headers["X-Partner-Key"] == "partner-key"
+        assert "authorization" not in request.headers
+        if path == "/api/partner/quizzes":
+            assert set(body) == {"quizType", "timePerQuestion", "questions"}
+            for q in body["questions"]:
+                assert set(q) == {"content", "answers", "wrongAnswers"}
+            self.quiz_started.set()
+            if self.quiz_wait is not None:
+                await self.quiz_wait.wait()
+            return httpx.Response(self.quiz_status, json={"playUrl": PLAY_URL})
+        if path == "/api/partner/guguta/accounts":
+            assert set(body) == {
+                "external_id",
+                "email",
+                "display_name",
+                "language",
+                "play_token",
+            }
+            assert body["play_token"] == TOKEN
+            if self.account_status == 400:
+                return httpx.Response(
+                    400,
+                    json={
+                        "message": "The email synthetic@example.md already has a Play Quiz account: sign in to Play Quiz with its password"
+                    },
+                )
+            return httpx.Response(
+                self.account_status,
+                json={
+                    "account_id": 7,
+                    "created": True,
+                    "password_set": False,
+                    "login_url": f"https://pq.example/login?partner=synthetic-{len(self.calls)}&play={TOKEN}",
+                    "login_expires_in": 900,
+                },
+            )
+        raise AssertionError("Unexpected endpoint: " + path)
+
+
+async def _login(client: AsyncClient, name: str) -> dict[str, str]:
+    auth = await dev_login(client, name)
+    me = (await client.get("/api/v1/auth/me", cookies=_cookies(auth))).json()
+    engine = client._transport.app.state.guguta_engine  # type: ignore[attr-defined]
+    async with actor_connection(engine, uuid.UUID(me["id"])) as conn:
+        await conn.execute(
+            text("UPDATE users SET email=:email WHERE id=:id"),
+            {"email": f"{me['id']}@synthetic.example", "id": me["id"]},
+        )
+    return auth
 
 
 @pytest_asyncio.fixture()
-async def playquiz_app(guguta_db: dict[str, Any]) -> AsyncIterator[tuple[AsyncClient, FakePlayQuiz]]:
+async def playquiz_app(
+    guguta_db: dict[str, Any],
+) -> AsyncIterator[tuple[AsyncClient, FakePlayQuiz]]:
     api = pytest.importorskip("api.guguta_app")
     from api.services.guguta.playquiz_export import PlayQuizExportService
 
@@ -230,9 +277,13 @@ async def playquiz_app(guguta_db: dict[str, Any]) -> AsyncIterator[tuple[AsyncCl
     app.state.guguta_playquiz_export = PlayQuizExportService(
         app.state.guguta_engine,
         cfg,
-        PlayQuizClient("https://pq.example/api", "partner-key", transport=httpx.MockTransport(fake)),
+        PlayQuizClient(
+            "https://pq.example/api", "partner-key", transport=httpx.MockTransport(fake)
+        ),
     )
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://localhost:3000") as client:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://localhost:3000"
+    ) as client:
         yield client, fake
 
 
@@ -246,7 +297,9 @@ async def export_worker(guguta_db: dict[str, Any]) -> AsyncIterator[Any]:
 
     class TestWorker(Worker):
         def __init__(self) -> None:
-            cfg = _config(guguta_db["worker_dsn"]).model_copy(update={"chat_provider": "mock"})
+            cfg = _config(guguta_db["worker_dsn"]).model_copy(
+                update={"chat_provider": "mock"}
+            )
             self._config = cfg
             self._engine = create_engine_for_role(cfg, "worker")
             self._storage = FilesystemStorage("./.guguta-test-storage")
@@ -258,14 +311,24 @@ async def export_worker(guguta_db: dict[str, Any]) -> AsyncIterator[Any]:
     await worker.aclose()
 
 
-async def _ready_quiz(client: AsyncClient, auth: dict[str, str], worker: Any, *, kinds: list[str]) -> tuple[str, str]:
+async def _ready_quiz(
+    client: AsyncClient, auth: dict[str, str], worker: Any, *, kinds: list[str]
+) -> tuple[str, str]:
     """Carnet + material procesat + quiz marcat gata, cu întrebări adăugate manual."""
     notebook = (
-        await client.post("/api/v1/notebooks", json={"title": "Matematică"}, cookies=_cookies(auth), headers=_headers(auth))
+        await client.post(
+            "/api/v1/notebooks",
+            json={"title": "Matematică"},
+            cookies=_cookies(auth),
+            headers=_headers(auth),
+        )
     ).json()
     source = await client.post(
         f"/api/v1/notebooks/{notebook['id']}/sources/text",
-        json={"title": "Adunarea", "text": "Trei plus patru fac șapte. Doi și opt sunt numere pare."},
+        json={
+            "title": "Adunarea",
+            "text": "Trei plus patru fac șapte. Doi și opt sunt numere pare.",
+        },
         cookies=_cookies(auth),
         headers=_headers(auth),
     )
@@ -273,7 +336,12 @@ async def _ready_quiz(client: AsyncClient, auth: dict[str, str], worker: Any, *,
     await _drain(worker)
     created = await client.post(
         f"/api/v1/notebooks/{notebook['id']}/quizzes",
-        json={"source_ids": [source.json()["source"]["id"]], "quantity": "fewer", "difficulty": "easy", "question_types": ["multiple_choice"]},
+        json={
+            "source_ids": [source.json()["source"]["id"]],
+            "quantity": "fewer",
+            "difficulty": "easy",
+            "question_types": ["multiple_choice"],
+        },
         cookies=_cookies(auth),
         headers=_headers(auth),
     )
@@ -287,20 +355,37 @@ async def _ready_quiz(client: AsyncClient, auth: dict[str, str], worker: Any, *,
     engine = client._transport.app.state.guguta_engine  # type: ignore[attr-defined]
     me = (await client.get("/api/v1/auth/me", cookies=_cookies(auth))).json()
     async with actor_connection(engine, uuid.UUID(me["id"])) as conn:
-        await conn.execute(text("UPDATE quizzes SET status='ready', title='Adunarea' WHERE id=:id"), {"id": quiz_id})
+        await conn.execute(
+            text("UPDATE quizzes SET status='ready', title='Adunarea' WHERE id=:id"),
+            {"id": quiz_id},
+        )
     for position, kind in enumerate(kinds):
         if kind in ("multiple_choice", "multiple_select"):
             body = {
                 "question_type": kind,
                 "prompt": f"Întrebarea {position + 1}",
                 "options": [
-                    {"id": "a", "text": "7", "is_correct": True, "rationale": "3 + 4 = 7"},
+                    {
+                        "id": "a",
+                        "text": "7",
+                        "is_correct": True,
+                        "rationale": "3 + 4 = 7",
+                    },
                     {"id": "b", "text": "6", "is_correct": False, "rationale": "nu"},
-                    {"id": "c", "text": "8", "is_correct": kind == "multiple_select", "rationale": "par"},
+                    {
+                        "id": "c",
+                        "text": "8",
+                        "is_correct": kind == "multiple_select",
+                        "rationale": "par",
+                    },
                 ],
             }
         else:
-            body = {"question_type": kind, "prompt": f"Întrebarea {position + 1}", "accepted_answers": ["șapte"]}
+            body = {
+                "question_type": kind,
+                "prompt": f"Întrebarea {position + 1}",
+                "accepted_answers": ["șapte"],
+            }
         added = await client.post(
             f"/api/v1/notebooks/{notebook['id']}/quizzes/{quiz_id}/questions",
             json=body,
@@ -312,134 +397,218 @@ async def _ready_quiz(client: AsyncClient, auth: dict[str, str], worker: Any, *,
 
 
 @pytest.mark.asyncio
-async def test_export_flow_consent_idempotency_and_capability(
+async def test_export_consent_preview_reuse_updates_and_rls(
     playquiz_app: tuple[AsyncClient, FakePlayQuiz], export_worker: Any
 ) -> None:
     client, fake = playquiz_app
-    auth = await _login(client, f"Elev PQ {uuid.uuid4().hex[:6]}")
-    me = (await client.get("/api/v1/auth/me", cookies=_cookies(auth))).json()
-    assert me["capabilities"] == {"playquiz": True}
-    nb, quiz = await _ready_quiz(client, auth, export_worker, kinds=["multiple_choice", "multiple_select"])
+    auth = await _login(client, f"Elev {uuid.uuid4().hex[:6]}")
+    nb, quiz = await _ready_quiz(
+        client, auth, export_worker, kinds=["multiple_choice", "multiple_select"]
+    )
     url = f"/api/v1/notebooks/{nb}/quizzes/{quiz}/playquiz"
-
     status = (await client.get(url, cookies=_cookies(auth))).json()
-    assert status == {
-        "enabled": True, "consent_given": False, "exportable": True, "reason": None,
-        "exported": False, "play_url": None, "exported_at": None,
-    }
-
-    # Previzualizarea arată exact corpurile care ar pleca spre PlayQuiz, fără apel extern.
-    preview = await client.get(f"{url}/payload", cookies=_cookies(auth))
-    assert preview.status_code == 200, preview.text
-    preview = preview.json()
-    assert preview["enabled"] is True and preview["consent_given"] is False and preview["already_exported"] is False
+    assert status["enabled"] and status["exportable"] and not status["consent_given"]
+    preview = (await client.get(url + "/payload", cookies=_cookies(auth))).json()
     assert [r["path"] for r in preview["requests"]] == [
-        "/partner/guguta/accounts", "/partner/guguta/quizzes", "/partner/guguta/handoff",
+        "/api/partner/quizzes",
+        "/api/partner/guguta/accounts",
     ]
-    account_body, quiz_body = preview["requests"][0]["body"], preview["requests"][1]["body"]
-    assert account_body["external_id"] == me["id"] and account_body["language"] == "RO"
-    assert quiz_body["external_id"] == quiz and quiz_body["account_external_id"] == me["id"]
-    assert quiz_body["title"] == "Adunarea" and quiz_body["quiz_type"] == "MULTIPLE_CHOICE"
-    assert quiz_body["questions"][0] == {"content": "Întrebarea 1", "answers": ["7"], "wrong_answers": ["6", "8"]}
-    assert quiz_body["content_hash"].startswith("sha256:")
-    assert fake.calls == []
-
-    denied = await client.post(url, json={}, cookies=_cookies(auth), headers=_headers(auth))
+    assert preview["requests"][0]["body"]["quizType"] == "MULTIPLE_CHOICE"
+    assert not fake.calls
+    denied = await client.post(
+        url, json={}, cookies=_cookies(auth), headers=_headers(auth)
+    )
     assert denied.status_code == 409 and denied.json()["code"] == "consent_required"
-    assert fake.calls == []
-
-    first = await client.post(url, json={"consent": True}, cookies=_cookies(auth), headers=_headers(auth))
+    assert not fake.calls
+    first = await client.post(
+        url, json={"consent": True}, cookies=_cookies(auth), headers=_headers(auth)
+    )
     assert first.status_code == 200, first.text
-    assert first.json()["created"] is True and first.json()["url"].startswith("https://pq.example/handoff?token=")
+    assert first.json()["created"] and first.json()["play_token"] == TOKEN
+    assert first.json()["url"].startswith("https://pq.example/login?partner=")
     assert [p for p, _ in fake.calls] == [
-        "/api/partner/guguta/accounts", "/api/partner/guguta/quizzes", "/api/partner/guguta/handoff"
+        "/api/partner/quizzes",
+        "/api/partner/guguta/accounts",
     ]
-    account_body = fake.calls[0][1]
-    assert account_body["external_id"] == me["id"] and "password" not in account_body
-    quiz_body = fake.calls[1][1]
-    assert quiz_body["external_id"] == quiz and quiz_body["account_external_id"] == me["id"]
-    assert quiz_body["quiz_type"] == "MULTIPLE_CHOICE" and len(quiz_body["questions"]) == 2
-    assert quiz_body["questions"][1]["answers"] == ["7", "8"]
-    assert fake.calls[2][1] == {"account_external_id": me["id"], "quiz_id": "99"}
-
-    # Al doilea click: consimțământul este reținut, quizul nu se recreează, doar handoff nou.
-    second = await client.post(url, json={}, cookies=_cookies(auth), headers=_headers(auth))
+    assert fake.calls[0][1] == preview["requests"][0]["body"]
+    expected_account = preview["requests"][1]["body"] | {"play_token": TOKEN}
+    assert fake.calls[1][1] == expected_account
+    second = await client.post(
+        url, json={}, cookies=_cookies(auth), headers=_headers(auth)
+    )
     assert second.status_code == 200, second.text
-    assert second.json()["created"] is False and second.json()["updated"] is False
-    assert [p for p, _ in fake.calls[3:]] == ["/api/partner/guguta/handoff"]
-    status = (await client.get(url, cookies=_cookies(auth))).json()
-    assert status["consent_given"] is True and status["exported"] is True
-    assert status["play_url"] == "https://pq.example/quiz/custom/99"
-
-    # Conținut schimbat → re-export (cont + quiz + handoff).
-    questions = (await client.get(f"/api/v1/notebooks/{nb}/quizzes/{quiz}", cookies=_cookies(auth))).json()["questions"]
-    edited = await client.put(
-        f"/api/v1/notebooks/{nb}/quizzes/{quiz}/questions/{questions[0]['id']}",
+    assert not second.json()["created"] and not second.json()["updated"]
+    assert second.json()["url"] != first.json()["url"]
+    assert [p for p, _ in fake.calls[2:]] == ["/api/partner/guguta/accounts"]
+    preview = (await client.get(url + "/payload", cookies=_cookies(auth))).json()
+    assert preview["already_exported"] and len(preview["requests"]) == 1
+    assert preview["requests"][0]["body"]["play_token"] == TOKEN
+    detail = (
+        await client.get(
+            f"/api/v1/notebooks/{nb}/quizzes/{quiz}", cookies=_cookies(auth)
+        )
+    ).json()
+    edit = await client.put(
+        f"/api/v1/notebooks/{nb}/quizzes/{quiz}/questions/{detail['questions'][0]['id']}",
         json={
-            "question_type": "multiple_choice", "prompt": "Întrebarea 1 (modificată)",
-            "options": [{"id": "a", "text": "7", "is_correct": True, "rationale": "da"}, {"id": "b", "text": "6", "is_correct": False, "rationale": "nu"}],
+            "question_type": "multiple_choice",
+            "prompt": "Modificată",
+            "options": [
+                {"id": "a", "text": "7", "is_correct": True, "rationale": "da"},
+                {"id": "b", "text": "6", "is_correct": False, "rationale": "nu"},
+            ],
         },
         cookies=_cookies(auth),
         headers=_headers(auth),
     )
-    assert edited.status_code == 200, edited.text
-    third = await client.post(url, json={}, cookies=_cookies(auth), headers=_headers(auth))
-    assert third.status_code == 200 and third.json()["updated"] is True
-    assert [p for p, _ in fake.calls[4:]] == [
-        "/api/partner/guguta/accounts", "/api/partner/guguta/quizzes", "/api/partner/guguta/handoff"
+    assert edit.status_code == 200
+    third = await client.post(
+        url, json={}, cookies=_cookies(auth), headers=_headers(auth)
+    )
+    assert third.status_code == 200 and third.json()["updated"]
+    assert [p for p, _ in fake.calls[3:]] == [
+        "/api/partner/quizzes",
+        "/api/partner/guguta/accounts",
     ]
-
-    # Alt utilizator nu vede exportul (RLS) și nu găsește quizul.
     other = await _login(client, f"Alt elev {uuid.uuid4().hex[:6]}")
-    assert (await client.get(url, cookies=_cookies(other))).status_code == 404
+    for suffix in ["", "/payload"]:
+        assert (
+            await client.get(url + suffix, cookies=_cookies(other))
+        ).status_code == 404
+    assert (
+        await client.post(
+            url,
+            json={"consent": True},
+            cookies=_cookies(other),
+            headers=_headers(other),
+        )
+    ).status_code == 404
+
+
+@pytest.mark.parametrize("account_status", [503, 400])
+@pytest.mark.asyncio
+async def test_account_failure_preserves_quiz_for_retry(
+    playquiz_app: tuple[AsyncClient, FakePlayQuiz],
+    export_worker: Any,
+    account_status: int,
+) -> None:
+    client, fake = playquiz_app
+    auth = await _login(client, f"Retry {uuid.uuid4().hex[:6]}")
+    nb, quiz = await _ready_quiz(client, auth, export_worker, kinds=["multiple_choice"])
+    url = f"/api/v1/notebooks/{nb}/quizzes/{quiz}/playquiz"
+    fake.account_status = account_status
+    response = await client.post(
+        url, json={"consent": True}, cookies=_cookies(auth), headers=_headers(auth)
+    )
+    assert response.status_code == (409 if account_status == 400 else 503), (
+        response.text
+    )
+    if account_status == 400:
+        assert response.json()["code"] == "playquiz_account_conflict"
+        assert "synthetic@example.md" not in response.text
+    status = (await client.get(url, cookies=_cookies(auth))).json()
+    assert status["exported"] and status["play_url"] == PLAY_URL
+    fake.account_status = 200
+    response = await client.post(
+        url, json={}, cookies=_cookies(auth), headers=_headers(auth)
+    )
+    assert response.status_code == 200, response.text
+    assert [p for p, _ in fake.calls].count("/api/partner/quizzes") == 1
 
 
 @pytest.mark.asyncio
-async def test_export_refuses_mixed_quiz_and_reports_playquiz_outage(
+async def test_simultaneous_clicks_do_not_create_duplicate_quizzes(
     playquiz_app: tuple[AsyncClient, FakePlayQuiz], export_worker: Any
 ) -> None:
     client, fake = playquiz_app
-    auth = await _login(client, f"Elev PQ {uuid.uuid4().hex[:6]}")
-    nb, quiz = await _ready_quiz(client, auth, export_worker, kinds=["multiple_choice", "fill_in_blank"])
+    auth = await _login(client, f"Concurrent {uuid.uuid4().hex[:6]}")
+    nb, quiz = await _ready_quiz(client, auth, export_worker, kinds=["multiple_choice"])
     url = f"/api/v1/notebooks/{nb}/quizzes/{quiz}/playquiz"
-    status = (await client.get(url, cookies=_cookies(auth))).json()
-    assert status["exportable"] is False and "grilă" in status["reason"]
-    refused = await client.post(url, json={"consent": True}, cookies=_cookies(auth), headers=_headers(auth))
-    assert refused.status_code == 409 and refused.json()["code"] == "not_exportable"
-    assert fake.calls == []
-
-    nb2, quiz2 = await _ready_quiz(client, auth, export_worker, kinds=["multiple_choice"])
-
-    async def outage(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(502, text="bad gateway")
-
-    service = client._transport.app.state.guguta_playquiz_export  # type: ignore[attr-defined]
-    service._client = PlayQuizClient("https://pq.example/api", "k", retries=0, transport=httpx.MockTransport(outage))
-    down = await client.post(
-        f"/api/v1/notebooks/{nb2}/quizzes/{quiz2}/playquiz",
-        json={"consent": True}, cookies=_cookies(auth), headers=_headers(auth),
+    fake.quiz_wait = asyncio.Event()
+    first = asyncio.create_task(
+        client.post(
+            url, json={"consent": True}, cookies=_cookies(auth), headers=_headers(auth)
+        )
     )
-    assert down.status_code == 503 and down.json()["code"] == "playquiz_unavailable"
-    state = (await client.get(f"/api/v1/notebooks/{nb2}/quizzes/{quiz2}/playquiz", cookies=_cookies(auth))).json()
-    assert state["exported"] is False
+    try:
+        await asyncio.wait_for(fake.quiz_started.wait(), timeout=10)
+        second = await client.post(
+            url, json={"consent": True}, cookies=_cookies(auth), headers=_headers(auth)
+        )
+        assert second.status_code == 503 and "deja în curs" in second.json()["message"]
+    finally:
+        fake.quiz_wait.set()
+    assert (await first).status_code == 200
+    assert [p for p, _ in fake.calls].count("/api/partner/quizzes") == 1
 
 
 @pytest.mark.asyncio
-async def test_capability_off_without_configuration(guguta_db: dict[str, Any], export_worker: Any) -> None:
+async def test_incompatible_quiz_missing_email_and_partner_outage(
+    playquiz_app: tuple[AsyncClient, FakePlayQuiz], export_worker: Any
+) -> None:
+    client, fake = playquiz_app
+    auth = await _login(client, f"Invalid {uuid.uuid4().hex[:6]}")
+    nb, quiz = await _ready_quiz(
+        client, auth, export_worker, kinds=["multiple_choice", "fill_in_blank"]
+    )
+    url = f"/api/v1/notebooks/{nb}/quizzes/{quiz}/playquiz"
+    assert not (await client.get(url, cookies=_cookies(auth))).json()["exportable"]
+    assert (
+        await client.post(
+            url, json={"consent": True}, cookies=_cookies(auth), headers=_headers(auth)
+        )
+    ).status_code == 409
+    assert not fake.calls
+    nb, quiz = await _ready_quiz(client, auth, export_worker, kinds=["multiple_choice"])
+    url = f"/api/v1/notebooks/{nb}/quizzes/{quiz}/playquiz"
+    fake.quiz_status = 503
+    assert (
+        await client.post(
+            url, json={"consent": True}, cookies=_cookies(auth), headers=_headers(auth)
+        )
+    ).status_code == 503
+    assert len(fake.calls) == 1
+    assert not (await client.get(url, cookies=_cookies(auth))).json()["exported"]
+    me = (await client.get("/api/v1/auth/me", cookies=_cookies(auth))).json()
+    engine = client._transport.app.state.guguta_engine  # type: ignore[attr-defined]
+    async with actor_connection(engine, uuid.UUID(me["id"])) as conn:
+        await conn.execute(
+            text("UPDATE users SET email=NULL WHERE id=:id"), {"id": me["id"]}
+        )
+    assert not (await client.get(url, cookies=_cookies(auth))).json()["exportable"]
+    assert (
+        await client.post(url, json={}, cookies=_cookies(auth), headers=_headers(auth))
+    ).status_code == 409
+    assert len(fake.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_prepared_url_without_key_stays_disabled(
+    guguta_db: dict[str, Any], export_worker: Any
+) -> None:
     api = pytest.importorskip("api.guguta_app")
-    app = api.create_guguta_app(_config(guguta_db["api_dsn"]).model_copy(update={"chat_provider": "mock"}))
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://localhost:3000") as client:
-        auth = await _login(client, f"Elev fără PQ {uuid.uuid4().hex[:6]}")
-        me = (await client.get("/api/v1/auth/me", cookies=_cookies(auth))).json()
-        assert me["capabilities"] == {"playquiz": False}
-        nb, quiz = await _ready_quiz(client, auth, export_worker, kinds=["multiple_choice"])
+    cfg = _config(guguta_db["api_dsn"]).model_copy(
+        update={
+            "chat_provider": "mock",
+            "playquiz_api_url": "https://play-quiz.com/api",
+        }
+    )
+    app = api.create_guguta_app(cfg)
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://localhost:3000"
+    ) as client:
+        auth = await _login(client, f"Disabled {uuid.uuid4().hex[:6]}")
+        assert (await client.get("/api/v1/auth/me", cookies=_cookies(auth))).json()[
+            "capabilities"
+        ] == {"playquiz": False}
+        nb, quiz = await _ready_quiz(
+            client, auth, export_worker, kinds=["multiple_choice"]
+        )
         url = f"/api/v1/notebooks/{nb}/quizzes/{quiz}/playquiz"
-        assert (await client.get(url, cookies=_cookies(auth))).json()["enabled"] is False
-        off = await client.post(url, json={"consent": True}, cookies=_cookies(auth), headers=_headers(auth))
+        off = await client.post(
+            url, json={"consent": True}, cookies=_cookies(auth), headers=_headers(auth)
+        )
         assert off.status_code == 409 and off.json()["code"] == "playquiz_disabled"
-        # Previzualizarea JSON-ului funcționează și fără conexiune configurată.
-        preview = await client.get(f"{url}/payload", cookies=_cookies(auth))
-        assert preview.status_code == 200 and preview.json()["enabled"] is False
-        assert preview.json()["requests"][1]["body"]["quiz_type"] == "SINGLE_CHOICE"
-        for legacy in ("/api/v1/auth/playquiz-profile", "/api/v1/auth/playquiz-quizzes"):
-            assert (await client.get(legacy, cookies=_cookies(auth))).status_code == 404
+        preview = await client.get(url + "/payload", cookies=_cookies(auth))
+        assert preview.status_code == 200 and not preview.json()["enabled"]
+        assert preview.json()["requests"][0]["body"]["quizType"] == "SINGLE_CHOICE"
