@@ -13,6 +13,7 @@ from typing import AsyncIterator, Optional
 
 from loguru import logger
 from sqlalchemy import text
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 
 from open_notebook.database.guguta.config import GugutaConfig
@@ -28,8 +29,13 @@ def create_engine_for_role(config: GugutaConfig, role: str) -> AsyncEngine:
         raise ValueError(f"unknown runtime role: {role}")
     if not url:
         raise ValueError(f"GUGUTA_DATABASE_URL_{role.upper()} is not configured")
+    # Short RLS queries can spend seconds compiling hundreds of policy
+    # expressions. Keep normal execution and all policies; skip runtime JIT.
+    parsed_url = make_url(url)
+    options = str(parsed_url.query.get("options", ""))
+    parsed_url = parsed_url.update_query_dict({"options": (options + " -c jit=off").strip()})
     return create_async_engine(
-        url,
+        parsed_url,
         pool_size=config.db_pool_size,
         max_overflow=config.db_max_overflow,
         pool_timeout=config.db_pool_timeout_seconds,

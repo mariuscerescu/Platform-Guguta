@@ -50,7 +50,7 @@ async def test_direct_endpoint_medium_and_no_openrouter_routing_or_small_thinkin
         assert body["extra_body"]["google"]["thinking_config"] == {
             "thinking_level": "medium", "include_thoughts": False,
         }
-        assert not {"provider", "reasoning", "models"} & body.keys()
+        assert not {"provider", "reasoning", "models", "temperature", "top_p", "top_k"} & body.keys()
         return httpx.Response(200, json=completion({"queries": ["fracții"]}))
     provider = GeminiChatProvider(config(), transport=httpx.MockTransport(respond))
     assert await provider.plan_queries("Ce este o fracție?", []) == ["fracții"]
@@ -139,3 +139,23 @@ async def test_google_failures_never_expose_key_or_provider_body(status):
         await client.post("chat/completions", {"messages": []})
     assert "synthetic-google-key" not in str(err.value) and "SECRET DOCUMENT" not in str(err.value)
     assert "Gemini" in str(err.value)
+
+
+@pytest.mark.asyncio
+async def test_google_internal_failure_retries_once_but_invalid_request_does_not():
+    for status, expected_calls in [(500, 2), (400, 1)]:
+        calls = []
+
+        def respond(request):
+            calls.append(request)
+            if len(calls) == 1:
+                return httpx.Response(status, json={"error": {"message": "PRIVATE PROVIDER DETAILS"}})
+            return httpx.Response(200, json={"choices": []})
+
+        client = GeminiClient(config(), transport=httpx.MockTransport(respond))
+        if status == 500:
+            assert await client.post("chat/completions", {"messages": []}) == {"choices": []}
+        else:
+            with pytest.raises(OpenRouterError, match="Gemini"):
+                await client.post("chat/completions", {"messages": []})
+        assert len(calls) == expected_calls

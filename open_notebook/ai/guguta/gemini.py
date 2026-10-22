@@ -5,7 +5,10 @@ through OpenRouter. Only opaque tool signatures are retained in agent memory.
 """
 from __future__ import annotations
 
+import time
 from typing import Any
+
+from loguru import logger
 
 from open_notebook.ai.guguta.openrouter import (
     OpenRouterChatProvider,
@@ -18,6 +21,7 @@ class GeminiClient(OpenRouterClient):
     _base_url = "https://generativelanguage.googleapis.com/v1beta/openai/"
     _label = "Gemini"
     _allowed_endpoints = ("chat/completions",)
+    _retriable_codes = (408, 429, 500, 502, 503, 504, 529)
 
     def __init__(self, config: Any, *, transport: Any = None) -> None:
         self._key = config.gemini_api_key.get_secret_value().strip()
@@ -35,7 +39,8 @@ class GeminiClient(OpenRouterClient):
         return {"Authorization": "Bearer " + self._key}
 
     def _private_payload(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
-        allowed = {"messages", "tools", "tool_choice", "response_format", "temperature"}
+        # Gemini 3.6+ ignores custom sampling; Google is retiring these fields.
+        allowed = {"messages", "tools", "tool_choice", "response_format"}
         return {
             **{key: value for key, value in payload.items() if key in allowed},
             "model": self._model,
@@ -51,7 +56,19 @@ class GeminiClient(OpenRouterClient):
             return OpenRouterError("Gemini: verifică cheia API și accesul proiectului.")
         if code == 404:
             return OpenRouterError("Gemini: modelul configurat nu este disponibil.")
-        return OpenRouterError("Gemini a respins cererea sau nu a putut-o procesa.")
+        return OpenRouterError("Gemini a respins cererea sau nu a putut-o procesa. Reîncearcă în câteva momente.")
+
+    async def post(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
+        started = time.monotonic()
+        ok = False
+        try:
+            result = await super().post(endpoint, payload)
+            ok = True
+            return result
+        finally:
+            logger.info("gemini_request_complete stage={} seconds={:.2f} ok={}",
+                        "tools" if payload.get("tools") else "completion",
+                        time.monotonic() - started, ok)
 
 
 class GeminiChatProvider(OpenRouterChatProvider):

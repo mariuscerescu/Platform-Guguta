@@ -64,6 +64,7 @@ class OpenRouterClient:
     _base_url = "https://openrouter.ai/api/v1/"
     _label = "OpenRouter"
     _allowed_endpoints: tuple[str, ...] = ("chat/completions", "embeddings", "rerank")
+    _retriable_codes: tuple[int, ...] = (429, 502, 503, 504, 529)
 
     def _headers(self) -> dict[str, str]:
         return {"Authorization": "Bearer " + self._key, "X-Title": "Guguta",
@@ -118,7 +119,7 @@ class OpenRouterClient:
         if endpoint not in self._allowed_endpoints:
             raise OpenRouterError(f"Endpoint {self._label} nepermis.")
         payload = self._private_payload(endpoint, payload)
-        retriable_codes = (429, 502, 503, 504, 529)
+        retriable_codes = self._retriable_codes
         try:
             async with asyncio.timeout(self._timeout):
                 async with httpx.AsyncClient(
@@ -128,6 +129,9 @@ class OpenRouterClient:
                 ) as client:
                     for attempt in range(self._retries + 1):
                         response = await client.post(endpoint, json=payload)
+                        if response.status_code != 200:
+                            logger.warning("ai_request_rejected provider=%s status=%d attempt=%d",
+                                           self._label, response.status_code, attempt + 1)
                         retriable = response.status_code in retriable_codes
                         data: Any = None
                         if not retriable:

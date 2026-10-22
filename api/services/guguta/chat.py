@@ -18,6 +18,7 @@ import asyncio
 import hashlib
 import json
 import logging
+import re
 import uuid
 from copy import copy
 from dataclasses import replace
@@ -47,6 +48,14 @@ if TYPE_CHECKING:
 
 MAX_CONTEXT_CHARS = 24000
 MAX_HISTORY_MESSAGES = 10
+
+
+def _is_greeting(question: str) -> bool:
+    folded = question.casefold().translate(str.maketrans("ăâîșşțţ", "aaisstt"))
+    return re.fullmatch(
+        r"\s*(?:salut|buna(?:\s+(?:ziua|dimineata|seara))?|hello|hi)"
+        r"(?:[\s,!]+guguta)?[\s!?.]*", folded,
+    ) is not None
 
 
 class ChatSessionNotFound(NotFoundError):
@@ -297,7 +306,7 @@ class ChatService:
                         ),
                         {"id": assistant_id, "sid": session_id, "seq": assistant_seq,
                          "c": full_text, "rev": context_revision,
-                         "model": self._provider.model_name,
+                         "model": answer.model,
                          "pv": answer.prompt_version,"pt":prompt_tokens,"ct":completion_tokens,
                          "tt":prompt_tokens+completion_tokens,"cost":answer.estimated_cost or 0},
                     )
@@ -788,7 +797,17 @@ class ChatService:
         *, context_revision: int | None = None,
     ) -> tuple[ChatAnswer, list[RetrievedChunk]]:
         """Acquire adaptive evidence then use the existing citation validator."""
+        if not self._attachment_ids and _is_greeting(question):
+            if callable(getattr(self._search, "context_revision", None)):
+                revision = await self._search.context_revision(actor_id, notebook_id)
+                if revision is None:
+                    raise ChatSessionNotFound()
+            return ChatAnswer(
+                "Salut! Sunt Guguță. Cu ce temă, lecție sau întrebare vrei să lucrăm astăzi?",
+                [], "guguta-greeting", 0, 0, 0.0,
+            ), []
         result = None
+        sources = None
         source_ids = list(self._attachment_ids)
         current_ids = set(source_ids)
         source_scopes = {source_id: "current_attachment" for source_id in current_ids}
@@ -819,6 +838,7 @@ class ChatService:
                 actor_id, notebook_id, self._provider, question, history, context,
                 expected_revision=context_revision,
                 source_scopes=source_scopes,
+                available_sources=sources,
             )
             context = self._budget(result.chunks)
         if callable(getattr(self._search, "authorize_chunks", None)):
@@ -858,6 +878,8 @@ class ChatService:
         Planning is an optional quality layer: if it is unavailable or returns
         invalid output, the original question remains a safe retrieval query.
         """
+        if not self._attachment_ids and _is_greeting(question):
+            return []
         queries = [question]
         if requested_page(question) is not None:
             # The locator is already an exact retrieval plan. A model planner
