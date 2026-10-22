@@ -16,7 +16,8 @@ from typing import Any, Sequence
 
 import httpx
 
-from open_notebook.ai.guguta.openrouter import OpenRouterClient, OpenRouterError
+from open_notebook.ai.guguta.gemini import completion_client, completion_model
+from open_notebook.ai.guguta.openrouter import OpenRouterError
 from open_notebook.exceptions import ConfigurationError, ExternalServiceError
 
 PROMPT_VERSION = "guguta-audio-overview-2"
@@ -35,17 +36,18 @@ class AudioScriptGenerator:
 
     def __init__(self, config: Any) -> None:
         self._provider = config.chat_provider
-        self._model = config.openrouter_chat_model
+        self._model = completion_model(config)
         self._max_tokens = config.audio_overview_max_output_tokens
         script_config = config.model_copy(
             update={
+                "gemini_timeout_seconds": max(float(config.gemini_timeout_seconds), 180.0),
                 "openrouter_timeout_seconds": max(
                     float(config.openrouter_timeout_seconds), 180.0
                 )
             }
         )
         self._client = (
-            OpenRouterClient(script_config) if self._provider == "openrouter" else None
+            completion_client(script_config)
         )
 
     async def generate(

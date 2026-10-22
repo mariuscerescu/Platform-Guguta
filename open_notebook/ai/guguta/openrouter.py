@@ -61,6 +61,14 @@ async def invoke(method: Any, *args: Any) -> Any:
 
 
 class OpenRouterClient:
+    _base_url = "https://openrouter.ai/api/v1/"
+    _label = "OpenRouter"
+    _allowed_endpoints: tuple[str, ...] = ("chat/completions", "embeddings", "rerank")
+
+    def _headers(self) -> dict[str, str]:
+        return {"Authorization": "Bearer " + self._key, "X-Title": "Guguta",
+                "X-OpenRouter-Cache": "false"}
+
     def __init__(self, config: Any, *, transport: Any = None) -> None:
         self._key = config.openrouter_api_key.get_secret_value()
         self._timeout = config.openrouter_timeout_seconds
@@ -107,17 +115,14 @@ class OpenRouterClient:
 
     async def post(self, endpoint: str, payload: dict[str, Any]) -> dict[str, Any]:
         # Fixed trusted destination; never follow a redirect carrying the key.
-        if endpoint not in ("chat/completions", "embeddings", "rerank"):
-            raise OpenRouterError("Endpoint OpenRouter nepermis.")
+        if endpoint not in self._allowed_endpoints:
+            raise OpenRouterError(f"Endpoint {self._label} nepermis.")
         payload = self._private_payload(endpoint, payload)
         retriable_codes = (429, 502, 503, 504, 529)
         try:
             async with asyncio.timeout(self._timeout):
                 async with httpx.AsyncClient(
-                    base_url="https://openrouter.ai/api/v1/",
-                    headers={"Authorization": "Bearer " + self._key,
-                             "X-Title": "Guguta",
-                             "X-OpenRouter-Cache": "false"},
+                    base_url=self._base_url, headers=self._headers(),
                     timeout=httpx.Timeout(self._timeout, connect=10),
                     follow_redirects=False, transport=self._transport,
                 ) as client:
@@ -132,7 +137,7 @@ class OpenRouterClient:
                                 data = response.json()
                             except ValueError:
                                 raise OpenRouterError(
-                                    "OpenRouter a returnat JSON invalid."
+                                    f"{self._label} a returnat JSON invalid."
                                 ) from None
                             # OpenRouter semnalează supraîncărcarea upstream
                             # cu HTTP 200 + error.code 502 în body (variante
@@ -159,15 +164,15 @@ class OpenRouterClient:
                             continue
                         if retriable:
                             raise OpenRouterError(
-                                "OpenRouter ocupat (upstream suprasolicitat); "
+                                f"{self._label} ocupat (upstream suprasolicitat); "
                                 "reîncercați în câteva momente."
                             ) from None
                         if not isinstance(data, dict):
-                            raise OpenRouterError("OpenRouter a returnat JSON invalid.")
+                            raise OpenRouterError(f"{self._label} a returnat JSON invalid.")
                         return data
         except (httpx.HTTPError, TimeoutError):
-            raise OpenRouterError("OpenRouter: conexiune eșuată sau timp de așteptare depășit.") from None
-        raise OpenRouterError("OpenRouter indisponibil.")
+            raise OpenRouterError(f"{self._label}: conexiune eșuată sau timp de așteptare depășit.") from None
+        raise OpenRouterError(f"{self._label} indisponibil.")
 
 
 class OpenRouterEmbeddingProvider:
@@ -246,6 +251,9 @@ class OpenRouterChatProvider:
         self._review_enabled = config.chat_answer_review
         self._client = OpenRouterClient(config, transport=transport)
 
+    def _tool_call_metadata(self, call: dict[str, Any]) -> dict[str, Any]:
+        return {}
+
     async def choose_tools(
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]],
     ) -> dict[str, Any]:
@@ -285,7 +293,7 @@ class OpenRouterChatProvider:
                 if not isinstance(arguments, dict):
                     raise ValueError()
                 seen_ids.add(call_id)
-                cleaned.append({"id": call_id, "type": "function", "function": {
+                cleaned.append({**self._tool_call_metadata(call), "id": call_id, "type": "function", "function": {
                     "name": function["name"], "arguments": json.dumps(arguments),
                 }})
             if choice["finish_reason"] == "tool_calls" and not cleaned:

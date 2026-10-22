@@ -200,13 +200,13 @@ def create_guguta_app(config: GugutaConfig) -> FastAPI:
         total_timeout_seconds=config.chat_total_timeout_seconds,
     )
     app.state.guguta_chat._attachments = app.state.guguta_attachments
-    if config.chat_provider == "openrouter" and config.chat_pdf_images:
+    if config.chat_provider in ("openrouter", "gemini") and config.chat_pdf_images:
         from api.services.guguta.pdf_evidence import PdfPageEvidence
         app.state.guguta_chat._pdf_evidence = PdfPageEvidence(
             engine, FilesystemStorage(config.storage_root),
             max_pages=config.chat_pdf_image_max_pages,
         )
-    if config.chat_provider == "openrouter" and config.chat_agent_enabled:
+    if config.chat_provider in ("openrouter", "gemini") and config.chat_agent_enabled:
         from api.services.guguta.chat_agent import NotebookChatAgent
 
         app.state.guguta_chat._agent = NotebookChatAgent(

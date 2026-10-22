@@ -383,7 +383,8 @@ class NotebookChatAgent:
             ]
             turn = await invoke(provider.choose_tools, messages, schemas)
             return {
-                "messages": [*state["messages"], turn["message"]],
+                "messages": [*(messages if getattr(provider, "preserve_tool_context", False)
+                               else state["messages"]), turn["message"]],
                 "calls": turn["message"].get("tool_calls", []),
                 "rounds": state["rounds"] + 1,
                 "usage": [*state["usage"], turn["usage"]],

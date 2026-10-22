@@ -198,4 +198,7 @@ def get_chat_provider(name: str, config: Any = None) -> ChatProvider:
     if name == "openrouter" and config is not None:
         from open_notebook.ai.guguta.openrouter import OpenRouterChatProvider
         return OpenRouterChatProvider(config)
+    if name == "gemini" and config is not None:
+        from open_notebook.ai.guguta.gemini import GeminiChatProvider
+        return GeminiChatProvider(config)
     raise ValueError(f"provider de chat necunoscut: {name}")

@@ -9,7 +9,8 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any, TypedDict
 
-from open_notebook.ai.guguta.openrouter import OpenRouterClient, OpenRouterError
+from open_notebook.ai.guguta.gemini import completion_client, completion_model
+from open_notebook.ai.guguta.openrouter import OpenRouterError
 from open_notebook.exceptions import ConfigurationError
 
 PROMPT_VERSION = "guguta-quizzes-2"
@@ -52,10 +53,10 @@ def normalize_answer(value: str) -> str:
 class QuizGenerator:
     def __init__(self, config: Any) -> None:
         self._provider = config.chat_provider
-        self._model = config.openrouter_chat_model
+        self._model = completion_model(config)
         self._max_tokens = config.quiz_max_output_tokens
         self._client = (
-            OpenRouterClient(config) if self._provider == "openrouter" else None
+            completion_client(config)
         )
 
     async def generate(

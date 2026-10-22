@@ -115,6 +115,13 @@ class GugutaConfig(BaseSettings):
     embedding_dimension: int = 8
     vector_max_distance: float = 0.9  # cosine-distance cutoff for retrieval
     chat_provider: str = "mock"  # mock until D-02 closes
+    gemini_api_key: SecretStr = SecretStr("")
+    gemini_chat_model: str = "gemini-3.8-flash"
+    gemini_thinking_level: Literal["low", "medium", "high"] = "medium"
+    gemini_timeout_seconds: float = Field(default=120, gt=0, le=300)
+    gemini_max_retries: int = Field(default=1, ge=0, le=3)
+    # Includes the model's internal reasoning and the visible JSON answer.
+    gemini_max_output_tokens: int = Field(default=16384, ge=1024, le=65536)
     openrouter_api_key: SecretStr = SecretStr("")
     openrouter_embedding_model: str = "nvidia/nemotron-3-embed-1b:free"
     openrouter_embedding_revision: str = "openrouter-2026-09-07"
@@ -183,8 +190,10 @@ class GugutaConfig(BaseSettings):
 
     @model_validator(mode="after")
     def _refuse_unsafe_production_config(self) -> "GugutaConfig":
-        if self.chat_provider not in ("mock", "openrouter") or self.embedding_provider not in ("hash", "openrouter", "local"):
+        if self.chat_provider not in ("mock", "openrouter", "gemini") or self.embedding_provider not in ("hash", "openrouter", "local"):
             raise ValueError("unknown Guguță AI provider")
+        if self.chat_provider == "gemini" and not self.gemini_api_key.get_secret_value().strip():
+            raise ValueError("GUGUTA_GEMINI_API_KEY is required")
         if "openrouter" in (self.chat_provider, self.embedding_provider, self.rerank_provider):
             if not self.openrouter_api_key.get_secret_value():
                 raise ValueError("GUGUTA_OPENROUTER_API_KEY is required")
