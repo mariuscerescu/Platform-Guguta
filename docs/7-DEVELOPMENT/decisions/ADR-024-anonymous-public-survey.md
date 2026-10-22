@@ -36,6 +36,12 @@ not a guarantee that every identifying phrase can be detected. Comments are
 rendered as text; CSV exports neutralize formula prefixes. No AI provider or
 third-party form/analytics service receives survey responses.
 
+Question 20 submits directly with one button. Publication is explained beside
+that button; clicking it acknowledges publication, without a separate review
+page or checkbox. The existing retry token and unfinished drafts are preserved.
+A locally served, static QR image links to the canonical public survey URL and
+opens in a native modal dialog for classroom projection.
+
 Migration 0025_survey only adds the isolated survey table/functions. Its unique
 revision ID avoids colliding with the pending PlayQuiz migration on a separate
 branch; that branch must be rebased and its migration parent updated before release.

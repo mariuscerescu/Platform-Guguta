@@ -29,12 +29,11 @@ test("twenty questions, a failed send and a retry persist one anonymous response
     if (i === 6) await page.screenshot({ path: test.info().outputPath("survey-question.png") });
     if (i === 19) await page.getByRole("textbox").fill("Explicații clare (răspuns fictiv de test).");
     if (i === 20) await page.getByRole("textbox").fill("<script>window.surveyUnsafe=true</script>");
-    await page.getByRole("button", { name: i === 20 ? "Verifică răspunsurile" : "Continuă" }).click();
+    if (i < 20) await page.getByRole("button", { name: "Continuă" }).click();
   }
-  await expect(page.locator(".survey-review li")).toHaveCount(20);
+  await expect(page.locator(".survey-progress-label strong")).toHaveText("20 / 20");
   const send = page.getByRole("button", { name: "Trimite răspunsurile" });
-  await expect(send).toBeDisabled();
-  await page.locator(".survey-ack input").check();
+  await expect(send).toBeEnabled();
   let first = true;
   await page.route(`**/api/v1/survey/responses`, async route => {
     if (first) { first = false; return route.fulfill({ status: 503, json: { message: "Eroare temporară de test." } }); }
@@ -70,6 +69,11 @@ test("public results contain the written opinions as text and export successfull
 test("phone layout and draft restoration keep the selected answer", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`${BASE}/sondaj`);
+  await page.getByRole("button", { name: "Mărește codul QR pentru sondaj" }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(page.getByRole("dialog").getByRole("link")).toHaveAttribute("href", "https://tineri.math.md/edu-platform/sondaj");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).not.toBeVisible();
   await page.getByRole("button", { name: "Începe sondajul" }).click();
   await page.getByLabel("Clasa V", { exact: true }).check();
   await page.reload();

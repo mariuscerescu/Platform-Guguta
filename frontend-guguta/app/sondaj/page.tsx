@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { withBase } from "../../lib/paths";
-import { answerLabel, hasAnswer, surveyRequest, type Questionnaire, type SurveyAnswers, type SurveySession } from "../../lib/survey";
+import { hasAnswer, surveyRequest, type Questionnaire, type SurveyAnswers, type SurveySession } from "../../lib/survey";
+import SurveyQr from "./SurveyQr";
 
 const DRAFT_KEY = "guguta.survey.draft.v1";
-type Stage = "intro" | "questions" | "review" | "done";
+type Stage = "intro" | "questions" | "done";
 
 export default function SurveyPage() {
   const [form, setForm] = useState<Questionnaire | null>(null);
@@ -13,10 +14,8 @@ export default function SurveyPage() {
   const [index, setIndex] = useState(0);
   const [answers, setAnswers] = useState<SurveyAnswers>({});
   const [session, setSession] = useState<SurveySession | null>(null);
-  const [acknowledged, setAcknowledged] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [editing, setEditing] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [reload, setReload] = useState(0);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -66,18 +65,18 @@ export default function SurveyPage() {
 
   function reset() {
     try { sessionStorage.removeItem(DRAFT_KEY); } catch { /* optional */ }
-    setAnswers({}); setSession(null); setIndex(0); setAcknowledged(false);
-    setEditing(false); setError(""); setStage("intro");
+    setAnswers({}); setSession(null); setIndex(0);
+    setError(""); setStage("intro");
   }
 
   async function submit() {
-    if (!form || !session || !acknowledged || sendLock.current) return;
+    if (!form || !session || sendLock.current) return;
     const missing = form.questions.findIndex(q => !hasAnswer(q, answers[q.id]));
     if (missing >= 0) { setIndex(missing); setStage("questions"); return; }
     sendLock.current = true; setBusy(true); setError("");
     try {
       const complete = Object.fromEntries(form.questions.map(q => [q.id, answers[q.id] ?? ""]));
-      const result = await surveyRequest<{ saved: boolean }>("/responses", { ...session, version: form.version, acknowledged, answers: complete });
+      const result = await surveyRequest<{ saved: boolean }>("/responses", { ...session, version: form.version, acknowledged: true, answers: complete });
       if (!result.saved) throw new Error("Răspunsurile nu au fost confirmate. Încearcă din nou.");
       setStage("done"); setAnswers({}); setSession(null);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Nu am putut salva răspunsurile. Încearcă din nou."); }
@@ -90,7 +89,7 @@ export default function SurveyPage() {
   if (!form) return <section className="survey-card"><p role={error ? "alert" : "status"}>{error || "Se încarcă sondajul…"}</p>{error && <button className="survey-primary" onClick={() => setReload(n => n + 1)}>Reîncearcă</button>}</section>;
 
   return <>
-    <nav className="survey-nav" aria-label="Sondaj"><a href={withBase("/app")}>← Platforma Guguță</a><a href={withBase("/sondaj/rezultate")}>Vezi rezultatele publice ↗</a></nav>
+    <nav className="survey-nav" aria-label="Sondaj"><a href={withBase("/app")}>← Platforma Guguță</a><div className="survey-nav-actions"><a href={withBase("/sondaj/rezultate")}>Vezi rezultatele publice ↗</a><SurveyQr /></div></nav>
     <section className="survey-card">
       {stage === "intro" && <>
         <span className="survey-eyebrow">SONDAJ PENTRU ELEVI</span>
@@ -112,7 +111,7 @@ export default function SurveyPage() {
         <h1 ref={heading} tabIndex={-1}>{question.title}</h1>
         <p className="survey-help">{question.type === "text" ? "Opțional. Răspunsul va fi public; nu include date personale." : question.type === "multiple" ? "Alege cel mult 3 variante." : "Alege o singură variantă."}</p>
         {question.type === "text" ? <div className="survey-writing">
-          <textarea aria-label={question.title} rows={6} maxLength={1000} value={typeof value === "string" ? value : ""}
+          <textarea aria-label={question.title} rows={6} maxLength={1000} disabled={busy} value={typeof value === "string" ? value : ""}
             placeholder="Scrie aici, dacă dorești…" onChange={event => setAnswers(current => ({ ...current, [question.id]: event.target.value }))} />
           <span>{typeof value === "string" ? value.length : 0} / 1000</span>
         </div> : <fieldset className={`survey-options ${question.options.length > 7 ? "survey-options--columns" : ""}`}>
@@ -135,27 +134,13 @@ export default function SurveyPage() {
             </label>;
           })}
         </fieldset>}
+        {index === 19 && <p className="survey-help">Apăsând „Trimite răspunsurile”, ești de acord ca răspunsurile tale, inclusiv cele scrise, să fie publice. Nu include date personale.</p>}
         <div className="survey-controls">
-          <button className="survey-secondary" onClick={() => { setError(""); editing ? setStage("review") : index ? setIndex(i => i - 1) : setStage("intro"); }}>← {editing ? "Verificare" : "Înapoi"}</button>
-          <button className="survey-primary" disabled={!hasAnswer(question, value)} onClick={() => {
-            setError(""); if (editing || index === 19) { setStage("review"); setEditing(false); } else setIndex(i => i + 1);
-          }}>{editing || index === 19 ? "Verifică răspunsurile" : "Continuă →"}</button>
+          <button className="survey-secondary" disabled={busy} onClick={() => { setError(""); index ? setIndex(i => i - 1) : setStage("intro"); }}>← Înapoi</button>
+          <button className="survey-primary" disabled={busy || !hasAnswer(question, value)} onClick={() => {
+            setError(""); if (index === 19) void submit(); else setIndex(i => i + 1);
+          }}>{busy ? "Se salvează răspunsurile…" : index === 19 ? "Trimite răspunsurile" : "Continuă →"}</button>
         </div>
-      </>}
-
-      {stage === "review" && <>
-        <span className="survey-eyebrow">ULTIMUL PAS</span>
-        <h1 ref={heading} tabIndex={-1}>Verifică răspunsurile</h1>
-        <p>Poți modifica orice răspuns înainte de a-l trimite.</p>
-        <ol className="survey-review">{form.questions.map((q, i) => <li key={q.id}>
-          <button disabled={busy} onClick={() => { setIndex(i); setEditing(true); setStage("questions"); setError(""); }}>
-            <strong>{q.number}. {q.title}</strong><span>{answerLabel(q, answers[q.id])}</span><small>Modifică</small>
-          </button>
-        </li>)}</ol>
-        <label className="survey-ack"><input type="checkbox" checked={acknowledged} disabled={busy} onChange={e => setAcknowledged(e.target.checked)} />
-          <span>Vreau să particip și am înțeles că răspunsurile, inclusiv cele scrise, vor fi publice. Nu am inclus date personale.</span>
-        </label>
-        <button className="survey-primary" disabled={!acknowledged || busy} onClick={() => void submit()}>{busy ? "Se salvează răspunsurile…" : "Trimite răspunsurile"}</button>
         {error.includes("Sesiunea sondajului a expirat") && <button className="survey-secondary" disabled={busy} onClick={async () => {
           try { setSession(await surveyRequest<SurveySession>("/session")); setError(""); } catch { setError("Nu am putut reînnoi sesiunea. Încearcă din nou."); }
         }}>Reînnoiește sesiunea</button>}
