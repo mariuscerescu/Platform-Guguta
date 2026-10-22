@@ -441,6 +441,31 @@ class SourcesService:
             )
         return self._storage.read_bytes(row["storage_key"]), row["mime_type"], row["original_name"]
 
+    async def preview(
+        self, actor: ActorContext, notebook_id: uuid.UUID, source_id: uuid.UUID
+    ) -> tuple[bytes, str, Optional[str]]:
+        """Reuse download authorization; Office previews stay on our server."""
+        data, mime, original = await self.download(actor, notebook_id, source_id)
+        parsers = {
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document": parsing.extract_docx,
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation": parsing.extract_pptx,
+        }
+        parser = parsers.get(mime)
+        if parser is None:
+            return data, mime, original
+        try:
+            units, _ = await asyncio.to_thread(parser, data)
+        except parsing.ExtractionError as exc:
+            raise SourceValidation(
+                "Nu am putut afișa textul documentului. Poți descărca fișierul original."
+            ) from exc
+        paragraphs = [
+            (f"Diapozitivul {unit.locator['slide']}\n\n" if "slide" in unit.locator else "")
+            + unit.text
+            for unit in units
+        ]
+        return "\n\n".join(paragraphs).encode("utf-8"), "text/plain", original
+
     async def retry(
         self, actor: ActorContext, notebook_id: uuid.UUID, source_id: uuid.UUID
     ) -> bool:

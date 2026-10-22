@@ -758,13 +758,34 @@ async def delete_source(
 async def download_source(
     notebook_id: uuid.UUID, source_id: uuid.UUID, request: Request
 ) -> Any:
-    from urllib.parse import quote
-
-    from fastapi.responses import Response
-
     actor = get_actor(request)
     service = get_sources_service(request)
     data, mime, original = await service.download(actor, notebook_id, source_id)
+    return _source_file_response(data, mime, original)
+
+
+@sources_router.get("/{source_id}/preview")
+async def preview_source(
+    notebook_id: uuid.UUID, source_id: uuid.UUID, request: Request
+) -> Any:
+    actor = get_actor(request)
+    service = get_sources_service(request)
+    data, mime, original = await service.preview(actor, notebook_id, source_id)
+    # Only passive formats may be opened inline on the authenticated origin.
+    inline = mime in {
+        "application/pdf", "image/png", "image/jpeg", "image/webp",
+        "image/gif", "text/plain", "text/markdown",
+        "audio/mpeg", "audio/wav", "audio/ogg", "audio/mp4",
+        "video/mp4", "video/webm", "video/quicktime",
+    }
+    return _source_file_response(data, mime, original, inline=inline)
+
+
+def _source_file_response(
+    data: bytes, mime: str, original: Optional[str], *, inline: bool = False
+) -> Response:
+    from urllib.parse import quote
+
     # F24: safe Content-Disposition with ASCII fallback + UTF-8 extension
     safe_name = (
         (original or "material").replace('"', "").replace("\r", "").replace("\n", "")
@@ -775,7 +796,7 @@ async def download_source(
         "Cache-Control": "private, no-store",
         "X-Content-Type-Options": "nosniff",
         "Content-Disposition": (
-            f"attachment; filename=\"{ascii_name}\"; filename*=UTF-8''{utf8_name}"
+            f"{'inline' if inline else 'attachment'}; filename=\"{ascii_name}\"; filename*=UTF-8''{utf8_name}"
         )
     }
     return Response(content=data, media_type=mime, headers=headers)

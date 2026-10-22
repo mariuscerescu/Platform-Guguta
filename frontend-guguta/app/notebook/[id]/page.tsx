@@ -11,7 +11,7 @@ import {
   withoutReferenceMarkers,
 } from "../../../lib/features";
 import ChatAttachments, { AttachmentCards, type ChatAttachment } from "../../components/ChatAttachments";
-import PrivateImagePreview from "../../components/PrivateImagePreview";
+import MaterialPreview from "../../components/MaterialPreview";
 import LogoutButton from "../../components/LogoutButton";
 import ThemeToggle from "../../components/ThemeToggle";
 import SourceUploader from "../../components/SourceUploader";
@@ -180,7 +180,7 @@ function NotebookWorkspace({ nbId }: { nbId: string }) {
   const [uploadingAttachments, setUploadingAttachments] = useState(false);
   const [resettingChat, setResettingChat] = useState(false);
   const [attachmentRefresh, setAttachmentRefresh] = useState(0);
-  const [imagePreview, setImagePreview] = useState<Source | null>(null);
+  const [materialPreview, setMaterialPreview] = useState<Source | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const submittedAttachmentIds = new Set(messages.flatMap((message) =>
     message.attachments?.map((file) => file.id) ?? []
@@ -1253,14 +1253,18 @@ function NotebookWorkspace({ nbId }: { nbId: string }) {
             </button>
             <div className="rail-source-list" aria-label="Materialele carnetului">
               {sources?.map((source) => (
-                <span
+                <button
+                  type="button"
                   key={source.id}
                   className={`rail-source ${source.selected_for_chat ? "selected" : ""} ${source.status}`}
                   title={source.local_name}
+                  aria-label={`Deschide ${source.local_name}`}
+                  tabIndex={srcCollapsed ? 0 : -1}
+                  onClick={() => setMaterialPreview(source)}
                 >
                   <SourceTypeIcon source={source} />
                   {source.status === "processing" && <span className="rail-status-dot" />}
-                </span>
+                </button>
               ))}
             </div>
           </div>
@@ -1289,14 +1293,12 @@ function NotebookWorkspace({ nbId }: { nbId: string }) {
                       }
                     />
                   </label>
-                  <span className={`src-doc source-type-${sourceIconType(s)}`} title={sourceIconType(s) === "book" ? "Carte / PDF" : sourceIconType(s) === "quiz" ? "Test" : sourceIconType(s) === "audio" ? "Audio" : sourceIconType(s) === "video" ? "Video" : "Document"}>
+                  <button type="button" className={`src-doc source-type-${sourceIconType(s)}`} onClick={() => setMaterialPreview(s)} aria-label={`Previzualizează ${s.local_name}`} title="Previzualizează materialul">
                     {s.mime_type?.startsWith("image/") ? (
-                      <button type="button" className="source-image-thumb" onClick={() => setImagePreview(s)} aria-label={`Afișează imaginea ${s.local_name}`}>
-                        <img src={`${API_BASE}/api/v1/notebooks/${nbId}/sources/${s.id}/download`} alt={s.local_name} />
-                      </button>
+                      <img src={`${API_BASE}/api/v1/notebooks/${nbId}/sources/${s.id}/download`} alt="" loading="lazy" />
                     ) : <SourceTypeIcon source={s} />}
-                  </span>
-                  <span className="src-name" title={s.local_name}>{s.local_name}</span>
+                  </button>
+                  <button type="button" className="src-name" title={s.local_name} onClick={() => setMaterialPreview(s)}>{s.local_name}</button>
                   {/* Cât timp workerul procesează, fișierul primește doar
                       cercul animat; când e gata, nu se scrie nimic pe el. */}
                   {s.status === "error" ? (
@@ -2071,9 +2073,8 @@ function NotebookWorkspace({ nbId }: { nbId: string }) {
           </div>
         </div>
       )}
-      {imagePreview && <PrivateImagePreview
-        url={`${API_BASE}/api/v1/notebooks/${nbId}/sources/${imagePreview.id}/download`}
-        name={imagePreview.local_name} onClose={() => setImagePreview(null)} />}
+      {materialPreview && <MaterialPreview key={materialPreview.id} notebookId={nbId}
+        source={materialPreview} onClose={() => setMaterialPreview(null)} />}
     </div>
   );
 }
