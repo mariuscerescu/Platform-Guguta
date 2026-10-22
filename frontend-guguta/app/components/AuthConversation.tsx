@@ -176,7 +176,11 @@ export default function AuthConversation({ title, intro, steps, sheetTitle, subm
     <section className="auth-shell talk-shell" aria-labelledby="talk-title">
       <div className="talk-column">
         <div className="talk-head">
-          <img className="talk-mascot" src={withBase("/guguta-companion/assets/guguta.webp")} alt="" width={96} height={96} />
+          <span
+            className="talk-mascot"
+            style={{ backgroundImage: `url("${withBase("/guguta-companion/assets/guguta.webp")}")` }}
+            aria-hidden="true"
+          />
           <div>
             <h1 id="talk-title">{title}</h1>
             <p className="muted">Guguță te întreabă, tu răspunzi. Poți corecta orice înainte de final.</p>
