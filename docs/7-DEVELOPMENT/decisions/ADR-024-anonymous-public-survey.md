@@ -42,8 +42,7 @@ page or checkbox. The existing retry token and unfinished drafts are preserved.
 A locally served, static QR image links to the canonical public survey URL and
 opens in a native modal dialog for classroom projection.
 
-Migration 0025_survey only adds the isolated survey table/functions. Its unique
-revision ID avoids colliding with the pending PlayQuiz migration on a separate
-branch; that branch must be rebased and its migration parent updated before release.
+Migration 0025_survey only adds the isolated survey table/functions. The PlayQuiz token
+migration `0026` follows `0025_survey`, preserving survey tables and responses.
 Existing notebooks,
 users, materials, chat, voice and PlayQuiz are unchanged.

@@ -1,31 +1,43 @@
-# ADR-023: PlayQuiz extern (play-quiz.com) prin export de quiz și cont automat
+# ADR-023: PlayQuiz extern prin export de quiz și cont de partener
 
-Data: 2026-10-21. Stare: **propus** (devine acceptat după acordul echipei PlayQuiz pe contractul de partener).
+Data: 2026-10-21. Actualizat: 2026-10-22.
+Stare: **acceptat**, adaptat la implementarea verificată în EduPlatform-BE
+`e39a0c3`; activarea în producție așteaptă cheia de partener.
 
 ## Context
 
-ADR-021 a integrat PlayQuiz găzduind întreaga platformă (Java, Next.js, Oracle) pe serverul nostru, sub `/edu-platform/playquiz`, cu sesiunea Guguță validată la fiecare cerere și cu un proxy Java către API-ul Guguță. Soluția dublează infrastructura, leagă două baze de date pe același server și nu folosește instanța publică a colaboratorilor, `https://play-quiz.com`. Echipa PlayQuiz este partener în proiect și poate adăuga endpointuri.
+PlayQuiz rulează separat în VM și pe play-quiz.com. Păstrăm quizurile Guguță
+native și oferim „Deschide în PlayQuiz” numai pentru întrebări grilă.
+Contractul propus inițial cu Bearer, upsert și `/handoff` a fost înlocuit cu
+contractul efectiv al echipei PlayQuiz, verificat în surse și în OpenAPI live.
 
 ## Decizie
 
-1. Quizurile grilă rămân afișate și jucabile nativ în Guguță.
-2. Dialogul quizului primește butonul „Deschide în PlayQuiz”. La apăsare, API-ul Guguță trimite server-la-server către `play-quiz.com`: contul utilizatorului (identificat prin UUID-ul Guguță ca `external_id`, fără parolă), quizul (întrebări, răspunsuri corecte și greșite) și cere un token de handoff de unică folosință. Browserul deschide URL-ul de handoff și ajunge autentificat pe quiz.
-3. Comunicarea folosește o cheie de partener emisă de PlayQuiz, ținută doar în mediul API-ului Guguță; opțional semnătură HMAC. Exporturile sunt idempotente (`external_id` + `content_hash`) și reținute în tabelul `playquiz_exports`.
-4. Guguță rămâne autoritatea pentru conținutul quizului; PlayQuiz este autoritatea pentru joc, scoruri și contul de jucător. Rezultatele pot reveni în Guguță printr-un webhook semnat, într-o fază ulterioară.
-5. Integrarea locală din ADR-021 (stack `guguta-playquiz`, rutele nginx `/edu-platform/playquiz*`, endpointurile `/auth/playquiz-*`, serviciul `playquiz.py`) este deprecată și se elimină după ce fluxul nou funcționează în producție. ADR-021 trece la starea „înlocuit de ADR-023”.
-6. La cererea utilizatorului din 22 octombrie 2026, butonul se afișează la quizurile gata alcătuite numai din întrebări grilă, inclusiv înainte de configurarea partenerului. Capabilitatea `playquiz` raportează în continuare disponibilitatea reală a conexiunii. Fără configurare, apăsarea primește eroarea controlată `playquiz_disabled`, iar quizul rămâne jucabil aici. Primul export efectiv cere consimțământul explicit al utilizatorului pentru transmiterea numelui și a e-mailului.
-
-Contractul de partener, maparea datelor, etapele și întrebările deschise sunt în `docs/guguta/PLAN_INTEGRARE_PLAYQUIZ_COM.md`.
-
-Actualizare 22.10.2026: redirecționarea automată a quizurilor grilă spre instanța locală a fost eliminată, iar butonul folosește cererea POST de export. Linkul vechi din antet a fost eliminat. Endpointurile PlayQuiz și cheia de partener nu sunt încă pregătite (confirmat de utilizator); partea externă nu este declarată activă. Reîncercările HTTP păstrează același `Idempotency-Key` și nu urmează redirectări cu cheia de partener.
-
-## Implementare
-
-Faza 1 (partea Guguță) este în cod din 21 octombrie 2026: configurarea `GUGUTA_PLAYQUIZ_*`, migrarea `0023_playquiz_exports` (tabelele `playquiz_exports` și `playquiz_consents`, cu RLS), serviciul `api/services/guguta/playquiz_export.py` (mapare, client de partener cu reîncercări și semnătură HMAC opțională, idempotență pe `content_hash`), endpointurile `GET`/`POST /api/v1/notebooks/{nb}/quizzes/{quiz}/playquiz`, capabilitatea `playquiz` în `/api/v1/auth/me`, butonul și dialogul de acord din dialogul quizului, testele `tests/guguta/test_playquiz_export.py` și `frontend-guguta/e2e/playquiz.spec.ts`. Endpointurile locale `/auth/playquiz-*` și serviciul `playquiz.py` au fost eliminate. Rămân: confirmarea contractului de către PlayQuiz (faza 0/2) și dezafectarea stack-ului local de pe server (faza 3).
+1. `POST /api/partner/quizzes` cu `X-Partner-Key` creează quizul. Folosim
+   `quizType`, `timePerQuestion`, `content`, `answers`, `wrongAnswers`.
+2. Salvăm `playUrl` și tokenul lui, apoi apelăm
+   `POST /api/partner/guguta/accounts` cu `external_id`, email, nume, RO și
+   `play_token`. `login_url` este de unică folosință, valabil 15 minute.
+3. La prima accesare PlayQuiz cere alegerea unei parole; ulterior intrarea din
+   Guguță este automată. Parolele celor două platforme nu se sincronizează.
+   Emailul deja înregistrat independent nu se asociază automat: afișăm linkul
+   quizului pentru autentificarea elevului în contul existent.
+4. Acord explicit înainte de transmitere; cheia numai server-side, fără
+   redirectări HTTP și cu validarea originii/rutei linkurilor returnate.
+5. Hash local al payloadului, token persistat înainte de login și lock între
+   procese pentru reutilizare. Nu repetăm automat POST-uri: PlayQuiz nu
+   deduplică. Nu promitem exact-once dacă răspunsul de creare se pierde.
+6. Migrarea `0026` permite salvarea tokenului fără cont încă asociat. RLS-ul
+   rămâne pe utilizator; datele existente se păstrează.
+7. URL-ul poate fi preconfigurat cu cheia goală: capabilitatea rămâne falsă.
+   Butonul grilă rămâne vizibil și raportează indisponibilitatea controlat.
 
 ## Consecințe
 
-- Dispar Oracle, API-ul Java și frontendul PlayQuiz de pe serverul nostru; rămâne un singur client HTTP în API-ul Guguță.
-- Apare o dependență de un serviciu extern; fluxul se degradează grațios (quizul rămâne în Guguță).
-- Datele personale ale elevilor sunt transmise unui operator separat doar la acțiunea explicită a utilizatorului; termenii Guguță trebuie să o menționeze.
-- Contractul depinde de echipa PlayQuiz; clientul și maparea stau într-un singur modul ca ajustările să fie ieftine.
+Quizurile exportate sunt personalizate (`/quiz/custom/...`), fără titlu/categorie
+în contractul actual. Clasificarea pe clase/discipline și întoarcerea scorurilor
+necesită extindere PlayQuiz. Schimbarea conținutului creează o versiune nouă.
+Integrarea locală din ADR-021 se păstrează până la validarea celei externe.
+
+Contract, exemple și procedura de activare:
+[PLAN_INTEGRARE_PLAYQUIZ_COM.md](../../guguta/PLAN_INTEGRARE_PLAYQUIZ_COM.md).

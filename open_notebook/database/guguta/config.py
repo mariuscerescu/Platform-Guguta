@@ -176,8 +176,6 @@ class GugutaConfig(BaseSettings):
     # cheia nu ajunge niciodată în browser.
     playquiz_api_url: str = ""
     playquiz_partner_key: SecretStr = SecretStr("")
-    playquiz_hmac_secret: SecretStr = SecretStr("")
-    playquiz_category: str = "guguta"
     playquiz_timeout_seconds: float = Field(default=10, gt=0, le=60)
     job_lease_seconds: int = 300
     job_poll_seconds: float = 2.0
@@ -186,7 +184,7 @@ class GugutaConfig(BaseSettings):
     @property
     def playquiz_enabled(self) -> bool:
         """Exportul către PlayQuiz extern este configurat (URL + cheie de partener)."""
-        return bool(self.playquiz_api_url and self.playquiz_partner_key.get_secret_value())
+        return bool(self.playquiz_api_url and self.playquiz_partner_key.get_secret_value().strip())
 
     @model_validator(mode="after")
     def _refuse_unsafe_production_config(self) -> "GugutaConfig":
@@ -252,10 +250,8 @@ class GugutaConfig(BaseSettings):
             parsed_playquiz = urlparse(self.playquiz_api_url)
             if parsed_playquiz.scheme not in ("http", "https") or not parsed_playquiz.hostname:
                 raise ValueError("GUGUTA_PLAYQUIZ_API_URL must be an absolute http(s) URL")
-            if not self.playquiz_partner_key.get_secret_value():
-                raise ValueError(
-                    "GUGUTA_PLAYQUIZ_PARTNER_KEY is required when GUGUTA_PLAYQUIZ_API_URL is set"
-                )
+            if parsed_playquiz.username or parsed_playquiz.password or parsed_playquiz.query or parsed_playquiz.fragment:
+                raise ValueError("GUGUTA_PLAYQUIZ_API_URL must not contain credentials, query or fragment")
         if self.environment in _DEV_ENVIRONMENTS:
             return self
         problems: list[str] = []
