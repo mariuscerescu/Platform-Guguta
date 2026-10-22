@@ -95,7 +95,7 @@ class MeResponse(BaseModel):
 # Versiunea politicii de confidențialitate și a termenilor afișate în interfață
 # (frontend-guguta/app/confidentialitate, /termeni). La schimbare, interfața
 # cere din nou acordul utilizatorilor cu o versiune mai veche.
-PRIVACY_POLICY_VERSION = "2026-10-21"
+PRIVACY_POLICY_VERSION = "2026-10-22"
 
 CLASS_LEVELS: tuple[str, ...] = (
     "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"

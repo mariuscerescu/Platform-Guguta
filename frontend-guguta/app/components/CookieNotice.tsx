@@ -23,7 +23,7 @@ export default function CookieNotice() {
   return (
     <div className="cookie-notice" role="region" aria-label="Informare despre cookie-uri">
       <p>
-        Guguță folosește doar cookie-uri <strong>strict necesare</strong>: sesiunea ta și protecția formularelor.
+        Guguță folosește cookie-uri <strong>strict necesare</strong> pentru sesiunea ta. Tema, poziția mascotei și protecția formularelor folosesc stocare locală în browser.
         Nu folosim cookie-uri de urmărire sau de publicitate. Detalii în{" "}
         <a href={withBase("/confidentialitate")}>Politica de confidențialitate</a>.
       </p>

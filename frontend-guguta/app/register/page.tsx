@@ -42,8 +42,8 @@ export default function RegisterPage() {
     {
       id: "parentConsent", kind: "confirm", field: { label: "Acordul părintelui" },
       skip: (values) => !PARENT_CLASSES.has(values.classLevel ?? ""),
-      ask: () => "Un părinte sau un tutore știe că îți faci cont pe Guguță și este de acord?",
-      extra: () => <p className="muted">Pentru elevii din clasele I–VIII cerem acordul unui adult. Dacă nu e lângă tine acum, poți reveni mai târziu.</p>,
+      ask: () => "Un părinte sau un tutore: te rog preia tastatura, citește politica de confidențialitate și confirmă personal dacă ești de acord să-i creezi contul copilului.",
+      extra: () => <p className="muted">Confirmarea se înregistrează, dar formularul nu verifică separat identitatea adultului. Pentru clasele I–VIII, acest pas rămâne o măsură provizorie până configurăm autorizarea și verificarea părintelui.</p>,
       confirmLabel: "Da, este de acord", declineLabel: "Nu încă",
       declineSay: "Nicio problemă. Roagă un părinte sau un tutore să citească politica de confidențialitate împreună cu tine și revenim când e de acord.",
     },

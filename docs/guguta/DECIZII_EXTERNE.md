@@ -16,7 +16,7 @@ SurrealDB, MIT). Elementele de mai jos blochează modulele indicate și trebuie
 | D-04 | Drepturile de utilizare/redistribuire pentru manualele pilot | Inițiator + editor de catalog | Înainte de popularea catalogului | L6 publicare, R88 | DESCHISĂ |
 | D-05 | Clase, discipline, ediții și profesori evaluatori pentru pilot | Inițiator + editor de catalog | Înainte de pilot | L9 evaluare pedagogică, R87 | DESCHISĂ |
 | D-06 | Praguri măsurabile: calitate AI, cost, latență, RPO/RTO, concurență | Echipa produs/tehnic/pedagogic | Înainte de pilot | R90, R94, L9 | DESCHISĂ |
-| D-07 | Acces minorilor, informare, retenție, export, ștergere, moderare | Responsabili instituționali/juridici | Înainte de date reale | R92, R93 | DESCHISĂ (implementare provizorie în ADR-024: acord părinte pentru I–VIII, politică și termeni ca versiune de lucru, ștergere din „Contul meu”) |
+| D-07 | Acces minorilor, informare, retenție, export, ștergere, moderare | Responsabili instituționali/juridici | Înainte de date reale | R92, R93 | DESCHISĂ (Legea 195/2024 art. 8 folosește pragul de 14 ani pentru servicii online bazate pe consimțământ. Formularul actual folosește provizoriu clasele I–VIII și o confirmare care nu verifică separat reprezentantul legal; politica și termenii sunt proiecte de lucru.) |
 | D-08 | Transferul sau excluderea datelor demo existente (SurrealDB/SQLite), proprietar desemnat | Inițiator | Înainte de orice cutover cu date vechi | L8 transfer, R13–R15 | DESCHISĂ |
 
 

@@ -7,7 +7,7 @@ export default function TermsPage() {
   return (
     <article className="legal">
       <h1>Termeni de utilizare</h1>
-      <p className="muted">Versiunea 2026-10-21. Platforma este în dezvoltare activă, în cadrul unui proiect de cercetare; instanța publică este de test.</p>
+      <p className="muted">Versiunea 2026-10-22. Platforma este în dezvoltare activă, în cadrul unui proiect de cercetare; instanța publică este de test.</p>
 
       <h2>1. Ce este Guguță</h2>
       <p>Guguță este o platformă educațională cu un tutore bazat pe inteligență artificială, care răspunde pe baza materialelor din carnetele tale și te ajută să exersezi. Nu înlocuiește profesorul și nu garantează corectitudinea fiecărui răspuns: verifică informațiile importante în manual sau cu profesorul.</p>
@@ -15,7 +15,7 @@ export default function TermsPage() {
       <h2>2. Contul</h2>
       <ul>
         <li>Contul este personal. Parola este cheia de la carnetele tale: nu o spune nimănui.</li>
-        <li>Pentru elevii din clasele I–VIII este nevoie de acordul unui părinte sau tutore.</li>
+        <li>Pentru un elev sub 14 ani este necesară autorizarea reprezentantului legal atunci când înscrierea se bazează pe consimțământ. Fluxul actual de autorizare este provizoriu și se validează instituțional.</li>
         <li>Poți șterge contul oricând din <a href={withBase("/cont")}>Contul meu</a>.</li>
       </ul>
 
@@ -26,7 +26,7 @@ export default function TermsPage() {
       <p>Folosește platforma pentru învățare. Nu încerca să ocolești protecțiile, să supraîncarci serviciul sau să folosești tutorele pentru conținut dăunător. Conturile care încalcă aceste reguli pot fi suspendate.</p>
 
       <h2>5. Servicii partenere</h2>
-      <p>Unele funcții folosesc servicii externe (modele de limbaj, voce, PlayQuiz). Când o funcție trimite date în afara platformei, Guguță îți spune și îți cere acordul, conform <a href={withBase("/confidentialitate")}>Politicii de confidențialitate</a>.</p>
+      <p>Unele funcții folosesc servicii externe (modele de limbaj, conversație vocală, PlayQuiz). Înainte să folosești microfonul sau să trimiți un quiz către PlayQuiz, citește ce date pleacă din platformă în <a href={withBase("/confidentialitate")}>Politica de confidențialitate</a>.</p>
 
       <h2>6. Disponibilitate și răspundere</h2>
       <p>Serviciul este oferit „ca atare”, fără garanții de disponibilitate continuă. Facem copii de siguranță, dar păstrează și tu materialele importante. Echipa proiectului nu răspunde pentru deciziile luate exclusiv pe baza răspunsurilor tutorelui.</p>
