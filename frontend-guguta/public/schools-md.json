@@ -1,0 +1,3721 @@
+{
+  "source": "Ministerul Educației și Cercetării al Republicii Moldova",
+  "sources": [
+    "https://mec.gov.md/ro/content/lista-institutiilor-de-invatamant-general-care-implementeaza-sistemul-informational-catalog",
+    "https://mec.gov.md/ro/content/lista-institutiilor-de-invatamant-general-care-implementeaza-primul-sistemul-informational"
+  ],
+  "retrieved_on": "2026-10-22",
+  "coverage": "Instituții din listele publice SICE; nu este registrul național complet.",
+  "schools": [
+    {
+      "name": "Instituția Publică Liceul Teoretic “Alexandr Pușkin”",
+      "locality": "OR.ANENII NOI",
+      "district": "ANENII NOI"
+    },
+    {
+      "name": "Instituție de Învățământ Liceul Teoretic “Andrei Straista”",
+      "locality": "OR.ANENII NOI",
+      "district": "ANENII NOI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Cobusca Veche",
+      "locality": "S.COBUSCA VECHE",
+      "district": "ANENII NOI"
+    },
+    {
+      "name": "Instituția Publică Complexul Educațional Gimnaziul Grădiniță Luceafărul",
+      "locality": "S.DELACĂU",
+      "district": "ANENII NOI"
+    },
+    {
+      "name": "Instituția Publică Școala Primară Hîrbovăț",
+      "locality": "S.HÎRBOVĂȚ",
+      "district": "ANENII NOI"
+    },
+    {
+      "name": "Instituție de Învățământ Liceul Teoretic “Ion Creangă”",
+      "locality": "S.HÎRBOVĂȚ",
+      "district": "ANENII NOI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul- grădiniță Merenii Noi",
+      "locality": "S.MERENII NOI",
+      "district": "ANENII NOI"
+    },
+    {
+      "name": "Instituția Publică Școala primară grădiniță Mereni",
+      "locality": "S.MERENI",
+      "district": "ANENII NOI"
+    },
+    {
+      "name": "Instituție de Învățământ Liceul Teoretic Emil Nicula",
+      "locality": "S.MERENI",
+      "district": "ANENII NOI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul “Olimp”",
+      "locality": "S.PUHĂCENI",
+      "district": "ANENII NOI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Speia",
+      "locality": "S.SPEIA",
+      "district": "ANENII NOI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Ion Creangă\"",
+      "locality": "S.ȚÎNTĂRENI",
+      "district": "ANENII NOI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Todirești",
+      "locality": "S.TODIREȘTI",
+      "district": "ANENII NOI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic Varnița",
+      "locality": "S.VARNIȚA",
+      "district": "ANENII NOI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Zolotievca",
+      "locality": "S.ZOLOTIEVCA",
+      "district": "ANENII NOI"
+    },
+    {
+      "name": "Gimnaziu „Alexandru Ioan Cuza”",
+      "locality": "MUN.BĂLȚI",
+      "district": "BĂLȚI"
+    },
+    {
+      "name": "Gimnaziul nr. 10",
+      "locality": "MUN.BĂLȚI",
+      "district": "BĂLȚI"
+    },
+    {
+      "name": "Gimnaziul nr.14",
+      "locality": "MUN.BĂLȚI",
+      "district": "BĂLȚI"
+    },
+    {
+      "name": "Gimnaziul nr.2",
+      "locality": "MUN.BĂLȚI",
+      "district": "BĂLȚI"
+    },
+    {
+      "name": "Gimnaziul nr.3",
+      "locality": "MUN.BĂLȚI",
+      "district": "BĂLȚI"
+    },
+    {
+      "name": "Gimnaziul nr.6",
+      "locality": "MUN.BĂLȚI",
+      "district": "BĂLȚI"
+    },
+    {
+      "name": "Gimnaziul nr. 7",
+      "locality": "MUN.BĂLȚI",
+      "district": "BĂLȚI"
+    },
+    {
+      "name": "Gimnaziul nr. 9",
+      "locality": "MUN.BĂLȚI",
+      "district": "BĂLȚI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „M. Eminescu”",
+      "locality": "MUN.BĂLȚI",
+      "district": "BĂLȚI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „N. Gogol”",
+      "locality": "MUN.BĂLȚI",
+      "district": "BĂLȚI"
+    },
+    {
+      "name": "Liceul Teoretic „A. Pușkin”",
+      "locality": "MUN.BĂLȚI",
+      "district": "BĂLȚI"
+    },
+    {
+      "name": "Liceul Teoretic „B.P. Hașdeu”",
+      "locality": "MUN.BĂLȚI",
+      "district": "BĂLȚI"
+    },
+    {
+      "name": "Liceul Teoretic „D. Cantemir”",
+      "locality": "MUN.BĂLȚI",
+      "district": "BĂLȚI"
+    },
+    {
+      "name": "Liceul Teoretic „G. Coșbuc”",
+      "locality": "MUN.BĂLȚI",
+      "district": "BĂLȚI"
+    },
+    {
+      "name": "Liceul Teoretic „L. Blaga”",
+      "locality": "MUN.BĂLȚI",
+      "district": "BĂLȚI"
+    },
+    {
+      "name": "Liceul Teoretic „M. Gorki”",
+      "locality": "MUN.BĂLȚI",
+      "district": "BĂLȚI"
+    },
+    {
+      "name": "Liceul Teoretic „M. Lomonosov”",
+      "locality": "MUN.BĂLȚI",
+      "district": "BĂLȚI"
+    },
+    {
+      "name": "Liceul Teoretic „Orizont”",
+      "locality": "MUN.BĂLȚI",
+      "district": "BĂLȚI"
+    },
+    {
+      "name": "Liceul Teoretic Republican „Ion Creangă”",
+      "locality": "MUN.BĂLȚI",
+      "district": "BĂLȚI"
+    },
+    {
+      "name": "Liceul Teoretic „Ștefan cel Mare”",
+      "locality": "MUN.BĂLȚI",
+      "district": "BĂLȚI"
+    },
+    {
+      "name": "Liceul Teoretic „V. Alecsandri”",
+      "locality": "MUN.BĂLȚI",
+      "district": "BĂLȚI"
+    },
+    {
+      "name": "Liceul Teoretic „V. Maiakovskii”",
+      "locality": "MUN.BĂLȚI",
+      "district": "BĂLȚI"
+    },
+    {
+      "name": "Școala Primară \"S. Vangheli\" nr. 21",
+      "locality": "MUN.BĂLȚI",
+      "district": "BĂLȚI"
+    },
+    {
+      "name": "Gimnaziul nr. 19, s. Elizaveta",
+      "locality": "S.ELIZAVETA",
+      "district": "BĂLȚI"
+    },
+    {
+      "name": "Școala Primară nr. 16, s. Sadovoe",
+      "locality": "S.SADOVOE",
+      "district": "BĂLȚI"
+    },
+    {
+      "name": "IP Gimnaziul \"Ivan Bondarev\"",
+      "locality": "OR.BASARABEASCA",
+      "district": "BASARABEASCA"
+    },
+    {
+      "name": "Liceul Teoretic \"Alexandr Pușkin\", Basarabeasca",
+      "locality": "OR.BASARABEASCA",
+      "district": "BASARABEASCA"
+    },
+    {
+      "name": "Liceul Teoretic”M. Basarab”, Basarabeasca",
+      "locality": "OR.BASARABEASCA",
+      "district": "BASARABEASCA"
+    },
+    {
+      "name": "Liceul Teoretic”N. Gogol”, Basarabeasca",
+      "locality": "OR.BASARABEASCA",
+      "district": "BASARABEASCA"
+    },
+    {
+      "name": "Liceul Teoretic”Constantin Stere”, Abaclia",
+      "locality": "S.ABACLIA",
+      "district": "BASARABEASCA"
+    },
+    {
+      "name": "IP Gimnaziul ”Marcu Tarlev”",
+      "locality": "S.BAȘCALIA",
+      "district": "BASARABEASCA"
+    },
+    {
+      "name": "Gimnaziul, Iserlia",
+      "locality": "S.ISERLIA",
+      "district": "BASARABEASCA"
+    },
+    {
+      "name": "Liceul Teoretic ”Mihai Eminescu”, Sadaclia",
+      "locality": "S.SADACLIA",
+      "district": "BASARABEASCA"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic \"Grigore Vieru\", or. Briceni",
+      "locality": "OR.BRICENI",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic nr. 1, or. Briceni",
+      "locality": "OR.BRICENI",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Lipcani",
+      "locality": "OR.LIPCANI",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic Lipcani",
+      "locality": "OR.LIPCANI",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Gimnaziul Balasinești",
+      "locality": "S.BALASINEȘTI",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Gimnaziul Beleavinți",
+      "locality": "S.BELEAVINȚI",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Cotiujeni, sucursala Berlinți",
+      "locality": "S.BERLINȚI",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Gimnaziul Bogdănești",
+      "locality": "S.BOGDĂNEȘTI",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic Trebisăuți, sucursala Bulboaca",
+      "locality": "S.BULBOACA",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic \"Constantin Stamati - Ciurea\", s.Caracușenii Vechi",
+      "locality": "S.CARACUȘENII VECHI",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Gimnaziul Colicăuți",
+      "locality": "S.COLICĂUȚI",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Corjeuți",
+      "locality": "S.CORJEUȚI",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic Corjeuți",
+      "locality": "S.CORJEUȚI",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Gimnaziul \"Ion Melniciuc\",s.Coteala",
+      "locality": "S.COTEALA",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Cotiujeni",
+      "locality": "S.COTIUJENI",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic Drepcăuți, sucursala Criva",
+      "locality": "S.CRIVA",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic Drepcăuți",
+      "locality": "S.DREPCĂUȚI",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic Grimăncăuți",
+      "locality": "S.GRIMĂNCĂUȚI",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Gimnaziul Halahora de Sus",
+      "locality": "S.HALAHORA DE SUS",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic Lipcani, sucursala Hlina",
+      "locality": "S.HLINA",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Gimnaziul \"Mihai Cimpoi\", c.Larga",
+      "locality": "S.LARGA",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic Larga",
+      "locality": "S.LARGA",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Halahora de Sus, sucursala Mărcăuți",
+      "locality": "S.MĂRCĂUȚI",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Gimnaziul \"Grigore Vieru\", s.Pererita",
+      "locality": "S.PERERITA",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Gimnaziul ,,Victor Ciutac\",s.Șirăuți",
+      "locality": "S.ȘIRĂUȚI",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Lipcani, sucursala Slobozia-Șirăuți",
+      "locality": "S.SLOBOZIA-ȘIRĂUȚI",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic Tabani",
+      "locality": "S.TABANI",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Liceul Teoretic Tețcani",
+      "locality": "S.TEȚCANI",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic Trebisăuți",
+      "locality": "S.TREBISĂUȚI",
+      "district": "BRICENI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic \"Dimitrie Cantemir\", mun. Cahul",
+      "locality": "OR.CAHUL",
+      "district": "CAHUL"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic \"Mihai Eminescu\", mun. Cahul",
+      "locality": "OR.CAHUL",
+      "district": "CAHUL"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Serghei Esenin\" s.Alexanderfeld",
+      "locality": "S.ALEXANDERFELD",
+      "district": "CAHUL"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic \"Alexei Mateevici\", s. Alexandru Ioan Cuza",
+      "locality": "S.ALEXANDRU IOAN CUZA",
+      "district": "CAHUL"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Ion Creangă\", s.Borceag",
+      "locality": "S.BORCEAG",
+      "district": "CAHUL"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Aleksandr Pușkin\"s.Burlăceni",
+      "locality": "S.BURLĂCENI",
+      "district": "CAHUL"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul ”Nicolae Iorga”, c. Burlacu",
+      "locality": "S.BURLACU",
+      "district": "CAHUL"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Mihai Eminescu\", s.Crihana Veche",
+      "locality": "S.CRIHANA VECHE",
+      "district": "CAHUL"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul-grădiniță \"Igor Crețu\", s.Găvănoasa",
+      "locality": "S.GĂVĂNOASA",
+      "district": "CAHUL"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic \"Mihail Sadoveanu\", s.Giurgiulești",
+      "locality": "S.GIURGIULEȘTI",
+      "district": "CAHUL"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Alexandru cel Bun\", s.Larga Nouă",
+      "locality": "S.LARGA NOUĂ",
+      "district": "CAHUL"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul-grădiniță \"Mihail Lomonosov\", s.Lebedenco",
+      "locality": "S.LEBEDENCO",
+      "district": "CAHUL"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Alexei Mateevici\", s.Manta",
+      "locality": "S.MANTA",
+      "district": "CAHUL"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Nichita Stănescu\", s.Pașcani",
+      "locality": "S.PAȘCANI",
+      "district": "CAHUL"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Ștefan cel Mare\", s.Pelinei",
+      "locality": "S.PELINEI",
+      "district": "CAHUL"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Alexandru Ioan Cuza\", s.Roșu",
+      "locality": "S.ROȘU",
+      "district": "CAHUL"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Alecu Mare\", s.Slobozia Mare",
+      "locality": "S.SLOBOZIA MARE",
+      "district": "CAHUL"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic \"Mihai Eminescu\". s.Slobozia Mare",
+      "locality": "S.SLOBOZIA MARE",
+      "district": "CAHUL"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Alecu Russo\", s. Ursoaia",
+      "locality": "S.URSOAIA",
+      "district": "CAHUL"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Ion Creangă\" Călărași",
+      "locality": "OR.CĂLĂRAȘI",
+      "district": "CĂLĂRAȘI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic \"Mihail Sadoveanu\"",
+      "locality": "OR.CĂLĂRAȘI",
+      "district": "CĂLĂRAȘI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic \"V. Alecsandri\"",
+      "locality": "OR.CĂLĂRAȘI",
+      "district": "CĂLĂRAȘI"
+    },
+    {
+      "name": "Instituția Publică Școala Primară Călărași",
+      "locality": "OR.CĂLĂRAȘI",
+      "district": "CĂLĂRAȘI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Bahmut",
+      "locality": "S.BAHMUT",
+      "district": "CĂLĂRAȘI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Ștefan cel Mare\"",
+      "locality": "S.BRAVICEA",
+      "district": "CĂLĂRAȘI"
+    },
+    {
+      "name": "Școala Primară-Grădiniță Dereneu",
+      "locality": "S.DERENEU",
+      "district": "CĂLĂRAȘI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Hîrjauca",
+      "locality": "S.HÎRJAUCA",
+      "district": "CĂLĂRAȘI"
+    },
+    {
+      "name": "Școala Primară Hirova",
+      "locality": "S.HIROVA",
+      "district": "CĂLĂRAȘI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Hoginești",
+      "locality": "S.HOGINEȘTI",
+      "district": "CĂLĂRAȘI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul ”Constantin Ețco”",
+      "locality": "S.HORODIȘTE",
+      "district": "CĂLĂRAȘI"
+    },
+    {
+      "name": "Gimnaziul Onișcani",
+      "locality": "S.ONIȘCANI",
+      "district": "CĂLĂRAȘI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Peticeni",
+      "locality": "S.PETICENI",
+      "district": "CĂLĂRAȘI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Pîrjolteni",
+      "locality": "S.PÎRJOLTENI",
+      "district": "CĂLĂRAȘI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Pitușca",
+      "locality": "S.PITUȘCA",
+      "district": "CĂLĂRAȘI"
+    },
+    {
+      "name": "Gimnaziul „Pavel Tihon”",
+      "locality": "S.RĂDENI",
+      "district": "CĂLĂRAȘI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Sadova",
+      "locality": "S.SADOVA",
+      "district": "CĂLĂRAȘI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Săseni",
+      "locality": "S.SĂSENI",
+      "district": "CĂLĂRAȘI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic \"Mihai Eminescu\"",
+      "locality": "S.SIPOTENI",
+      "district": "CĂLĂRAȘI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Temeleuți",
+      "locality": "S.TEMELEUȚI",
+      "district": "CĂLĂRAȘI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Țibirica",
+      "locality": "S.ȚIBIRICA",
+      "district": "CĂLĂRAȘI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Vălcineț",
+      "locality": "S.VĂLCINEȚ",
+      "district": "CĂLĂRAȘI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \" Mihai Eminescu\"",
+      "locality": "OR.CANTEMIR",
+      "district": "CANTEMIR"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic “Dimitrie Cantemir”",
+      "locality": "OR.CANTEMIR",
+      "district": "CANTEMIR"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Liubomir Chiriac\"",
+      "locality": "S.ANTONEȘTI",
+      "district": "CANTEMIR"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul “Mihai Eminescu”",
+      "locality": "S.BAIMACLIA",
+      "district": "CANTEMIR"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Ion Creangă\"",
+      "locality": "S.CANIA",
+      "district": "CANTEMIR"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Capaclia",
+      "locality": "S.CAPACLIA",
+      "district": "CANTEMIR"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Nicolae Botgros\"",
+      "locality": "S.CHIOSELIA",
+      "district": "CANTEMIR"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Cîietu",
+      "locality": "S.CÎIETU",
+      "district": "CANTEMIR"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic \"Nicolae Mihai\"",
+      "locality": "S.CIOBALACCIA",
+      "district": "CANTEMIR"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Ștefan cel Mare \"",
+      "locality": "S.CÎRPEȘTI",
+      "district": "CANTEMIR"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Valeriu Hanganu",
+      "locality": "S.COCIULIA",
+      "district": "CANTEMIR"
+    },
+    {
+      "name": "Institutia Publica Gimnaziul \"Grigore Vieru\"",
+      "locality": "S.COȘTANGALIA",
+      "district": "CANTEMIR"
+    },
+    {
+      "name": "Instituția PUBLICĂ Gimnaziul Enichioi",
+      "locality": "S.ENICHIOI",
+      "district": "CANTEMIR"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Vasile Pârvan\"",
+      "locality": "S.GOTEȘTI",
+      "district": "CANTEMIR"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Mihail Sadoveanu\"",
+      "locality": "S.HĂNĂSENI",
+      "district": "CANTEMIR"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Haragîș",
+      "locality": "S.HARAGÎȘ",
+      "district": "CANTEMIR"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Lărguța",
+      "locality": "S.LĂRGUȚA",
+      "district": "CANTEMIR"
+    },
+    {
+      "name": "Instituția Publică Gimnaziu - grădiniță Lingura",
+      "locality": "S.LINGURA",
+      "district": "CANTEMIR"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Plopi",
+      "locality": "S.PLOPI",
+      "district": "CANTEMIR"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Porumbești",
+      "locality": "S.PORUMBEȘTI",
+      "district": "CANTEMIR"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Nicolae Sulac\"",
+      "locality": "S.SADÎC",
+      "district": "CANTEMIR"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul- Grădiniță \"Vladimir Curbet\"",
+      "locality": "S.ȚĂRĂNCUȚA",
+      "district": "CANTEMIR"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Delta\"",
+      "locality": "S.TARTAUL",
+      "district": "CANTEMIR"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Ion Cojocaru\"",
+      "locality": "S.ȚIGANCA",
+      "district": "CANTEMIR"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul ,,Paraskiewa Wiszniowska\"",
+      "locality": "S.VIȘNIOVCA",
+      "district": "CANTEMIR"
+    },
+    {
+      "name": "Instituția Publică Instituția de Învățământ Liceul Teoretic \"Alexei Mateevici\"",
+      "locality": "OR.CĂINARI",
+      "district": "CĂUȘENI"
+    },
+    {
+      "name": "Instituția de Învățământ Liceul Teoretic \"Ion Creangă\"",
+      "locality": "OR.CĂUȘENI",
+      "district": "CĂUȘENI"
+    },
+    {
+      "name": "Instituția Publică Instituția de Învățământ Liceul Teoretic \"Alexei Mateevici\"",
+      "locality": "OR.CĂUȘENI",
+      "district": "CĂUȘENI"
+    },
+    {
+      "name": "Instituția Publică Instituția de Învățământ Liceul Teoretic \"Mihai Eminescu\"",
+      "locality": "OR.CĂUȘENI",
+      "district": "CĂUȘENI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic \"Aleksandr Pușkin\"",
+      "locality": "OR.CĂUȘENI",
+      "district": "CĂUȘENI"
+    },
+    {
+      "name": "Instituția Publică Instituția de Învățământ „Gimnaziul Grigore Vieru\"",
+      "locality": "S.BACCEALIA",
+      "district": "CĂUȘENI"
+    },
+    {
+      "name": "Instituția Publică Instituția de Învățământ „Gimnaziul Veaceslav Harnaj\"",
+      "locality": "S.BAIMACLIA",
+      "district": "CĂUȘENI"
+    },
+    {
+      "name": "Instituția de Învățământ Gimnaziul \"Mihai Viteazul\"",
+      "locality": "S.CHIRCĂIEȘTI",
+      "district": "CĂUȘENI"
+    },
+    {
+      "name": "Instituția de Învățământ Instituția Publică ”Gimnaziul Cîrnățenii Noi”",
+      "locality": "S.CÎRNĂȚENII NOI",
+      "district": "CĂUȘENI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic cu Profil Arte \"Grigore Grigoriu\"",
+      "locality": "S.CÎRNĂȚENI",
+      "district": "CĂUȘENI"
+    },
+    {
+      "name": "Instituția Publică Instituția de Învățământ „Gimnaziul Ciuflești”",
+      "locality": "S.CIUFLEȘTI",
+      "district": "CĂUȘENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul ”Prometeu\"",
+      "locality": "S.COPANCA",
+      "district": "CĂUȘENI"
+    },
+    {
+      "name": "Instituția Publică Instituția de Învățământ Liceul Teoretic \"Mihail Sadoveanu\"",
+      "locality": "S.FÎRLĂDENI",
+      "district": "CĂUȘENI"
+    },
+    {
+      "name": "Instituția de Învățământ „Gimnaziul Grădinița” (Filiala Gimnaziul „Prometeu”)",
+      "locality": "S.GRĂDINIȚA",
+      "district": "CĂUȘENI"
+    },
+    {
+      "name": "Instituția de Învățământ „Gimnaziul Ion Ungureanu\"",
+      "locality": "S.OPACI",
+      "district": "CĂUȘENI"
+    },
+    {
+      "name": "Instituția de Învățământ „Gimnaziul Plop-Știubei”",
+      "locality": "S.PLOPI-ȘTIUBEI",
+      "district": "CĂUȘENI"
+    },
+    {
+      "name": "Instituția Publică Instituția de Învățământ „Gimnaziul Săiți”",
+      "locality": "S.SĂIȚI",
+      "district": "CĂUȘENI"
+    },
+    {
+      "name": "Instituția Publică Instituția de Învățământ Liceul Teoretic \"Meșterul Manole\"",
+      "locality": "S.SĂLCUȚA",
+      "district": "CĂUȘENI"
+    },
+    {
+      "name": "Instituția Publică Instituția de Învățământ Liceul Teoretic \"Ștefan cel Mare și Sfânt\"",
+      "locality": "S.TARACLIA",
+      "district": "CĂUȘENI"
+    },
+    {
+      "name": "Instituția de Învățământ „Gimnaziul Ursoaia”",
+      "locality": "S.URSOAIA",
+      "district": "CĂUȘENI"
+    },
+    {
+      "name": "Instituția de învățământ Liceul Teoretic \"Alexei Mateevici\" s. Zaim",
+      "locality": "S.ZAIM",
+      "district": "CĂUȘENI"
+    },
+    {
+      "name": "Complexul educațional Liceul-grădiniță „Kiril și Metodii”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Gimnaziul „Decebal”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Gimnaziul „Galata”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția de Învățământ Liceul „Litterarum”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Privată de Învățământ Liceul de Creativitate și Inventică „Prometeu-Prim\"",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Privată de Învățământ Liceul de Creativitate și Inventică „Prometeu-Protalent\"",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția privată de Învățământ Liceul de Limbi Moderne și Management",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Privată de Învățământ Liceul Teoretic „Orizont\", Buiucani",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Privată de Învățământ Liceul Teoretic „Orizont\", Ciocana",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Privată de Învățământ Liceul Teoretic \"ORIZONT\", sucursala Lumina",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Privată Instituția de Învățământ „Excelsis\"",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Privată Liceul „Da Vinci\"",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Privată Liceul „MOLDO-FINLANDEZ\"",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Privată Liceul „Școala Internațională Heritage\"",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Colegiul Național de Coregrafie",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul „Adrian Păunescu\"",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul „Dumitru Matcovschi”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul cu Profil Arte „Iurie Harmelin”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul cu Profil Sportiv \"AVANTE\"",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Republican de Muzică „Ciprian Porumbescu”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Academia Copiilor”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Alexandru Ioan Cuza\"",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Anton Cehov\"",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Beniamin Zeev Herțli”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Constantin Negruzzi”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic cu Profil de Arte „Mihail Berezovschi\"",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Dimitrie Cantemir\"",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Gaudeamus”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Gheorghe Asachi”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Ginta Latină”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Ion Creangă”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Liviu Rebreanu”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Matei Basarab”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Mihail Kogălniceanu”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Mihail Koțiubinski”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Mircea Eliade”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Olimp”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Onisifor Ghibu”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Petru Movilă”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Petru Rareș”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Petru Zadnipru”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „RAMBAM”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic Republican \"Aristotel\"",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Ștefan cel Mare”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Traian\"",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Vasile Vasilache\"",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Waldorf”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Liceul Academic de Arte Plastice „Igor Vieru”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Liceul cu Profil Sportiv Buiucani",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Liceul Teoretic „Academician Constantin Sibirschi”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Liceul Teoretic „Antioh Cantemir\"",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Liceul Teoretic cu Profil Arte „Mihai Grecu”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Liceul Teoretic cu profil de arte „Elena Alistar”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Liceul Teoretic „Dante Alighieri”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Liceul Teoretic „I.S. Neciui-Levițchi”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Liceul Teoretic „Lucian Blaga”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Liceul Teoretic „Miguel de Cervantes Saavedra”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Liceul Teoretic „Mihai Eminescu”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Liceul Teoretic „Mihai Marinciuc\"",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Liceul Teoretic „Mircea cel Bătrân”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Liceul Teoretic „ProSucces\"",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Liceul Teoretic „Vasile Alecsandri”",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Școala auxiliară nr. 7",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Școala primară nr. 95",
+      "locality": "MUN.CHIȘINĂU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Alexei Mateevici\"",
+      "locality": "OR.CRICOVA",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Privată de Învățământ Liceul Teoretic „Orizont\", Durlești",
+      "locality": "OR.DURLEȘTI",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Privată de Învățământ Școala Primară-Grădiniță „ABECELUȘ\"",
+      "locality": "OR.DURLEȘTI",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Durlești, Durlești",
+      "locality": "OR.DURLEȘTI",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Hyperion”",
+      "locality": "OR.DURLEȘTI",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Gimnaziul \"Gheorghe Malarciuc\"",
+      "locality": "OR.VATRA",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Grigore Vieru”, Băcioi",
+      "locality": "S.BĂCIOI",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Toader Bubuiog”",
+      "locality": "S.BUBUIECI",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Budești\", Budești",
+      "locality": "S.BUDEȘTI",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Nicolae Bălcescu”",
+      "locality": "S.CIORESCU",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Complexul Educațional Gimnaziul-grădiniță Cruzești",
+      "locality": "S.CRUZEȘTI",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Grătiești”, Grătiești",
+      "locality": "S.GRĂTIEȘTI",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Complexul educațional (gimnaziu-grădiniță) „Hulboaca\"",
+      "locality": "S.HULBOACA",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Gimnaziul nr. 67",
+      "locality": "S.REVACA",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Dragoș-Vodă”",
+      "locality": "S.STĂUCENI",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Gimnaziul „Viorel Găină\"",
+      "locality": "S.TOHATIN",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "Gimnaziul „Gheorghe V. Madan”",
+      "locality": "S.TRUȘENI",
+      "district": "CHIȘINĂU"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ, LICEUL TEORETIC \"ION CREANGĂ\"",
+      "locality": "OR.CIMIȘLIA",
+      "district": "CIMIȘLIA"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ LICEUL TEORETIC ”MIHAI EMINESCU”",
+      "locality": "OR.CIMIȘLIA",
+      "district": "CIMIȘLIA"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIU BATÎR",
+      "locality": "S.BATÎR",
+      "district": "CIMIȘLIA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Cenac",
+      "locality": "S.CENAC",
+      "district": "CIMIȘLIA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziu Gradiște",
+      "locality": "S.GRADIȘTE",
+      "district": "CIMIȘLIA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Hîrtop",
+      "locality": "S.HÎRTOP",
+      "district": "CIMIȘLIA"
+    },
+    {
+      "name": "Liceul internat cu profil sportiv Lipoveni",
+      "locality": "S.LIPOVENI",
+      "district": "CIMIȘLIA"
+    },
+    {
+      "name": "GIMNAZIUL \"ȘTEFAN CEL MARE\" MIHAILOVCA",
+      "locality": "S.MIHAILOVCA",
+      "district": "CIMIȘLIA"
+    },
+    {
+      "name": "Instituția Publică, Gimnaziul \"Tudor Strișcă\"",
+      "locality": "S.SATUL NOU",
+      "district": "CIMIȘLIA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Sergiu Coipan\"",
+      "locality": "S.SELEMET",
+      "district": "CIMIȘLIA"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ, GIMNAZIUL TROIȚCOE",
+      "locality": "S.TROIȚCOE",
+      "district": "CIMIȘLIA"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Boris Dînga”",
+      "locality": "OR.CRIULENI",
+      "district": "CRIULENI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic Cruglic",
+      "locality": "S.CRUGLIC",
+      "district": "CRIULENI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic \"Nicolae Donici\"",
+      "locality": "S.DUBĂSARII VECHI",
+      "district": "CRIULENI"
+    },
+    {
+      "name": "Instituția Publică primară \"H.CORBU\"",
+      "locality": "S.DUBĂSARII VECHI",
+      "district": "CRIULENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Hîrtopul Mic",
+      "locality": "S.HÎRTOPUL MIC",
+      "district": "CRIULENI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic Măgdăcești",
+      "locality": "S.MĂGDĂCEȘTI",
+      "district": "CRIULENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Răculești",
+      "locality": "S.RĂCULEȘTI",
+      "district": "CRIULENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Slobozia Dușca",
+      "locality": "S.SLOBOZIA-DUȘCA",
+      "district": "CRIULENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Stețcani",
+      "locality": "S.STEȚCANI",
+      "district": "CRIULENI"
+    },
+    {
+      "name": "IP LICEUL TEORETIC „ALEXANDR PUȘKIN”",
+      "locality": "OR.DONDUȘENI",
+      "district": "DONDUȘENI"
+    },
+    {
+      "name": "IP LICEUL TEORETIC „ALEXEI MATEEVICI”",
+      "locality": "OR.DONDUȘENI",
+      "district": "DONDUȘENI"
+    },
+    {
+      "name": "IP GIMNAZIUL „MIHAIL BABAN”",
+      "locality": "S.ARIONEȘTI",
+      "district": "DONDUȘENI"
+    },
+    {
+      "name": "IP GIMNAZIUL „PROMETEU”",
+      "locality": "S.BARABOI",
+      "district": "DONDUȘENI"
+    },
+    {
+      "name": "IP ȘCOALA PRIMARĂ-GRĂDINIȚĂ „MAXIM TOPALĂ”",
+      "locality": "S.BRICENI",
+      "district": "DONDUȘENI"
+    },
+    {
+      "name": "IP GIMNAZIUL „IGOR VIERU”",
+      "locality": "S.CERNOLEUCA",
+      "district": "DONDUȘENI"
+    },
+    {
+      "name": "IP ȘCOALA PRIMARĂ CLIMĂUȚI",
+      "locality": "S.CLIMĂUȚI",
+      "district": "DONDUȘENI"
+    },
+    {
+      "name": "IP GIMNAZIUL „OLEG PUPEZA”",
+      "locality": "S.CORBU",
+      "district": "DONDUȘENI"
+    },
+    {
+      "name": "IP GIMNAZIUL CRIȘCĂUȚI",
+      "locality": "S.CRIȘCĂUȚI",
+      "district": "DONDUȘENI"
+    },
+    {
+      "name": "IP GIMNAZIUL DONDUȘENI",
+      "locality": "S.DONDUȘENI",
+      "district": "DONDUȘENI"
+    },
+    {
+      "name": "IP GIMNAZIUL FRASIN",
+      "locality": "S.FRASIN",
+      "district": "DONDUȘENI"
+    },
+    {
+      "name": "IP GIMNAZIUL „VASILE GANGAL”",
+      "locality": "S.HORODIȘTE",
+      "district": "DONDUȘENI"
+    },
+    {
+      "name": "IP GIMNAZIUL MOȘANA",
+      "locality": "S.MOȘANA",
+      "district": "DONDUȘENI"
+    },
+    {
+      "name": "IP GIMNAZIUL PLOP",
+      "locality": "S.PLOP",
+      "district": "DONDUȘENI"
+    },
+    {
+      "name": "IP GIMNAZIUL POCROVCA",
+      "locality": "S.POCROVCA",
+      "district": "DONDUȘENI"
+    },
+    {
+      "name": "IP GIMNAZIUL-GRĂDINIȚĂ „ION DEDIU”",
+      "locality": "S.REDIUL MARE",
+      "district": "DONDUȘENI"
+    },
+    {
+      "name": "IP GIMNAZIUL SCĂIENI",
+      "locality": "S.SCĂIENI",
+      "district": "DONDUȘENI"
+    },
+    {
+      "name": "IP LICEUL TEORETIC „MIHAI EMINESCU”",
+      "locality": "S.SUDARCA",
+      "district": "DONDUȘENI"
+    },
+    {
+      "name": "IP GIMNAZIUL ȚAUL",
+      "locality": "S.ȚAUL",
+      "district": "DONDUȘENI"
+    },
+    {
+      "name": "IP GIMNAZIUL-GRĂDINIȚĂ „CONSTANTIN NEGRUZZI”",
+      "locality": "S.TÎRNOVA",
+      "district": "DONDUȘENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul nr.2, or. Drochia",
+      "locality": "OR.DROCHIA",
+      "district": "DROCHIA"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Bogdan Petriceicu - Hasdeu”, or. Drochia",
+      "locality": "OR.DROCHIA",
+      "district": "DROCHIA"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Mihai Eminescu”",
+      "locality": "OR.DROCHIA",
+      "district": "DROCHIA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Victor Coțofană\"",
+      "locality": "S.CHETROSU",
+      "district": "DROCHIA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Dumitru Roman\", s. Drochia",
+      "locality": "S.DROCHIA",
+      "district": "DROCHIA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Gribova",
+      "locality": "S.GRIBOVA",
+      "district": "DROCHIA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Mîndîc",
+      "locality": "S.MÎNDÎC",
+      "district": "DROCHIA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Nicoreni",
+      "locality": "S.NICORENI",
+      "district": "DROCHIA"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic s. Pelinia",
+      "locality": "S.PELINIA",
+      "district": "DROCHIA"
+    },
+    {
+      "name": "Instituția Publica Gimnaziul Cupcini",
+      "locality": "OR.CUPCINI",
+      "district": "EDINEȚ"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Pan Halippa” din or. Edineț",
+      "locality": "OR.EDINEȚ",
+      "district": "EDINEȚ"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic Fetești, filiala Bădragii Noi",
+      "locality": "S.BĂDRAGII NOI",
+      "district": "EDINEȚ"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic ”Valeriu Topală ”, filiala Bădragii Vechi",
+      "locality": "S.BĂDRAGII VECHI",
+      "district": "EDINEȚ"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic ”Pan Halippa”, filiala Brînzeni",
+      "locality": "S.BRÎNZENI",
+      "district": "EDINEȚ"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Corpaci",
+      "locality": "S.CORPACI",
+      "district": "EDINEȚ"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic Gordinești",
+      "locality": "S.GORDINEȘTI",
+      "district": "EDINEȚ"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic ”Pan Halippa”, filiala Rotunda",
+      "locality": "S.ROTUNDA",
+      "district": "EDINEȚ"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic ”Pan Halippa”, filiala Volodeni",
+      "locality": "S.VOLODENI",
+      "district": "EDINEȚ"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic ”Valeriu Topală ”, satul Zăbriceni",
+      "locality": "S.ZĂBRICENI",
+      "district": "EDINEȚ"
+    },
+    {
+      "name": "Liceul Teoretic \"A. Pușkin\", or. Fălești",
+      "locality": "OR.FĂLEȘTI",
+      "district": "FĂLEȘTI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL \"GHEORGHE VRABIE\", s.CĂLINEȘTI",
+      "locality": "S.CĂLINEȘTI",
+      "district": "FĂLEȘTI"
+    },
+    {
+      "name": "Gimnaziul \"Ion Dumeniuk\", Călugăr",
+      "locality": "S.CĂLUGĂR",
+      "district": "FĂLEȘTI"
+    },
+    {
+      "name": "Gimnaziul \"Eugen Coșeriu\", s.Catranîc",
+      "locality": "S.CATRANÎC",
+      "district": "FĂLEȘTI"
+    },
+    {
+      "name": "Gimnaziul, Chetriș",
+      "locality": "S.CHETRIȘ",
+      "district": "FĂLEȘTI"
+    },
+    {
+      "name": "Gimnaziul, Făleștii Noi",
+      "locality": "S.FĂLEȘTII NOI",
+      "district": "FĂLEȘTI"
+    },
+    {
+      "name": "Gimnaziul M. Corlăteanu, Glinjeni",
+      "locality": "S.GLINJENI",
+      "district": "FĂLEȘTI"
+    },
+    {
+      "name": "Gimnaziul „T.Dron”, Mărăndeni",
+      "locality": "S.MĂRĂNDENI",
+      "district": "FĂLEȘTI"
+    },
+    {
+      "name": "Gimnaziul \"Ștefan Cel Mare și Sfânt\", Navîrneț",
+      "locality": "S.NĂVÎRNEȚ",
+      "district": "FĂLEȘTI"
+    },
+    {
+      "name": "Gimnaziul \"Sergiu Moraru\", Obreja Veche",
+      "locality": "S.OBREJA VECHE",
+      "district": "FĂLEȘTI"
+    },
+    {
+      "name": "Gimnaziul \"A. Mateevici\", Răuțel",
+      "locality": "S.RĂUȚEL",
+      "district": "FĂLEȘTI"
+    },
+    {
+      "name": "Gimnaziul \"Diomid Gherman\", Risipeni",
+      "locality": "S.RISIPENI",
+      "district": "FĂLEȘTI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Anton Cehov”",
+      "locality": "OR.FLOREȘTI",
+      "district": "FLOREȘTI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Ion Creangă”",
+      "locality": "OR.FLOREȘTI",
+      "district": "FLOREȘTI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „M. Costin”, or. Florești",
+      "locality": "OR.FLOREȘTI",
+      "district": "FLOREȘTI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „M. Eminescu”, or. Florești",
+      "locality": "OR.FLOREȘTI",
+      "district": "FLOREȘTI"
+    },
+    {
+      "name": "Instituția Publică Școala primară, or. Florești",
+      "locality": "OR.FLOREȘTI",
+      "district": "FLOREȘTI"
+    },
+    {
+      "name": "Instituția publică Gimnaziul „M. Eminescu”, or. Ghindești",
+      "locality": "OR.GHINDEȘTI",
+      "district": "FLOREȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul „V. Alecsandri”, or. Mărculești",
+      "locality": "OR.MĂRCULEȘTI",
+      "district": "FLOREȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Eustafie Popescu Băhrinești",
+      "locality": "S.BĂHRINEȘTI",
+      "district": "FLOREȘTI"
+    },
+    {
+      "name": "Instituția publică Gimnaziul Coșernița",
+      "locality": "S.COȘERNIȚA",
+      "district": "FLOREȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Gura Căinarului",
+      "locality": "S.GURA CĂINARULUI",
+      "district": "FLOREȘTI"
+    },
+    {
+      "name": "Instituția publică Gimnaziul Gura Camencii",
+      "locality": "S.GURA CAMENCII",
+      "district": "FLOREȘTI"
+    },
+    {
+      "name": "Gimnaziul Hîrtop, filială a IP Gimnaziul ”Mihai Eminescu”, Ghindești",
+      "locality": "S.HÎRTOP",
+      "district": "FLOREȘTI"
+    },
+    {
+      "name": "Instituția publică Gimnaziul Prajila",
+      "locality": "S.PRAJILA",
+      "district": "FLOREȘTI"
+    },
+    {
+      "name": "Instituția publică Gimnaziul Prodănești",
+      "locality": "S.PRODĂNEȘTI",
+      "district": "FLOREȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Putinești",
+      "locality": "S.PUTINEȘTI",
+      "district": "FLOREȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Ștefănești",
+      "locality": "S.ȘTEFĂNEȘTI",
+      "district": "FLOREȘTI"
+    },
+    {
+      "name": "IP Gimnaziul „Dimitrie Cantemir”, din or. Glodeni, r-nul Glodeni",
+      "locality": "OR.GLODENI",
+      "district": "GLODENI"
+    },
+    {
+      "name": "I.P. Liceul Teoretic „Lev Tolstoi”, or. Glodeni",
+      "locality": "OR.GLODENI",
+      "district": "GLODENI"
+    },
+    {
+      "name": "IP Liceul Teoretic ”V. Coroban”, or. Glodeni",
+      "locality": "OR.GLODENI",
+      "district": "GLODENI"
+    },
+    {
+      "name": "IP Liceul Teoretic Balatina",
+      "locality": "S.BALATINA",
+      "district": "GLODENI"
+    },
+    {
+      "name": "IP Gimnaziul Cajba",
+      "locality": "S.CAJBA",
+      "district": "GLODENI"
+    },
+    {
+      "name": "IP Gimnaziul ”V. Coroban”, s. Camenca",
+      "locality": "S.CAMENCA",
+      "district": "GLODENI"
+    },
+    {
+      "name": "IP Gimnaziul Ciuciulea",
+      "locality": "S.CIUCIULEA",
+      "district": "GLODENI"
+    },
+    {
+      "name": "IP Gimnaziul Cobani",
+      "locality": "S.COBANI",
+      "district": "GLODENI"
+    },
+    {
+      "name": "IP Gimnaziul Cuhnești",
+      "locality": "S.CUHNEȘTI",
+      "district": "GLODENI"
+    },
+    {
+      "name": "IP Gimnaziul Danu",
+      "locality": "S.DANU",
+      "district": "GLODENI"
+    },
+    {
+      "name": "IP Gimnaziul Dușmani",
+      "locality": "S.DUȘMANI",
+      "district": "GLODENI"
+    },
+    {
+      "name": "IP Gimnaziul Fundurii Vechi",
+      "locality": "S.FUNDURII VECHI",
+      "district": "GLODENI"
+    },
+    {
+      "name": "IP Gimnaziul Hîjdieni",
+      "locality": "S.HÎJDIENI",
+      "district": "GLODENI"
+    },
+    {
+      "name": "IP Gimnaziul Iabloana",
+      "locality": "S.IABLOANA",
+      "district": "GLODENI"
+    },
+    {
+      "name": "IP Gimnaziul Limbenii Noi",
+      "locality": "S.LIMBENII NOI",
+      "district": "GLODENI"
+    },
+    {
+      "name": "IP Gimnaziul Limbenii Vechi",
+      "locality": "S.LIMBENII VECHI",
+      "district": "GLODENI"
+    },
+    {
+      "name": "IP Gimnaziul Petrunea",
+      "locality": "S.PETRUNEA",
+      "district": "GLODENI"
+    },
+    {
+      "name": "IP Gimnaziul Sturzovca",
+      "locality": "S.STURZOVCA",
+      "district": "GLODENI"
+    },
+    {
+      "name": "IP Gimnaziu Sturzovca nr.1",
+      "locality": "S.STURZOVCA",
+      "district": "GLODENI"
+    },
+    {
+      "name": "IP Gimnaziul Ustia",
+      "locality": "S.USTIA",
+      "district": "GLODENI"
+    },
+    {
+      "name": "IP Gimnaziul Viișoara",
+      "locality": "S.VIIȘOARA",
+      "district": "GLODENI"
+    },
+    {
+      "name": "Instituția Privată Instituția de Învățământ \"Excelsis Hîncești\"",
+      "locality": "OR.HÎNCEȘTI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul „Mihai Viteazul”",
+      "locality": "OR.HÎNCEȘTI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Liceul Teoretic „Mihai Eminescu”",
+      "locality": "OR.HÎNCEȘTI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Liceul Teoretic „Mihail Lomonosov”",
+      "locality": "OR.HÎNCEȘTI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Liceul Teoretic „Mihail Sadoveanu”",
+      "locality": "OR.HÎNCEȘTI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul Bălceana",
+      "locality": "S.BĂLCEANA",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul Bobeica",
+      "locality": "S.BOBEICA",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul Boghiceni",
+      "locality": "S.BOGHICENI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul Bozieni",
+      "locality": "S.BOZIENI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul Bujor",
+      "locality": "S.BUJOR",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimanziul \"Anton Bunduchi\"",
+      "locality": "S.BUȚENI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul Călmățui",
+      "locality": "S.CĂLMĂȚUI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul \"Alexei Guștiuc”",
+      "locality": "S.CARACUI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul \"Dumitru Crețu\"",
+      "locality": "S.CĂRPINENI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Liceul Teoretic \"Ștefan Holban\"",
+      "locality": "S.CĂRPINENI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Școală Primară-Grădiniță Cărpineni",
+      "locality": "S.CĂRPINENI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul Cățeleni",
+      "locality": "S.CĂȚELENI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul ”Sergiu Andreev\"",
+      "locality": "S.CIOARA",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul \"Alexandru Donici\"",
+      "locality": "S.CIUCIULENI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Complexul Educațional Gimnaziul-Grădiniță Cotul Morii",
+      "locality": "S.COTUL MORII",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Liceul Teoretic \"Dimitrie Cantemir\"",
+      "locality": "S.CRASNOARMEISCOE",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul Dancu",
+      "locality": "S.DANCU",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul Drăgușenii Noi",
+      "locality": "S.DRĂGUȘENII NOI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul Fundul Galbenei",
+      "locality": "S.FUNDUL GALBENEI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Școala primară-grădiniță Horjești",
+      "locality": "S.HORJEȘTI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Complexul Educațional Gimnaziul-Grădiniță \"Ksenia Evteeva\"",
+      "locality": "S.IVANOVCA",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Liceul Teoretic Lăpușna",
+      "locality": "S.LĂPUȘNA",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul \"Cezar Radu\"",
+      "locality": "S.LEUȘENI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul Logănești",
+      "locality": "S.LOGĂNEȘTI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul Mereșeni",
+      "locality": "S.MEREȘENI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul Mingir",
+      "locality": "S.MINGIR",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul Mirești",
+      "locality": "S.MIREȘTI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul \"Serghei Anisei\"",
+      "locality": "S.NEGREA",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul ”Constantin Tănase”",
+      "locality": "S.NEMȚENI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul Obileni",
+      "locality": "S.OBILENI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul Onești",
+      "locality": "S.ONEȘTI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul Pășcani",
+      "locality": "S.PAȘCANI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul Pereni",
+      "locality": "S.PERENI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Complexul Educațional Gimnaziul-Grădiniță Pervomaiscoe",
+      "locality": "S.PERVOMAISCOE",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul Pogănești",
+      "locality": "S.POGĂNEȘTI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Liceul Teoretic \"Universum\"",
+      "locality": "S.SĂRATA-GALBENĂ",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Complexul Educațional Gimnaziul-Grădiniță \"Vasile Movileanu\"",
+      "locality": "S.SECĂRENI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Școala primară-grădinită Șipoteni",
+      "locality": "S.ȘIPOTENI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul \"Mitropolit al Ardealului, Crișanei și Maramureșului Antonie Plămădeală\"",
+      "locality": "S.STOLNICENI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul Tălăiești",
+      "locality": "S.TĂLĂIEȘTI",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul Voinescu",
+      "locality": "S.VOINESCU",
+      "district": "HÎNCEȘTI"
+    },
+    {
+      "name": "IP Gimnaziul \"Grigore Vieru\"",
+      "locality": "OR.IALOVENI",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "IP Liceul Teoretic „Andrei Vartic\"",
+      "locality": "OR.IALOVENI",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "IP Liceul Teoretic „Petre Ștefănucă”, or. Ialoveni",
+      "locality": "OR.IALOVENI",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "IP Școala Primară ”Ion Creangă”",
+      "locality": "OR.IALOVENI",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "Liceul Teoretic \"Aurel David\", Bardar",
+      "locality": "S.BARDAR",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "IP Gimnaziul Carbuna",
+      "locality": "S.CĂRBUNA",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "IP Gimnaziul Cigîrleni",
+      "locality": "S.CIGÎRLENI",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "IP Liceul Teoretic Costești",
+      "locality": "S.COSTEȘTI",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "IP Liceul Teoretic \"Olimp\", Costești",
+      "locality": "S.COSTEȘTI",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "Gimnaziul ” Alexandrina Rusu”",
+      "locality": "S.DĂNCENI",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "IP Gimnaziul Gangura",
+      "locality": "S.GANGURA",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "IP Gimnaziul Hansca",
+      "locality": "S.HANSCA",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "Liceul Teoretic, Horești",
+      "locality": "S.HOREȘTI",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "Gimnaziul, Horodca",
+      "locality": "S.HORODCA",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "IP Gimnaziul Malcoci",
+      "locality": "S.MALCOCI",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "Liceul Teoretic ”Mihai Bârcă”",
+      "locality": "S.MILEȘTII MICI",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "IP Liceul Teoretic Molești",
+      "locality": "S.MOLEȘTI",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "IP Gimnaziul \"Mitropolit Gurie Grosu\"",
+      "locality": "S.NIMORENI",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "IP Liceul Teoretic „Gheorghe Palade”",
+      "locality": "S.PUHOI",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "IP Liceul Teoretic \"Ion Pelivan\"",
+      "locality": "S.RĂZENI",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "IP Liceul Teoretic Ruseștii Noi",
+      "locality": "S.RUSEȘTII NOI",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "Gimnaziul Sociteni",
+      "locality": "S.SOCITENI",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "IP Liceul Teoretic \"Ion Suruceanu\"",
+      "locality": "S.SURUCENI",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "IP Liceul Teoretic Țipala",
+      "locality": "S.ȚIPALA",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "Gimnaziul \"Mihai Eminescu\"",
+      "locality": "S.ULMU",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "Gimnaziul, Văratic",
+      "locality": "S.VĂRATIC",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "Gimnaziul, Văsieni",
+      "locality": "S.VĂSIENI",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "IP Liceul Teoretic \"Dimitrie Cantemir\"",
+      "locality": "S.VĂSIENI",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "IP Liceul Teoretic Zîmbreni",
+      "locality": "S.ZÎMBRENI",
+      "district": "IALOVENI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „L. Blaga”",
+      "locality": "OR.IARGARA",
+      "district": "LEOVA"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „C. Spătaru”",
+      "locality": "OR.LEOVA",
+      "district": "LEOVA"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „M. Eminescu”",
+      "locality": "OR.LEOVA",
+      "district": "LEOVA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul „Gr. Vieru”",
+      "locality": "S.BOROGANI",
+      "district": "LEOVA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul „Vasile Badiu\"",
+      "locality": "S.BOROGANI",
+      "district": "LEOVA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul „Mihai Viteazul”",
+      "locality": "S.CAZANGIC",
+      "district": "LEOVA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Ceadîr",
+      "locality": "S.CEADÎR",
+      "district": "LEOVA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Cneazevca",
+      "locality": "S.CNEAZEVCA",
+      "district": "LEOVA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Covurlui",
+      "locality": "S.COVURLUI",
+      "district": "LEOVA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Cupcui",
+      "locality": "S.CUPCUI",
+      "district": "LEOVA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Filipeni",
+      "locality": "S.FILIPENI",
+      "district": "LEOVA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Hănăsenii Noi",
+      "locality": "S.HĂNĂSENII NOI",
+      "district": "LEOVA"
+    },
+    {
+      "name": "Instituția Publică Filiala Orac a Gimnaziului Ceadîr",
+      "locality": "S.ORAC",
+      "district": "LEOVA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Sărata Nouă",
+      "locality": "S.SĂRATA NOUĂ",
+      "district": "LEOVA"
+    },
+    {
+      "name": "Instituția Publică Scoala primară Sărata Răzeși",
+      "locality": "S.SĂRATA-RĂZEȘI",
+      "district": "LEOVA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Sărăteni",
+      "locality": "S.SĂRĂTENI",
+      "district": "LEOVA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Sărățica Nouă",
+      "locality": "S.SĂRĂȚICA NOUĂ",
+      "district": "LEOVA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Sîrma",
+      "locality": "S.SÎRMA",
+      "district": "LEOVA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Tigheci",
+      "locality": "S.TIGHECI",
+      "district": "LEOVA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Tochile-Răducani",
+      "locality": "S.TOCHILE-RĂDUCANI",
+      "district": "LEOVA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul „Mihai Viteazul”",
+      "locality": "S.TOMAI",
+      "district": "LEOVA"
+    },
+    {
+      "name": "Institutia Publica Gimnaziul „Mihai Eminescu”, Nisporeni",
+      "locality": "OR.NISPORENI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Institutia Publica Liceul Teoretic„Boris Cazacu”, or. Nisporeni",
+      "locality": "OR.NISPORENI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic„Mircea Eliade”, or. Nisporeni",
+      "locality": "OR.NISPORENI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "IP Gimnaziul ”Ștefan cel Mare”",
+      "locality": "OR.NISPORENI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Școală primară-grădiniță Bacșeni",
+      "locality": "S.BĂCȘENI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "IP Gimnaziul \"Elvira Brașoveanu\"",
+      "locality": "S.BĂLĂNEȘTI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Bălăurești",
+      "locality": "S.BĂLĂUREȘTI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Institutia Publica Gimnaziul Bărboieni",
+      "locality": "S.BĂRBOIENI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL ”VALERIU BULICANU”",
+      "locality": "S.BOLDUREȘTI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Bolțun",
+      "locality": "S.BOLȚUN",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Brătuleni",
+      "locality": "S.BRĂTULENI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Bursuc",
+      "locality": "S.BURSUC",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Călimănești",
+      "locality": "S.CĂLIMĂNEȘTI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul „Valeriu Dumbravă”, Ciorești",
+      "locality": "S.CIOREȘTI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul ”Tudor Țărnă” ,Ciutești",
+      "locality": "S.CIUTEȘTI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Instituția Pblică Gimnaziul Cristești",
+      "locality": "S.CRISTEȘTI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Instituția Publică Școala Primară - Grădiniță Găureni",
+      "locality": "S.GĂURENI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Prometeu”, Grozești",
+      "locality": "S.GROZEȘTI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Instituția Publică GIMNAZIUL ISĂICANI",
+      "locality": "S.ISĂICANI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Gg.Vieru\" Iurceni",
+      "locality": "S.IURCENI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL MARINICI",
+      "locality": "S.MARINICI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Instituție Publică Gimnaziul Milesti",
+      "locality": "S.MILEȘTI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Instituția Publică Școală primară-grădiniță Păruceni",
+      "locality": "S.PĂRUCENI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Seliste",
+      "locality": "S.SELIȘTE",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Șendreni",
+      "locality": "S.ȘENDRENI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Șișcani",
+      "locality": "S.ȘIȘCANI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul „Ion Creangă”, Soltănești",
+      "locality": "S.SOLTĂNEȘTI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul-Gradinita, Valea Trestieni",
+      "locality": "S.VALEA-TRESTIENI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul „Alexandru cel Bun”, Vărzărești",
+      "locality": "S.VĂRZĂREȘTI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Vînători",
+      "locality": "S.VÎNĂTORI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Institutia Publica Gimnaziul Vulcanesti",
+      "locality": "S.VULCĂNEȘTI",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul ”Gheorghe Tofan”",
+      "locality": "S.ZBEROAIA",
+      "district": "NISPORENI"
+    },
+    {
+      "name": "Instituția Publică Școala primară-grădiniță Frunză din or. Frunză, r. Ocnița",
+      "locality": "OR.FRUNZĂ",
+      "district": "OCNIȚA"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic \"Gheorghe Biruitorul\" din or. Ocnița, r. Ocnița",
+      "locality": "OR.OCNIȚA",
+      "district": "OCNIȚA"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic \"Mihail Sadoveanu\" din or. Ocnița, r. Ocnița",
+      "locality": "OR.OCNIȚA",
+      "district": "OCNIȚA"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic \"Mihai Eminescu\" din or. Otaci, r. Ocnița",
+      "locality": "OR.OTACI",
+      "district": "OCNIȚA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Berezovca din s. Berezovca, r. Ocnița",
+      "locality": "S.BEREZOVCA",
+      "district": "OCNIȚA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Bîrnova din s. Bîrnova, r. Ocnița",
+      "locality": "S.BÎRNOVA",
+      "district": "OCNIȚA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul-grădiniță s. Calarașovca, r-nul Ocnița",
+      "locality": "S.CALARAȘOVCA",
+      "district": "OCNIȚA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Emil Loteanu\" din s. Clocușna, r. Ocnița",
+      "locality": "S.CLOCUȘNA",
+      "district": "OCNIȚA"
+    },
+    {
+      "name": "Instituția Publică Școala primară - grădiniță Codreni din s. Codreni, r. Ocnița",
+      "locality": "S.CODRENI",
+      "district": "OCNIȚA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Corestăuți din s. Corestăuți, r. Ocnița",
+      "locality": "S.CORESTĂUȚI",
+      "district": "OCNIȚA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Vitalie Tonu\" din s. Dîngeni, r. Ocnița",
+      "locality": "S.DÎNGENI",
+      "district": "OCNIȚA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Gîrbova din s. Gîrbova, r. Ocnița",
+      "locality": "S.GÎRBOVA",
+      "district": "OCNIȚA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Grinăuți-Moldova din s. Grinăuți-Moldova, r. Ocnița",
+      "locality": "S.GRINĂUȚI-MOLDOVA",
+      "district": "OCNIȚA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul-grădiniță \"Petru Șargu\" din satul Hădărăuți",
+      "locality": "S.HĂDĂRĂUȚI",
+      "district": "OCNIȚA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Lencăuți din s. Lencăuți, r. Ocnița",
+      "locality": "S.LENCĂUȚI",
+      "district": "OCNIȚA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul ”Ștefan cel Mare” din s. Lipnic, r. Ocnița",
+      "locality": "S.LIPNIC",
+      "district": "OCNIȚA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Mereșeuca din s. Mereșeuca, r. Ocnița",
+      "locality": "S.MEREȘEUCA",
+      "district": "OCNIȚA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Mihălășeni din s. Mihălășeni, r. Ocnița",
+      "locality": "S.MIHĂLĂȘENI",
+      "district": "OCNIȚA"
+    },
+    {
+      "name": "Gimnaziul-Grădiniță Naslavcea",
+      "locality": "S.NASLAVCEA",
+      "district": "OCNIȚA"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic \"Constantin Stamati\" din s. Ocnița, r. Ocnița",
+      "locality": "S.OCNIȚA",
+      "district": "OCNIȚA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Rujnița din s. Rujnița, r. Ocnița",
+      "locality": "S.RUJNIȚA",
+      "district": "OCNIȚA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Petru Zadnipru\" din s. Sauca, r. Ocnița",
+      "locality": "S.SAUCA",
+      "district": "OCNIȚA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Olga Cobîleanscaia\" din s. Unguri, r. Ocnița",
+      "locality": "S.UNGURI",
+      "district": "OCNIȚA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Vălcineț din s. Vălcineț, r. Ocnița",
+      "locality": "S.VĂLCINEȚ",
+      "district": "OCNIȚA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul-grădiniță \"Alexandru Groppa\", s. Verejeni",
+      "locality": "S.VEREJENI",
+      "district": "OCNIȚA"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL \"DOINA ȘI ION ALDEA - TEODOROVICI\"",
+      "locality": "OR.ORHEI",
+      "district": "ORHEI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL \"GRIGORE VIERU\"",
+      "locality": "OR.ORHEI",
+      "district": "ORHEI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ LICEUL TEORETIC \"ALECU RUSSO\"",
+      "locality": "OR.ORHEI",
+      "district": "ORHEI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ \"LICEUL TEORETIC \"ION LUCA CARAGIALE\"",
+      "locality": "OR.ORHEI",
+      "district": "ORHEI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ LICEUL TEORETIC \"MIHAIL LOMONOSOV\"",
+      "locality": "OR.ORHEI",
+      "district": "ORHEI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ LICEUL TEORETIC \"ONISIFOR GHIBU\"",
+      "locality": "OR.ORHEI",
+      "district": "ORHEI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL \"TAMARA CIOBANU\"",
+      "locality": "S.BEREZLOGI",
+      "district": "ORHEI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL BIEȘTI",
+      "locality": "S.BIEȘTI",
+      "district": "ORHEI"
+    },
+    {
+      "name": "GIMNAZIUL \"MIHAI MORARU\"",
+      "locality": "S.BRĂNEȘTI",
+      "district": "ORHEI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL BRĂVICENI",
+      "locality": "S.BRĂVICENI",
+      "district": "ORHEI"
+    },
+    {
+      "name": "COMPLEXUL EDUCAȚIONAL GIMNAZIUL - GRĂDINIȚĂ BULĂIEȘTI",
+      "locality": "S.BULĂIEȘTI",
+      "district": "ORHEI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL CAMENCEA",
+      "locality": "S.CAMENCEA",
+      "district": "ORHEI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL CHIPERCENI",
+      "locality": "S.CHIPERCENI",
+      "district": "ORHEI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL \"DIMITRIE CANTEMIR\"",
+      "locality": "S.CIOCÎLTENI",
+      "district": "ORHEI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL CIȘMEA",
+      "locality": "S.CIȘMEA",
+      "district": "ORHEI"
+    },
+    {
+      "name": "GIMNAZIUL CLIȘOVA",
+      "locality": "S.CLIȘOVA",
+      "district": "ORHEI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL CUCURUZENI",
+      "locality": "S.CUCURUZENI",
+      "district": "ORHEI"
+    },
+    {
+      "name": "FILIALA DÎȘCOVA A INSTITUȚIEI PUBLICE GIMNAZIUL PUȚINTEI",
+      "locality": "S.DIȘCOVA",
+      "district": "ORHEI"
+    },
+    {
+      "name": "GIMNAZIUL FURCENI",
+      "locality": "S.FURCENI",
+      "district": "ORHEI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL GHETLOVA",
+      "locality": "S.GHETLOVA",
+      "district": "ORHEI"
+    },
+    {
+      "name": "GIMNAZIUL ISACOVA",
+      "locality": "S.ISACOVA",
+      "district": "ORHEI"
+    },
+    {
+      "name": "GIMNAZIUL IVANCEA",
+      "locality": "S.IVANCEA",
+      "district": "ORHEI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL JORA DE JOS",
+      "locality": "S.JORA DE JOS",
+      "district": "ORHEI"
+    },
+    {
+      "name": "GIMNAZIUL JORA DE SUS",
+      "locality": "S.JORA DE SUS",
+      "district": "ORHEI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL LUCĂȘEUCA",
+      "locality": "S.LUCĂȘEUCA",
+      "district": "ORHEI"
+    },
+    {
+      "name": "GIMNAZIUL MĂLĂIEȘTI",
+      "locality": "S.MALĂIEȘTI",
+      "district": "ORHEI"
+    },
+    {
+      "name": "Complexul Educațional Gimnaziul -Grădiniță „Igor Jechiu”",
+      "locality": "S.MÎRZEȘTI",
+      "district": "ORHEI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL MITOC",
+      "locality": "S.MITOC",
+      "district": "ORHEI"
+    },
+    {
+      "name": "GIMNAZIUL MOROZENI",
+      "locality": "S.MOROZENI",
+      "district": "ORHEI"
+    },
+    {
+      "name": "COMPLEXUL EDUCAȚIONAL GIMNAZIUL- GRĂDINIȚĂ NECULĂIEUCA",
+      "locality": "S.NECULĂIEUCA",
+      "district": "ORHEI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL PELIVAN",
+      "locality": "S.PELIVAN",
+      "district": "ORHEI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ LICEUL TEORETIC \"ALEXANDRU DONICI\"",
+      "locality": "S.PERESECINA",
+      "district": "ORHEI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL PIATRA",
+      "locality": "S.PIATRA",
+      "district": "ORHEI"
+    },
+    {
+      "name": "FILIALA PODGORENI A IP GIMNAZIUL ZAHORENI",
+      "locality": "S.PODGORENI",
+      "district": "ORHEI"
+    },
+    {
+      "name": "GIMNAZIUL POHREBENI",
+      "locality": "S.POHREBENI",
+      "district": "ORHEI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL PUȚINTEI",
+      "locality": "S.PUȚINTEI",
+      "district": "ORHEI"
+    },
+    {
+      "name": "GIMNAZIUL \"FEODOR OSTAPCIUC\"",
+      "locality": "S.SĂMĂNANCA",
+      "district": "ORHEI"
+    },
+    {
+      "name": "GIMNAZIUL SELIȘTE",
+      "locality": "S.SELIȘTE",
+      "district": "ORHEI"
+    },
+    {
+      "name": "ȘCOALA PRIMARĂ - GRĂDINIȚĂ",
+      "locality": "S.SIROTA",
+      "district": "ORHEI"
+    },
+    {
+      "name": "GIMNAZIUL STEP - SOCI",
+      "locality": "S.STEP-SOCI",
+      "district": "ORHEI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL \"VASILE LUPU\"",
+      "locality": "S.SUSLENI",
+      "district": "ORHEI"
+    },
+    {
+      "name": "GIMNAZIUL TABĂRA",
+      "locality": "S.TABĂRA",
+      "district": "ORHEI"
+    },
+    {
+      "name": "GIMNAZIUL \"ION CREANGĂ\"",
+      "locality": "S.TELEȘEU",
+      "district": "ORHEI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL TREBUJENI",
+      "locality": "S.TREBUJENI",
+      "district": "ORHEI"
+    },
+    {
+      "name": "GIMNAZIUL VATICI",
+      "locality": "S.VATICI",
+      "district": "ORHEI"
+    },
+    {
+      "name": "GIMNAZIUL VÎȘCĂUȚI",
+      "locality": "S.VÎȘCĂUȚI",
+      "district": "ORHEI"
+    },
+    {
+      "name": "GIMNAZIUL VOROTEȚ",
+      "locality": "S.VOROTEȚ",
+      "district": "ORHEI"
+    },
+    {
+      "name": "INSITUȚIA PUBLICĂ GIMNAZIUL ZAHORENI",
+      "locality": "S.ZAHORENI",
+      "district": "ORHEI"
+    },
+    {
+      "name": "GIMNAZIUL ZORILE",
+      "locality": "S.ZORILE",
+      "district": "ORHEI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Alexandru cel Bun” din or. Rezina",
+      "locality": "OR.REZINA",
+      "district": "REZINA"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic \"Olimp\", or. Rezina",
+      "locality": "OR.REZINA",
+      "district": "REZINA"
+    },
+    {
+      "name": "Liceul Teoretic „EVRICA” din Râbnița",
+      "locality": "OR.REZINA",
+      "district": "REZINA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziu-Grădiniță Bușăuca",
+      "locality": "S.BUȘĂUCA",
+      "district": "REZINA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Cinișeuți",
+      "locality": "S.CINIȘEUȚI",
+      "district": "REZINA"
+    },
+    {
+      "name": "Instituția Publică Școala Primară - Grădiniță Ciorna",
+      "locality": "S.CIORNA",
+      "district": "REZINA"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic \"Ion Creangă\" din s. Cuizăuca",
+      "locality": "S.CUIZĂUCA",
+      "district": "REZINA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Echimăuți",
+      "locality": "S.ECHIMĂUȚI",
+      "district": "REZINA"
+    },
+    {
+      "name": "Instituția Publică Școală primară - Grădiniță Ghiduleni",
+      "locality": "S.GHIDULENI",
+      "district": "REZINA"
+    },
+    {
+      "name": "Institutia Publica Școala primară Gordinești",
+      "locality": "S.GORDINEȘTI",
+      "district": "REZINA"
+    },
+    {
+      "name": "Institutia Publica Gimnaziul Horodiște",
+      "locality": "S.HORODIȘTE",
+      "district": "REZINA"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic \"Ioan Sârbu\" din s. Ignăței",
+      "locality": "S.IGNĂȚEI",
+      "district": "REZINA"
+    },
+    {
+      "name": "Instituția Publică Școala Primară Lalova",
+      "locality": "S.LALOVA",
+      "district": "REZINA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Mateuți",
+      "locality": "S.MATEUȚI",
+      "district": "REZINA"
+    },
+    {
+      "name": "Instituția Publică Școala primară-grădinița Mincenii de Sus",
+      "locality": "S.MINCENII DE SUS",
+      "district": "REZINA"
+    },
+    {
+      "name": "Institutia Publica Gimnaziul Păpăuți",
+      "locality": "S.PĂPĂUȚI",
+      "district": "REZINA"
+    },
+    {
+      "name": "Institutia Publica Gimnaziul Peciște",
+      "locality": "S.PECIȘTE",
+      "district": "REZINA"
+    },
+    {
+      "name": "Instituția Publică Complexul Educațional Gimnaziul-Grădiniță Pereni, satul Pereni",
+      "locality": "S.PERENI",
+      "district": "REZINA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Pripiceni-Răzeși",
+      "locality": "S.PRIPICENI-RĂZEȘI",
+      "district": "REZINA"
+    },
+    {
+      "name": "Instituția Publică Complexul Educațional Gimnaziul Grădiniță Saharna Nouă, satul Saharna Nouă",
+      "locality": "S.SAHARNA NOUĂ",
+      "district": "REZINA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Sîrcova",
+      "locality": "S.SÎRCOVA",
+      "district": "REZINA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul - Grădiniță Solonceni",
+      "locality": "S.SOLONCENI",
+      "district": "REZINA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Țareuca",
+      "locality": "S.ȚAREUCA",
+      "district": "REZINA"
+    },
+    {
+      "name": "Instituția Publică Școala primară - grădiniță Trifești",
+      "locality": "S.TRIFEȘTI",
+      "district": "REZINA"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL \"GHEORGHE RÎȘCANU\"",
+      "locality": "OR.RÎȘCANI",
+      "district": "RÎȘCANI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ LICEUL TEORETIC \"DIMITRIE CANTEMIR\"",
+      "locality": "OR.RÎȘCANI",
+      "district": "RÎȘCANI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ LICEUL TEORETIC \"CONSTANTIN POPOVICI\"",
+      "locality": "S.NIHORENI",
+      "district": "RÎȘCANI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ LICEUL TEORETIC \"LEONID GHERMAN\"",
+      "locality": "S.ZĂICANI",
+      "district": "RÎȘCANI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Luceafărul”",
+      "locality": "OR.BIRUINȚA",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul „Dimitrie Cantemir”",
+      "locality": "OR.SÎNGEREI",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic \"Mihai Eminescu\"",
+      "locality": "OR.SÎNGEREI",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Olimp”",
+      "locality": "OR.SÎNGEREI",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Vitalie Ceban\"",
+      "locality": "S.ALEXĂNDRENI",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Gimnaziul, Bilicenii Noi",
+      "locality": "S.BILICENII NOI",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul ”Valentin Mereniuc”",
+      "locality": "S.BILICENII VECHI",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Gimnaziul ,,Leonida Lari\"",
+      "locality": "S.BURSUCENI",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic ”Nicolae Casso”",
+      "locality": "S.CHIȘCĂRENI",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Gimnaziul, Ciuciuieni",
+      "locality": "S.CIUCIUIENI",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Adrian Păunescu\"",
+      "locality": "S.COPĂCENI",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Dumitru Matcovschi\"",
+      "locality": "S.COTIUJENII MICI",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul, Dobrogea Veche",
+      "locality": "S.DOBROGEA VECHE",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Gimnaziul ”V. Alecsandri”",
+      "locality": "S.DRĂGĂNEȘTI",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Valeriu Matei”",
+      "locality": "S.DUMBRĂVIȚA",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul ” Iurie Boghiu”",
+      "locality": "S.FLĂMÎNZENI",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Grigorăuca",
+      "locality": "S.GRIGORĂUCA",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul ”Grigore Vieru”",
+      "locality": "S.HECIUL NOU",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul „Sergiu Rădăuțan”",
+      "locality": "S.IEZĂRENII VECHI",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul, Mărinești",
+      "locality": "S.MĂRINEȘTI",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Gimnaziul Mihailovca",
+      "locality": "S.MIHAILOVCA",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Gimnaziul ”Ion Vatamanu”",
+      "locality": "S.MÎNDREȘTII NOI",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic ”Alexandru Agapie”",
+      "locality": "S.PEPENI",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Ion Ignatiuc\"",
+      "locality": "S.PREPELIȚA",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic \"Ion Creangă\"",
+      "locality": "S.RĂDOAIA",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Alecu Russo\"",
+      "locality": "S.SÎNGEREII NOI",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Gimnaziul, Slobozia Chișcăreni",
+      "locality": "S.SLOBOZIA-CHIȘCĂRENI",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Gimnaziul ”Catinca și Ilie Galben”",
+      "locality": "S.SLOVEANCA",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul, Țambula",
+      "locality": "S.ȚAMBULA",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Gimnaziul, Tipletești",
+      "locality": "S.ȚIPLETEȘTI",
+      "district": "SÎNGEREI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Alexei Mateevici”",
+      "locality": "OR.ȘOLDĂNEȘTI",
+      "district": "ȘOLDĂNEȘTI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Ștefan cel Mare”",
+      "locality": "OR.ȘOLDĂNEȘTI",
+      "district": "ȘOLDĂNEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Alcedar",
+      "locality": "S.ALCEDAR",
+      "district": "ȘOLDĂNEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Chipeșca",
+      "locality": "S.CHIPEȘCA",
+      "district": "ȘOLDĂNEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Climăuții de Jos",
+      "locality": "S.CLIMĂUȚII DE JOS",
+      "district": "ȘOLDĂNEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Simion Simion Cibotaru\"",
+      "locality": "S.COBÎLEA",
+      "district": "ȘOLDĂNEȘTI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic Cotiujenii Mari",
+      "locality": "S.COTIUJENII MARI",
+      "district": "ȘOLDĂNEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Cușmirca",
+      "locality": "S.CUȘMIRCA",
+      "district": "ȘOLDĂNEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul „Alexandru Grosu”",
+      "locality": "S.DOBRUȘA",
+      "district": "ȘOLDĂNEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Găuzeni",
+      "locality": "S.GĂUZENI",
+      "district": "ȘOLDĂNEȘTI"
+    },
+    {
+      "name": "Instituția Publică Complexul educațional Gimnaziul-grădiniță \"Mihai Volontir\"",
+      "locality": "S.GLINJENI",
+      "district": "ȘOLDĂNEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Olișcani",
+      "locality": "S.OLIȘCANI",
+      "district": "ȘOLDĂNEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Pohoarna",
+      "locality": "S.POHOARNA",
+      "district": "ȘOLDĂNEȘTI"
+    },
+    {
+      "name": "Instituția Publică Complexul-Educațional Gimnaziul-Grădiniță Poiana",
+      "locality": "S.POIANA",
+      "district": "ȘOLDĂNEȘTI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic Răspopeni",
+      "locality": "S.RĂSPOPENI",
+      "district": "ȘOLDĂNEȘTI"
+    },
+    {
+      "name": "Școală primară-grădiniță Rogojeni",
+      "locality": "S.ROGOJENI",
+      "district": "ȘOLDĂNEȘTI"
+    },
+    {
+      "name": "Instituția Publică Complexul-Educațional Gimnaziul-grădiniță Salcia",
+      "locality": "S.SALCIA",
+      "district": "ȘOLDĂNEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Sămășcani",
+      "locality": "S.SĂMĂȘCANI",
+      "district": "ȘOLDĂNEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Dumitru Matcovschi\"",
+      "locality": "S.VADUL-RAȘCOV",
+      "district": "ȘOLDĂNEȘTI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Constantin Stere”",
+      "locality": "OR.SOROCA",
+      "district": "SOROCA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Cerlina",
+      "locality": "S.CERLINA",
+      "district": "SOROCA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Rublenița",
+      "locality": "S.RUBLENIȚA",
+      "district": "SOROCA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Șolcani",
+      "locality": "S.ȘOLCANI",
+      "district": "SOROCA"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic Visoca",
+      "locality": "S.VISOCA",
+      "district": "SOROCA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Alexandru Lupașcu\"",
+      "locality": "S.VOLOVIȚA",
+      "district": "SOROCA"
+    },
+    {
+      "name": "IP Gimnaziul rus „Dm. Cantemir”",
+      "locality": "OR.ȘTEFAN VODĂ",
+      "district": "ȘTEFAN VODĂ"
+    },
+    {
+      "name": "IP Liceul Teoretic „Ștefan Vodă”",
+      "locality": "OR.ȘTEFAN VODĂ",
+      "district": "ȘTEFAN VODĂ"
+    },
+    {
+      "name": "IP Școala pimară \"Grigore Vieru\"",
+      "locality": "OR.ȘTEFAN VODĂ",
+      "district": "ȘTEFAN VODĂ"
+    },
+    {
+      "name": "IP Gimnaziul \"Mihai Eminescu\"",
+      "locality": "S.ANTONEȘTI",
+      "district": "ȘTEFAN VODĂ"
+    },
+    {
+      "name": "Gimnaziul Brezoaia",
+      "locality": "S.BREZOAIA",
+      "district": "ȘTEFAN VODĂ"
+    },
+    {
+      "name": "IP Gimnaziul Caplani",
+      "locality": "S.CĂPLANI",
+      "district": "ȘTEFAN VODĂ"
+    },
+    {
+      "name": "IP Gimnaziul \"Mihai Viteazul\"",
+      "locality": "S.CARAHASANI",
+      "district": "ȘTEFAN VODĂ"
+    },
+    {
+      "name": "IP Gimnaziul \"Mihai Sîrghi\"",
+      "locality": "S.CIOBURCIU",
+      "district": "ȘTEFAN VODĂ"
+    },
+    {
+      "name": "IP Gimnaziu \"Academicianul Mitrofan Ciobanu\"",
+      "locality": "S.COPCEAC",
+      "district": "ȘTEFAN VODĂ"
+    },
+    {
+      "name": "IP Gimnaziul ”Ecaterina Malcoci”",
+      "locality": "S.CROCMAZ",
+      "district": "ȘTEFAN VODĂ"
+    },
+    {
+      "name": "IP Gimnaziul \"Ion Creangă\"",
+      "locality": "S.ERMOCLIA",
+      "district": "ȘTEFAN VODĂ"
+    },
+    {
+      "name": "IP Gimnaziul \"Vasile Moga\"",
+      "locality": "S.FEȘTELIȚA",
+      "district": "ȘTEFAN VODĂ"
+    },
+    {
+      "name": "Gimnaziul Marianca de Jos",
+      "locality": "S.MARIANCA DE JOS",
+      "district": "ȘTEFAN VODĂ"
+    },
+    {
+      "name": "IP Liceul Teoretic,,Bogdan Petriceicu Hașdeu\"",
+      "locality": "S.OLĂNEȘTI",
+      "district": "ȘTEFAN VODĂ"
+    },
+    {
+      "name": "Gimnaziul Palanca",
+      "locality": "S.PALANCA",
+      "district": "ȘTEFAN VODĂ"
+    },
+    {
+      "name": "IP Gimnaziul Popeasca",
+      "locality": "S.POPEASCA",
+      "district": "ȘTEFAN VODĂ"
+    },
+    {
+      "name": "IP Gimnaziul \"Grigore Vieru\"",
+      "locality": "S.PURCARI",
+      "district": "ȘTEFAN VODĂ"
+    },
+    {
+      "name": "Gimnaziul Răscăieții Noi",
+      "locality": "S.RĂSCĂIEȚII NOI",
+      "district": "ȘTEFAN VODĂ"
+    },
+    {
+      "name": "IP Gimnaziul Răscăieți",
+      "locality": "S.RĂSCĂIEȚI",
+      "district": "ȘTEFAN VODĂ"
+    },
+    {
+      "name": "Gimnaziul Semionovca",
+      "locality": "S.SEMIONOVCA",
+      "district": "ȘTEFAN VODĂ"
+    },
+    {
+      "name": "IP Gimnaziul \"Alexandru Cel Bun\"",
+      "locality": "S.SLOBOZIA",
+      "district": "ȘTEFAN VODĂ"
+    },
+    {
+      "name": "Gimnaziul Ștefănești",
+      "locality": "S.ȘTEFĂNEȘTI",
+      "district": "ȘTEFAN VODĂ"
+    },
+    {
+      "name": "IP Gimnaziul \"Anatol Sîrghi\"",
+      "locality": "S.TALMAZA",
+      "district": "ȘTEFAN VODĂ"
+    },
+    {
+      "name": "IP Gimnaziul \"Ștefan Ciobanu\"",
+      "locality": "S.TALMAZA",
+      "district": "ȘTEFAN VODĂ"
+    },
+    {
+      "name": "Gimnaziul \"Ștefan Culea\"",
+      "locality": "S.TUDORA",
+      "district": "ȘTEFAN VODĂ"
+    },
+    {
+      "name": "Gimnaziul Viișoara",
+      "locality": "S.VIIȘOARA",
+      "district": "ȘTEFAN VODĂ"
+    },
+    {
+      "name": "IP Gimnaziul \" Maria Bieșu\"",
+      "locality": "S.VOLINTIRI",
+      "district": "ȘTEFAN VODĂ"
+    },
+    {
+      "name": "Instituția Privată Școala „Millenium”",
+      "locality": "OR.STRĂȘENI",
+      "district": "STRĂȘENI"
+    },
+    {
+      "name": "Instituția Publică, Liceul Teoretic ”Mihai Eminescu” din or. Strășeni, r-nul Strășeni",
+      "locality": "OR.STRĂȘENI",
+      "district": "STRĂȘENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Dolna, raionul Strășeni",
+      "locality": "S.DOLNA",
+      "district": "STRĂȘENI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic ”Mitropolit Nestor Vornicescu” din s.Lozova, r-nul Strășeni",
+      "locality": "S.LOZOVA",
+      "district": "STRĂȘENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Pănășești, raionul Strășeni",
+      "locality": "S.PĂNĂȘEȘTI",
+      "district": "STRĂȘENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Recea, raionul Strășeni",
+      "locality": "S.RECEA",
+      "district": "STRĂȘENI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Romănești, raionul Strășeni",
+      "locality": "S.ROMĂNEȘTI",
+      "district": "STRĂȘENI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic „Grigore Vieru” din satul Sireți, raionul Strășeni",
+      "locality": "S.SIREȚI",
+      "district": "STRĂȘENI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic ”Ion Inculeț” din s. Vorniceni, r-nul Strășeni",
+      "locality": "S.VORNICENI",
+      "district": "STRĂȘENI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic Zubrești din s. Zubrești, r-nul Strășeni",
+      "locality": "S.ZUBREȘTI",
+      "district": "STRĂȘENI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL ”GENERAL IVAN INZOV\"",
+      "locality": "OR.TARACLIA",
+      "district": "TARACLIA"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL TARACLIA",
+      "locality": "OR.TARACLIA",
+      "district": "TARACLIA"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ LICEUL TEORETIC \"IVAN VAZOV\"",
+      "locality": "OR.TARACLIA",
+      "district": "TARACLIA"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ LICEUL TEORETIC ”OLIMPII PANOV”",
+      "locality": "OR.TARACLIA",
+      "district": "TARACLIA"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL ALBOTA DE JOS",
+      "locality": "S.ALBOTA DE JOS",
+      "district": "TARACLIA"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL „SFINȚII CHIRIL ȘI METODIU”",
+      "locality": "S.ALBOTA DE SUS",
+      "district": "TARACLIA"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL-GRĂDINIȚĂ \"DIMITRIE CANTEMIR\"",
+      "locality": "S.ALUATU",
+      "district": "TARACLIA"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ LICEUL TEORETIC \"IVAN VAZOV\", FILIALA BALABANU",
+      "locality": "S.BALABANU",
+      "district": "TARACLIA"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ LICEUL TEORETIC CIUMAI, FILIALA BUDĂI",
+      "locality": "S.BUDĂI",
+      "district": "TARACLIA"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL CAIRACLIA",
+      "locality": "S.CAIRACLIA",
+      "district": "TARACLIA"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ LICEUL TEORETIC CIUMAI",
+      "locality": "S.CIUMAI",
+      "district": "TARACLIA"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ LICEUL TEORETIC „SFÎNTUL PAISII HILENDARSCHI”",
+      "locality": "S.CORTEN",
+      "district": "TARACLIA"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL NOVOSIOLOVCA",
+      "locality": "S.NOVOSIOLOVCA",
+      "district": "TARACLIA"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL „SFINȚII CHIRIL ȘI METODIU”, FILIALA SOFIEVCA",
+      "locality": "S.SOFIEVCA",
+      "district": "TARACLIA"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ LICEUL TEORETIC TVARDIȚA",
+      "locality": "S.TVARDIȚA",
+      "district": "TARACLIA"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ LICEUL TEORETIC \"HRISTO BOTEV\"",
+      "locality": "S.VALEA PERJEI",
+      "district": "TARACLIA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul „Mihai Eminescu”, or. Telenești",
+      "locality": "OR.TELENEȘTI",
+      "district": "TELENEȘTI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic \"Lucian Blaga\"",
+      "locality": "OR.TELENEȘTI",
+      "district": "TELENEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Băneștii Noi",
+      "locality": "S.BĂNEȘTII NOI",
+      "district": "TELENEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Bănești",
+      "locality": "S.BĂNEȘTI",
+      "district": "TELENEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Brînzenii Vechi",
+      "locality": "S.BRÎNZENII VECHI",
+      "district": "TELENEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Budăi",
+      "locality": "S.BUDĂI",
+      "district": "TELENEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Adrian Păunescu\"",
+      "locality": "S.CĂZĂNEȘTI",
+      "district": "TELENEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul ”Tudor Brădescu”",
+      "locality": "S.CHIȘTELNIȚA",
+      "district": "TELENEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul ”Valeriu Cordineanu”",
+      "locality": "S.CHIȚCANII VECHI",
+      "district": "TELENEȘTI"
+    },
+    {
+      "name": "Gimnaziul Cîșla",
+      "locality": "S.CÎȘLA",
+      "district": "TELENEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul ”Efim Josanu”",
+      "locality": "S.CIULUCANI",
+      "district": "TELENEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Coropceni",
+      "locality": "S.COROPCENI",
+      "district": "TELENEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Crăsnășeni",
+      "locality": "S.CRĂSNĂȘENI",
+      "district": "TELENEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Ghiliceni",
+      "locality": "S.GHILICENI",
+      "district": "TELENEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Inești",
+      "locality": "S.INEȘTI",
+      "district": "TELENEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul ”Eleonora Romanescu”",
+      "locality": "S.LEUȘENI",
+      "district": "TELENEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul ”Dmitrie Cantemir”, Mîndrești",
+      "locality": "S.MÎNDREȘTI",
+      "district": "TELENEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Negureni",
+      "locality": "S.NEGURENI",
+      "district": "TELENEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Ratuș",
+      "locality": "S.RATUȘ",
+      "district": "TELENEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul ”Vasile Anestiade”",
+      "locality": "S.SĂRĂTENII VECHI",
+      "district": "TELENEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul ”Nicolae Holban”",
+      "locality": "S.SCORȚENI",
+      "district": "TELENEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Țînțăreni",
+      "locality": "S.ȚINȚĂRENI",
+      "district": "TELENEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul Tîrșiței",
+      "locality": "S.TÎRȘIȚEI",
+      "district": "TELENEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul ”Pavel Bechet”",
+      "locality": "S.VADUL-LECA",
+      "district": "TELENEȘTI"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul ” Nicolae Popa”",
+      "locality": "S.VEREJENI",
+      "district": "TELENEȘTI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL \"DIMITRIE CANTEMIR\"",
+      "locality": "OR.CORNEȘTI",
+      "district": "UNGHENI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ LICEUL TEORETIC \"MIHAI EMINESCU\"",
+      "locality": "OR.UNGHENI",
+      "district": "UNGHENI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ LICEUL TEORETIC \"VASILE ALECSANDRI\"",
+      "locality": "OR.UNGHENI",
+      "district": "UNGHENI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ COMPLEXUL EDUCAȚIONAL GIMNAZIUL-GRĂDINIȚĂ „VLADIMIR CIMPOIEȘ” DIN SATUL BUCIUMENI, RAIONUL UNGHENI",
+      "locality": "S.BUCIUMENI",
+      "district": "UNGHENI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL BUMBĂTA",
+      "locality": "S.BUMBĂTA",
+      "district": "UNGHENI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL CETIRENI",
+      "locality": "S.CETIRENI",
+      "district": "UNGHENI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL CORNEȘTI",
+      "locality": "S.CORNEȘTI",
+      "district": "UNGHENI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL COSTULENI",
+      "locality": "S.COSTULENI",
+      "district": "UNGHENI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL FLORIȚOAIA NOUĂ",
+      "locality": "S.FLORIȚOAIA NOUĂ",
+      "district": "UNGHENI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL FRĂSINEȘTI",
+      "locality": "S.FRĂSINEȘTI",
+      "district": "UNGHENI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ LICEUL TEORETIC ”ELADA”",
+      "locality": "S.MĂCĂREȘTI",
+      "district": "UNGHENI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL MORENII NOI",
+      "locality": "S.MORENII NOI",
+      "district": "UNGHENI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL \"ION VATAMANU\"",
+      "locality": "S.PÎRLIȚA",
+      "district": "UNGHENI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ LICEUL TEORETIC \"ALEXEI MATEEVICI\"",
+      "locality": "S.PÎRLIȚA",
+      "district": "UNGHENI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ COMPLEXUL EDUCAȚIONAL GIMNAZIUL-GRĂDINIȚĂ DIN SATUL STOLNICENI, RAIONUL UNGHENI",
+      "locality": "S.STOLNICENI",
+      "district": "UNGHENI"
+    },
+    {
+      "name": "INSTITUȚIA PUBLICĂ GIMNAZIUL \"ANDREI CHIVRIGA\"",
+      "locality": "S.VALEA MARE",
+      "district": "UNGHENI"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic \"Dmitrii Caracioban\" din mun. Comrat",
+      "locality": "MUN.COMRAT",
+      "district": "UTA GAGAUZIA"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic \"Dmitrii Mavrodi\" din mun. Comrat",
+      "locality": "MUN.COMRAT",
+      "district": "UTA GAGAUZIA"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic \"Mihai Eminescu\" din mun. Comrat",
+      "locality": "MUN.COMRAT",
+      "district": "UTA GAGAUZIA"
+    },
+    {
+      "name": "Filiala Ceadîr-Lunga a Instituției Private de Învățămînt Liceul Teoretic ”Orizont”",
+      "locality": "OR.CEADÎR-LUNGA",
+      "district": "UTA GAGAUZIA"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic \"Fiodor Ianioglo\" din satul Cioc-Maidan",
+      "locality": "S.CIOC-MAIDAN",
+      "district": "UTA GAGAUZIA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul din satul Congazcicul de Sus",
+      "locality": "S.CONGAZCICUL DE SUS",
+      "district": "UTA GAGAUZIA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Nicolai Cebanov\" din satul Congaz",
+      "locality": "S.CONGAZ",
+      "district": "UTA GAGAUZIA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul \"Varvara Topal\" din satul Congaz",
+      "locality": "S.CONGAZ",
+      "district": "UTA GAGAUZIA"
+    },
+    {
+      "name": "Instituția Publică Liceul Teoretic Moldo-Turc ”Suleyman Demirel” din satul Congaz",
+      "locality": "S.CONGAZ",
+      "district": "UTA GAGAUZIA"
+    },
+    {
+      "name": "Instituția Publică Gimnaziul-Grădiniță de copii \"Marco Vovcioc\" din satul Ferapontievca",
+      "locality": "S.FERAPONTIEVCA",
+      "district": "UTA GAGAUZIA"
+    }
+  ]
+}
