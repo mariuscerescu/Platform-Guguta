@@ -223,7 +223,8 @@ export default function CompanionChat({ context, apiBase, loginHref, onClose, se
       } finally { await reader.cancel().catch(() => undefined); reader.releaseLock(); }
       if (!complete) throw new Error("Conexiunea s-a întrerupt înainte de încheierea răspunsului. Poți încerca din nou.");
       if (!active()) return;
-      setMessages(previous => [...previous, { id: `answer-${crypto.randomUUID()}`, role: "assistant", content: answer.trim() }]);
+      const completedAnswer = answer.trim();
+      setMessages(previous => [...previous, { id: `answer-${crypto.randomUUID()}`, role: "assistant", content: completedAnswer }]);
       setStreaming(""); answer = "";
     } catch (cause) {
       if (token !== generation.current) return;
