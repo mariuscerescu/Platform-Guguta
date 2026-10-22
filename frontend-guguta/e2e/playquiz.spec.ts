@@ -1,155 +1,105 @@
-/**
- * E2E Guguță — „Deschide în PlayQuiz” (ADR-023).
- *
- * Login și carnet reale (frontend 3001 + API 5056); quizul și endpointurile
- * PlayQuiz sunt simulate cu `page.route`, ca fluxul să nu depindă de worker,
- * de modelul de chat sau de un server PlayQuiz real.
- *
- * Rulare: cd frontend-guguta && npx playwright test e2e/playquiz.spec.ts
- */
-import { expect, test, type Page, type Route } from "@playwright/test";
+/** PlayQuiz export UI with synthetic API responses; no accounts or external exports. */
+import { expect, test, type Page } from "@playwright/test";
 
-const UNIQUE = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-const QUIZ_ID = "11111111-1111-4111-8111-111111111111";
-const QUESTION_ID = "22222222-2222-4222-8222-222222222222";
-const ATTEMPT_ID = "33333333-3333-4333-8333-333333333333";
+const BASE_PATH = process.env.GUGUTA_E2E_BASE_PATH ?? "";
+const NOTEBOOK_ID = "11111111-1111-4111-8111-111111111111";
+const QUIZ_ID = "22222222-2222-4222-8222-222222222222";
+const QUESTION_ID = "33333333-3333-4333-8333-333333333333";
+const ATTEMPT_ID = "44444444-4444-4444-8444-444444444444";
+const title = "Adunarea până la 10";
 
-async function login(page: Page, name: string) {
-  await page.goto("/login");
-  await page.getByLabel("Numele tău").fill(name);
-  await Promise.all([
-    page.waitForResponse((r) => r.url().includes("/auth/dev-login"), { timeout: 20_000 }),
-    page.getByRole("button", { name: "Intră în Guguță" }).click(),
-  ]);
-  await page.waitForURL("**/app");
-  await page.waitForFunction(
-    async () => (await fetch("/guguta-api/api/v1/auth/me", { credentials: "same-origin" })).ok,
-    undefined,
-    { timeout: 20_000 },
-  );
-}
-
-async function createNotebook(page: Page): Promise<string> {
-  await page.getByRole("button", { name: "Carnet nou" }).click();
-  await page.getByRole("button", { name: "Creează carnet" }).click();
-  await page.waitForURL(/\/notebook\/[0-9a-f-]+$/);
-  return page.url();
-}
-
-const quizSummary = {
-  id: QUIZ_ID,
-  quantity: "fewer",
-  difficulty: "easy",
-  question_types: ["multiple_choice"],
-  selected_source_ids: [],
-  status: "ready",
-  title: "Adunarea până la 10",
-  question_count: 1,
-};
-
-const quizDetail = {
-  ...quizSummary,
-  questions: [
-    {
-      id: QUESTION_ID,
-      position: 0,
-      question_type: "multiple_choice",
-      prompt: "Cât fac 3 + 4?",
-      hint: "Numără pe degete.",
-      concepts: ["adunare"],
-      options: [{ id: "a", text: "7" }, { id: "b", text: "6" }],
-      version: 1,
-    },
-  ],
-  active_attempt: null,
-};
-
-const attempt = { id: ATTEMPT_ID, current_index: 0, question_order: [QUESTION_ID], answers: {}, completed_at: null };
-
-/** Quiz gata, simulat, ca dialogul de quiz să se deschidă fără generare. */
-async function mockQuiz(page: Page) {
-  await page.route("**/guguta-api/api/v1/notebooks/*/quizzes", (route) =>
-    route.request().method() === "GET" ? route.fulfill({ json: [quizSummary] }) : route.continue(),
-  );
-  await page.route(`**/guguta-api/api/v1/notebooks/*/quizzes/${QUIZ_ID}`, (route) => route.fulfill({ json: quizDetail }));
-  await page.route(`**/guguta-api/api/v1/notebooks/*/quizzes/${QUIZ_ID}/attempts`, (route) =>
-    route.fulfill({ status: 201, json: attempt }),
-  );
-}
-
-/** /auth/me real, cu capabilitatea `playquiz` suprascrisă. */
-async function mockCapability(page: Page, enabled: boolean) {
-  await page.route("**/guguta-api/api/v1/auth/me", async (route: Route) => {
-    const response = await route.fetch();
-    const body = (await response.json()) as Record<string, unknown>;
-    await route.fulfill({ response, json: { ...body, capabilities: { playquiz: enabled } } });
+type Setup = { enabled?: boolean; kind?: string; outage?: boolean };
+async function setup(page: Page, { enabled = true, kind = "multiple_choice", outage = false }: Setup = {}) {
+  let consentGiven = false;
+  const bodies: Array<{ consent?: boolean }> = [];
+  const summary = { id: QUIZ_ID, status: "ready", title, quantity: "fewer", difficulty: "easy",
+    question_types: [kind], selected_source_ids: [], question_count: 1 };
+  const detail = { ...summary, active_attempt: null, questions: [{ id: QUESTION_ID, position: 0,
+    question_type: kind === "mixed" ? "multiple_choice" : kind, prompt: "Cât fac 3 + 4?", hint: "Numără.", concepts: [], version: 1,
+    options: kind === "short_answer" ? [] : [{ id: "a", text: "7" }, { id: "b", text: "6" }], accepted_answers: [] }] };
+  if (kind === "mixed") detail.questions.push({ ...detail.questions[0], id: "66666666-6666-4666-8666-666666666666", question_type: "short_answer", options: [] });
+  await page.addInitScript(() => {
+    localStorage.setItem("guguta_csrf", "synthetic-csrf");
+    localStorage.setItem("guguta.cookie-notice.v1", "seen");
   });
-}
-
-test.describe("Deschide în PlayQuiz", () => {
-  test("cu capabilitatea activă: acord o singură dată, apoi fereastră nouă cu URL-ul de handoff", async ({ page }) => {
-    await login(page, `E2E PlayQuiz ${UNIQUE}`);
-    const notebookUrl = await createNotebook(page);
-
-    let consentGiven = false;
-    const exportBodies: Array<{ consent?: boolean }> = [];
-    await mockCapability(page, true);
-    await mockQuiz(page);
-    await page.route(`**/guguta-api/api/v1/notebooks/*/quizzes/${QUIZ_ID}/playquiz`, async (route) => {
-      if (route.request().method() === "GET") {
-        return route.fulfill({
-          json: { enabled: true, consent_given: consentGiven, exportable: true, reason: null, exported: false, play_url: null, exported_at: null },
-        });
-      }
+  await page.route("**/guguta-api/api/v1/**", async route => {
+    const path = new URL(route.request().url()).pathname.split("/api/v1")[1];
+    if (path === "/auth/me") return route.fulfill({ json: { id: "synthetic-user", display_name: "Elev fictiv", roles: ["user"], capabilities: { playquiz: enabled } } });
+    if (path === "/auth/csrf") return route.fulfill({ json: { actor_id: "synthetic-user", csrf: "synthetic-csrf" } });
+    if (path === "/voice/providers") return route.fulfill({ json: { providers: [] } });
+    if (path === `/notebooks/${NOTEBOOK_ID}`) return route.fulfill({ json: { id: NOTEBOOK_ID, title: "Carnet fictiv", status: "active", origin: "personal", context_revision: 1 } });
+    if (path.endsWith("/playquiz")) {
+      if (route.request().method() === "GET") return route.fulfill({ json: { enabled, consent_given: consentGiven, exportable: true, exported: false } });
       const body = route.request().postDataJSON() as { consent?: boolean };
-      exportBodies.push(body);
-      if (!consentGiven && !body.consent) {
-        return route.fulfill({ status: 409, json: { code: "consent_required", message: "Este nevoie de acordul tău." } });
-      }
+      bodies.push(body);
+      expect(route.request().headers()["x-guguta-csrf"]).toBe("synthetic-csrf");
+      if (!enabled) return route.fulfill({ status: 409, json: { code: "playquiz_disabled", message: "Conexiunea cu PlayQuiz nu este încă disponibilă. Poți continua quizul aici." } });
+      if (outage) return route.fulfill({ status: 503, json: { code: "playquiz_unavailable", message: "PlayQuiz nu este disponibil acum." } });
       consentGiven = true;
-      // URL pe aceeași origine, ca testul să nu depindă de rețea; pagina poate fi 404.
-      return route.fulfill({ json: { url: "/handoff-simulat?token=abc", quiz_id: "99", play_url: "/quiz/custom/99", created: true, updated: false } });
-    });
-
-    await page.goto(notebookUrl);
-    await page.getByRole("button", { name: /Deschide Adunarea până la 10/ }).first().click();
-    await expect(page.getByRole("dialog").getByRole("heading", { name: "Adunarea până la 10" })).toBeVisible();
-
-    const openButton = page.getByTestId("open-in-playquiz");
-    await expect(openButton).toBeEnabled();
-    await openButton.click();
-    await expect(page.getByRole("heading", { name: "Deschide în PlayQuiz" })).toBeVisible();
-    expect(exportBodies).toHaveLength(0); // nimic nu pleacă înainte de acord
-
-    const [popup] = await Promise.all([
-      page.waitForEvent("popup"),
-      page.getByTestId("playquiz-consent-accept").click(),
-    ]);
-    await popup.waitForURL(/handoff-simulat\?token=abc/);
-    expect(exportBodies).toEqual([{ consent: true }]);
-    await expect(page.getByRole("heading", { name: "Deschide în PlayQuiz" })).toBeHidden();
-
-    // Al doilea click: fără dialog de acord.
-    const [second] = await Promise.all([page.waitForEvent("popup"), openButton.click()]);
-    await second.waitForURL(/handoff-simulat\?token=abc/);
-    expect(exportBodies).toEqual([{ consent: true }, { consent: false }]);
+      return route.fulfill({ json: { url: `${BASE_PATH}/handoff-simulat?token=synthetic`, quiz_id: "99", created: true } });
+    }
+    if (path === `/notebooks/${NOTEBOOK_ID}/quizzes`) return route.fulfill({ json: [summary] });
+    if (path.endsWith(`/quizzes/${QUIZ_ID}`)) return route.fulfill({ json: detail });
+    if (path.endsWith(`/quizzes/${QUIZ_ID}/attempts`)) return route.fulfill({ json: { id: ATTEMPT_ID, current_index: 0, question_order: [QUESTION_ID], answers: {}, completed_at: null } });
+    if (path.endsWith("/sessions")) return route.fulfill({ json: [{ id: "55555555-5555-4555-8555-555555555555", created_revision: 1 }] });
+    return route.fulfill({ json: [] });
   });
+  const statusReady = ["multiple_choice", "multiple_select"].includes(kind)
+    ? page.waitForResponse(response => response.url().endsWith(`/quizzes/${QUIZ_ID}/playquiz`) && response.request().method() === "GET")
+    : null;
+  await page.goto(`${BASE_PATH}/notebook/${NOTEBOOK_ID}`);
+  await page.locator("button.flashcard-deck-open").filter({ hasText: title }).click();
+  await expect(page.getByRole("dialog").getByRole("heading", { name: title })).toBeVisible();
+  if (statusReady) await (await statusReady).finished();
+  await expect(page).toHaveURL(new RegExp(`/notebook/${NOTEBOOK_ID}$`));
+  return bodies;
+}
 
-  test("fără capabilitate butonul lipsește; quizul rămâne jucabil în Guguță", async ({ page }) => {
-    await login(page, `E2E fără PlayQuiz ${UNIQUE}`);
-    const notebookUrl = await createNotebook(page);
-    await mockCapability(page, false);
-    await mockQuiz(page);
-    let statusCalls = 0;
-    await page.route(`**/guguta-api/api/v1/notebooks/*/quizzes/${QUIZ_ID}/playquiz`, (route) => {
-      statusCalls += 1;
-      return route.fulfill({ status: 409, json: { code: "playquiz_disabled", message: "inactiv" } });
-    });
+test("grid quiz stays native; consent then POST opens handoff in a new window", async ({ page }) => {
+  const bodies = await setup(page);
+  const button = page.getByTestId("open-in-playquiz");
+  await expect(button).toBeVisible();
+  await button.click();
+  await expect(page.getByRole("heading", { name: "Deschide în PlayQuiz" })).toBeVisible();
+  expect(bodies).toEqual([]);
+  const [popup] = await Promise.all([page.waitForEvent("popup"), page.getByTestId("playquiz-consent-accept").click()]);
+  await popup.waitForURL(/handoff-simulat\?token=synthetic/);
+  expect(bodies).toEqual([{ consent: true }]);
+  await expect(page.getByRole("heading", { name: "Deschide în PlayQuiz" })).toBeHidden();
+  const [again] = await Promise.all([page.waitForEvent("popup"), button.click()]);
+  await again.waitForURL(/handoff-simulat\?token=synthetic/);
+  expect(bodies).toEqual([{ consent: true }, { consent: false }]);
+});
 
-    await page.goto(notebookUrl);
-    await page.getByRole("button", { name: /Deschide Adunarea până la 10/ }).first().click();
-    await expect(page.getByRole("dialog").getByText("Cât fac 3 + 4?")).toBeVisible();
+test("without partner configuration the grid button remains visible and reports the POST error", async ({ page }) => {
+  const bodies = await setup(page, { enabled: false });
+  const button = page.getByTestId("open-in-playquiz");
+  await expect(button).toBeEnabled();
+  await button.click();
+  await expect(page.getByRole("alert").filter({ hasText: "Conexiunea cu PlayQuiz" })).toBeVisible();
+  expect(bodies).toEqual([{ consent: false }]);
+  await expect(page.getByRole("dialog").getByText("Cât fac 3 + 4?")).toBeVisible();
+  await expect(button).toBeEnabled();
+});
+
+test("multiple-select quizzes also show the export button", async ({ page }) => {
+  await setup(page, { kind: "multiple_select" });
+  await expect(page.getByTestId("open-in-playquiz")).toBeVisible();
+});
+
+for (const kind of ["short_answer", "mixed"]) {
+  test(`${kind} quizzes stay native without an export button`, async ({ page }) => {
+    await setup(page, { kind });
     await expect(page.getByTestId("open-in-playquiz")).toHaveCount(0);
-    expect(statusCalls).toBe(0);
   });
+}
+
+test("partner failure keeps the native quiz available and allows retry", async ({ page }) => {
+  const bodies = await setup(page, { outage: true });
+  await page.getByTestId("open-in-playquiz").click();
+  await page.getByTestId("playquiz-consent-accept").click();
+  await expect(page.getByRole("alert").filter({ hasText: "PlayQuiz nu este disponibil" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Deschide în PlayQuiz" })).toBeHidden();
+  expect(bodies).toEqual([{ consent: true }]);
+  await expect(page.getByTestId("open-in-playquiz")).toBeEnabled();
 });

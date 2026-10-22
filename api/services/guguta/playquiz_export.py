@@ -174,12 +174,13 @@ class PlayQuizClient:
         body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         url = f"{self._base_url}{path}"
         last_error: Exception | None = None
+        headers = self._headers(body)
         for attempt in range(self._retries + 1):
             try:
                 async with httpx.AsyncClient(
-                    timeout=self._timeout, transport=self._transport
+                    timeout=self._timeout, transport=self._transport, follow_redirects=False,
                 ) as client:
-                    response = await client.post(url, content=body, headers=self._headers(body))
+                    response = await client.post(url, content=body, headers=headers)
             except httpx.HTTPError as exc:
                 last_error = exc
                 logger.warning("playquiz request failed path=%s attempt=%s", path, attempt + 1)
@@ -193,7 +194,7 @@ class PlayQuizClient:
                     attempt + 1,
                 )
                 continue
-            if response.status_code >= 400:
+            if response.status_code >= 300:
                 logger.error(
                     "playquiz rejected request path=%s status=%s", path, response.status_code
                 )
@@ -350,7 +351,7 @@ class PlayQuizExportService:
         consent: bool,
     ) -> dict[str, Any]:
         if self._client is None:
-            raise PlayQuizDisabled("Deschiderea în PlayQuiz nu este activă pe această instanță.")
+            raise PlayQuizDisabled("Conexiunea cu PlayQuiz nu este încă disponibilă. Poți continua quizul aici.")
         quiz, questions, export, consent_given = await self._load(actor, notebook_id, quiz_id)
         payload = build_payload(quiz, questions, category=self._config.playquiz_category)
         if not consent_given and not consent:

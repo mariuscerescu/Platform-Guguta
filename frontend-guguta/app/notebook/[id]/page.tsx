@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { api, ApiError, getCsrf, me, Note, Notebook, Source, CatalogTemplate } from "../../../lib/api";
+import { api, ApiError, getCsrf, Note, Notebook, Source, CatalogTemplate } from "../../../lib/api";
 import EducationCompanion from "../../components/EducationCompanion";
 import { useChatWaitingMessage } from "../../components/useChatWaitingMessage";
 import {
@@ -256,22 +256,22 @@ function NotebookWorkspace({ nbId }: { nbId: string }) {
   const [quizHint,setQuizHint]=useState(false);
   const [quizExplanation,setQuizExplanation]=useState<string|null>(null);
   const [quizBusy,setQuizBusy]=useState(false);
-  // „Deschide în PlayQuiz”: capabilitatea vine din /auth/me, starea din API; acordul se cere o dată.
-  const [playquizEnabled,setPlayquizEnabled]=useState(false);
+  // Quizurile grilă păstrează butonul vizibil; API-ul verifică disponibilitatea și acordul.
   const [playquizStatus,setPlayquizStatus]=useState<PlayQuizStatus|null>(null);
   const [playquizBusy,setPlayquizBusy]=useState(false);
   const [playquizConsentOpen,setPlayquizConsentOpen]=useState(false);
   const [playquizMessage,setPlayquizMessage]=useState<string|null>(null);
-  useEffect(()=>{ void me().then((user)=>setPlayquizEnabled(!!user?.capabilities?.playquiz)); },[]);
+  const activeQuizIsGrid = !!activeQuiz?.questions?.length && activeQuiz.status === "ready" &&
+    activeQuiz.questions.every(question => question.question_type === "multiple_choice" || question.question_type === "multiple_select");
   useEffect(()=>{
     let cancelled=false;
     setPlayquizStatus(null);setPlayquizMessage(null);setPlayquizConsentOpen(false);
-    if(!playquizEnabled||!activeQuiz) return;
+    if(!activeQuizIsGrid||!activeQuiz) return;
     void api<PlayQuizStatus>("GET",`/api/v1/notebooks/${nbId}/quizzes/${activeQuiz.id}/playquiz`)
       .then((status)=>{ if(!cancelled) setPlayquizStatus(status); })
-      .catch(()=>{ /* Butonul lipsește dacă starea nu se poate citi; quizul rămâne jucabil aici. */ });
+      .catch(()=>{ /* Butonul rămâne vizibil; cererea de export arată eroarea dacă serviciul nu răspunde. */ });
     return ()=>{ cancelled=true; };
-  },[playquizEnabled,activeQuiz,nbId]);
+  },[activeQuizIsGrid,activeQuiz,nbId]);
   const [renamingTitle,setRenamingTitle]=useState(false);
   const [titleDraft,setTitleDraft]=useState("");
   const [titleSaving,setTitleSaving]=useState(false);
@@ -1037,21 +1037,13 @@ function NotebookWorkspace({ nbId }: { nbId: string }) {
     } catch(err) {
       win?.close();
       if(err instanceof ApiError&&err.code==="consent_required") setPlayquizConsentOpen(true);
-      else setPlayquizMessage((err as Error).message);
+      else {setPlayquizConsentOpen(false);setPlayquizMessage((err as Error).message);}
     } finally { setPlayquizBusy(false); }
   }
   async function retryQuiz(id:string) { try { await api("POST",`/api/v1/notebooks/${nbId}/quizzes/${id}/retry`,{}); await loadAll(); } catch(err){setError((err as Error).message);} }
   async function openQuiz(id:string, retake=false) {
     try {
       const quiz=await api<QuizArtifact>("GET",`/api/v1/notebooks/${nbId}/quizzes/${id}`);
-      // PlayQuiz currently supports complete quizzes made only of grid questions.
-      // Check their actual types before creating an attempt or opening a local dialog.
-      if (quiz.status === "ready" && quiz.questions?.length && quiz.questions.every(
-        (question) => question.question_type === "multiple_choice" || question.question_type === "multiple_select"
-      )) {
-        window.location.assign(withBase(`/playquiz/quiz/categorized/${encodeURIComponent(quiz.id)}?notebook=${encodeURIComponent(nbId)}`));
-        return;
-      }
       const attempt=!retake&&quiz.active_attempt?quiz.active_attempt:await api<QuizAttempt>("POST",`/api/v1/notebooks/${nbId}/quizzes/${id}/attempts`,{});
       setActiveQuiz(quiz);setQuizAttempt(attempt);setQuizResponse("");setQuizHint(false);setQuizExplanation(null);
     } catch(err){setError((err as Error).message);}
@@ -1832,7 +1824,7 @@ function NotebookWorkspace({ nbId }: { nbId: string }) {
       {activeQuiz&&quizAttempt&&(
         <div className="modal-overlay flashcard-study-overlay" role="presentation"><div className="flashcard-study quiz-study" role="dialog" aria-modal="true">
           <div className="flashcard-study-scroll">
-          <header><div><h2>{activeQuiz.title||"Quiz"}</h2><p>Întrebări din materialele selectate</p></div><div className="flashcard-study-actions">{playquizEnabled&&playquizStatus&&<button type="button" className="chip" data-testid="open-in-playquiz" disabled={playquizBusy||!playquizStatus.exportable} title={playquizStatus.exportable?"Se deschide într-o fereastră nouă, pe play-quiz.com":(playquizStatus.reason??"Doar quizurile cu întrebări grilă pot fi deschise în PlayQuiz.")} onClick={()=>playquizStatus.consent_given?void openInPlayQuiz(false):setPlayquizConsentOpen(true)}>{playquizBusy?"Se trimite…":"Deschide în PlayQuiz"}</button>}<button className="icon-btn" onClick={()=>{setActiveQuiz(null);setQuizAttempt(null)}} aria-label="Închide">×</button></div></header>
+          <header><div><h2>{activeQuiz.title||"Quiz"}</h2><p>Întrebări din materialele selectate</p></div><div className="flashcard-study-actions">{activeQuizIsGrid&&<button type="button" className="chip" data-testid="open-in-playquiz" disabled={playquizBusy||playquizStatus?.exportable===false} title={playquizStatus?.exportable===false?(playquizStatus.reason??"Acest quiz nu poate fi trimis în PlayQuiz."):"Deschide quizul într-o fereastră nouă, pe play-quiz.com"} onClick={()=>playquizStatus?.consent_given||playquizStatus?.enabled===false?void openInPlayQuiz(false):setPlayquizConsentOpen(true)}>{playquizBusy?"Se trimite…":"Deschide în PlayQuiz"}</button>}<button className="icon-btn" onClick={()=>{setActiveQuiz(null);setQuizAttempt(null)}} aria-label="Închide">×</button></div></header>
           {playquizMessage&&<p className="error-text" role="alert">{playquizMessage}</p>}
           {quizAttempt.completed_at?(
             <div className="flashcard-complete"><span>✓</span><h3>Quiz încheiat</h3><p><strong>{Object.values(quizAttempt.answers).filter(v=>v.status==="correct").length}</strong> din <strong>{quizAttempt.question_order.length}</strong> răspunsuri corecte</p><div className="modal-actions"><button className="chip" onClick={()=>{setQuizAttempt({...quizAttempt,completed_at:null,current_index:0});}}>Revizuiește</button><button className="create-btn" onClick={()=>void openQuiz(activeQuiz.id,true)}>Reia quiz-ul</button></div></div>

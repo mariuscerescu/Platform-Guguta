@@ -87,9 +87,10 @@ Detalii:
   butonul arată o eroare scurtă; quizul rămâne jucabil în Guguță.
 - **Fereastra nouă**: `window.open` se apelează sincron la click (înainte de
   `await`), altfel blocatoarele de popup o opresc; la eroare fereastra se închide.
-- **Vizibilitate**: butonul apare doar când (a) capabilitatea `playquiz` din
-  `/api/v1/auth/me` este activă (variabilele de mediu setate) și (b) quizul are
-  numai întrebări grilă. Quizurile mixte rămân doar în Guguță (ca în ADR-021).
+- **Vizibilitate (actualizare 22.10.2026)**: butonul apare la quizurile gata cu
+  numai întrebări grilă. Capabilitatea `playquiz` din `/api/v1/auth/me` indică
+  disponibilitatea conexiunii. Fără configurare, apăsarea primește mesajul
+  `playquiz_disabled`, fără apel extern. Quizurile mixte rămân doar în Guguță.
 
 ---
 
@@ -201,7 +202,8 @@ pentru conturile venite din Guguță.
 > **Stare (21.10.2026):** backend-ul și frontend-ul de mai jos sunt implementate
 > (vezi ADR-023 §Implementare). Până la confirmarea contractului, exportul se
 > testează cu un server PlayQuiz simulat; pe instanța publică variabilele
-> `GUGUTA_PLAYQUIZ_*` rămân goale, deci butonul nu apare.
+> `GUGUTA_PLAYQUIZ_*` rămân goale. Din 22.10.2026 butonul este vizibil la quizurile
+> grilă, iar API-ul raportează explicit indisponibilitatea până la configurare.
 
 ### Backend (`api/`, `open_notebook/`, `alembic/`)
 
@@ -227,13 +229,13 @@ pentru conturile venite din Guguță.
 ### Frontend (`frontend-guguta/`)
 
 - Butonul „Deschide în PlayQuiz” în dialogul quizului (`app/notebook/[id]/page.tsx`),
-  cu stări: inactiv (capabilitate lipsă sau întrebări non-grilă, cu tooltip),
+  cu stări: ascuns pentru întrebări non-grilă, eroare clară când conexiunea lipsește,
   „Se trimite…”, succes (fereastra nouă), eroare (mesaj scurt). Prima apăsare
   arată dialogul de consimțământ (§5), reținut pe utilizator.
 - Se elimină linkul `PlayQuiz` din `SiteHeader.tsx` (sau devine „Contul meu
   PlayQuiz” prin handoff fără quiz, faza 4) și lista albă `/playquiz` din
   `app/login/page.tsx`.
-- Test Playwright: butonul lipsește fără capabilitate; cu API simulat, apăsarea
+- Test Playwright: butonul rămâne vizibil fără capabilitate; cu API simulat, apăsarea
   deschide URL-ul primit.
 
 ### Dezafectarea integrării locale (pe server, după ce fluxul nou merge)

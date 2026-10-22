@@ -133,9 +133,11 @@ async def test_client_sends_partner_headers_and_hmac_signature() -> None:
 @pytest.mark.asyncio
 async def test_client_retries_on_5xx_then_succeeds() -> None:
     calls = {"n": 0}
+    keys = []
 
     async def handler(request: httpx.Request) -> httpx.Response:
         calls["n"] += 1
+        keys.append(request.headers["Idempotency-Key"])
         if calls["n"] < 3:
             return httpx.Response(503, text="down")
         return httpx.Response(200, json={"url": "https://play-quiz.example/handoff?token=t", "expires_in": 60})
@@ -144,6 +146,21 @@ async def test_client_retries_on_5xx_then_succeeds() -> None:
     result = await client.handoff(account_external_id="u1", quiz_id="5")
     assert result["url"].endswith("token=t")
     assert calls["n"] == 3
+    assert len(set(keys)) == 1  # aceeași cerere nu se dublează când răspunsul se pierde
+
+
+@pytest.mark.asyncio
+async def test_client_does_not_follow_partner_redirects() -> None:
+    calls = []
+
+    def redirect(request: httpx.Request) -> httpx.Response:
+        calls.append(str(request.url))
+        return httpx.Response(307, headers={"Location": "https://other.example/collect"})
+
+    client = PlayQuizClient("https://pq.example/api", "synthetic-key", transport=httpx.MockTransport(redirect))
+    with pytest.raises(PlayQuizUnavailable):
+        await client.ensure_account(external_id="synthetic-user", email=None, display_name="Elev fictiv")
+    assert calls == ["https://pq.example/api/partner/guguta/accounts"]
 
 
 @pytest.mark.asyncio

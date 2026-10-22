@@ -13,9 +13,11 @@ ADR-021 a integrat PlayQuiz găzduind întreaga platformă (Java, Next.js, Oracl
 3. Comunicarea folosește o cheie de partener emisă de PlayQuiz, ținută doar în mediul API-ului Guguță; opțional semnătură HMAC. Exporturile sunt idempotente (`external_id` + `content_hash`) și reținute în tabelul `playquiz_exports`.
 4. Guguță rămâne autoritatea pentru conținutul quizului; PlayQuiz este autoritatea pentru joc, scoruri și contul de jucător. Rezultatele pot reveni în Guguță printr-un webhook semnat, într-o fază ulterioară.
 5. Integrarea locală din ADR-021 (stack `guguta-playquiz`, rutele nginx `/edu-platform/playquiz*`, endpointurile `/auth/playquiz-*`, serviciul `playquiz.py`) este deprecată și se elimină după ce fluxul nou funcționează în producție. ADR-021 trece la starea „înlocuit de ADR-023”.
-6. Butonul se afișează numai când capabilitatea `playquiz` din `/api/v1/auth/me` este activă (URL și cheie configurate) și quizul are numai întrebări grilă. Primul export cere consimțământul explicit al utilizatorului pentru transmiterea numelui și a e-mailului.
+6. La cererea utilizatorului din 22 octombrie 2026, butonul se afișează la quizurile gata alcătuite numai din întrebări grilă, inclusiv înainte de configurarea partenerului. Capabilitatea `playquiz` raportează în continuare disponibilitatea reală a conexiunii. Fără configurare, apăsarea primește eroarea controlată `playquiz_disabled`, iar quizul rămâne jucabil aici. Primul export efectiv cere consimțământul explicit al utilizatorului pentru transmiterea numelui și a e-mailului.
 
 Contractul de partener, maparea datelor, etapele și întrebările deschise sunt în `docs/guguta/PLAN_INTEGRARE_PLAYQUIZ_COM.md`.
+
+Actualizare 22.10.2026: redirecționarea automată a quizurilor grilă spre instanța locală a fost eliminată, iar butonul folosește cererea POST de export. Linkul vechi din antet a fost eliminat. Endpointurile PlayQuiz și cheia de partener nu sunt încă pregătite (confirmat de utilizator); partea externă nu este declarată activă. Reîncercările HTTP păstrează același `Idempotency-Key` și nu urmează redirectări cu cheia de partener.
 
 ## Implementare
 
