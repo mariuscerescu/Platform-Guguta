@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { GugutaContext } from "./guguta-companion";
 import { useCompanionDictation } from "./useCompanionDictation";
+import { useChatWaitingMessage } from "./useChatWaitingMessage";
 
 type Message = { id: string; role: string; content: string };
 type Target = { notebookId: string; sessionId: string };
@@ -37,6 +38,7 @@ export default function CompanionChat({ context, apiBase, loginHref, onClose, se
   const [draft, setDraft] = useState("");
   const [streaming, setStreaming] = useState("");
   const [sending, setSending] = useState(false);
+  const waitingMessage = useChatWaitingMessage(sending && !streaming);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
   const actor = useRef<string | null>(null);
@@ -245,7 +247,7 @@ export default function CompanionChat({ context, apiBase, loginHref, onClose, se
     <div className="companion-chat__messages" ref={messageBox} role="log" aria-label="Mesajele conversației" aria-live="polite" aria-busy={sending}>
       {recentMessages.map(message => <div key={message.id} className={`companion-chat__message companion-chat__message--${message.role}`} aria-label={message.role === "user" ? "Tu" : "Guguță"}><span className="companion-chat__author">{message.role === "user" ? "Tu" : "Guguță"}</span><p>{message.role === "user" ? message.content.replace(/^Context educațional: [^\n]*\.\n\n/, "") : message.content}</p></div>)}
       {streaming && <div className="companion-chat__message companion-chat__message--assistant" aria-label="Guguță"><span className="companion-chat__author">Guguță</span><p>{streaming}</p></div>}
-      {sending && !streaming && <div className="companion-chat__message companion-chat__message--assistant"><span className="companion-chat__author">Guguță</span><div className="companion-chat__typing" role="status" aria-label="Guguță se gândește"><span aria-hidden="true" /><span aria-hidden="true" /><span aria-hidden="true" /></div></div>}
+      {sending && !streaming && <div className="companion-chat__message companion-chat__message--assistant"><span className="companion-chat__author">Guguță</span><div className="companion-chat__waiting" role="status"><span>{waitingMessage}</span><div className="companion-chat__typing" aria-hidden="true"><span /><span /><span /></div></div></div>}
       {authState === "guest" && <p className="companion-chat__hint"><a href={loginHref}>Autentifică-te</a> pentru a vorbi cu Guguță.</p>}
     </div>
     {(error || dictation.error) && <p className="companion-chat__error" role="alert">{error || dictation.error}{authState === "error" && <> <button type="button" onClick={() => setRetry(value => value + 1)}>Reîncearcă</button></>}</p>}

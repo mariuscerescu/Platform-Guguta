@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api, ApiError, getCsrf, me, Note, Notebook, Source, CatalogTemplate } from "../../../lib/api";
 import EducationCompanion from "../../components/EducationCompanion";
+import { useChatWaitingMessage } from "../../components/useChatWaitingMessage";
 import {
   SHOW_ANSWER_REFERENCES,
   withoutReferenceMarkers,
@@ -223,6 +224,7 @@ function NotebookWorkspace({ nbId }: { nbId: string }) {
 
   const [elapsed, setElapsed] = useState(0);
   const [streaming, setStreaming] = useState<string | null>(null);
+  const waitingMessage = useChatWaitingMessage(sending && streaming === "");
   const [audioModalOpen, setAudioModalOpen] = useState(false);
   const [audioFormat, setAudioFormat] = useState<"brief" | "deep_dive">("brief");
   const [audioSourceIds, setAudioSourceIds] = useState<string[]>([]);
@@ -1424,8 +1426,8 @@ function NotebookWorkspace({ nbId }: { nbId: string }) {
                     <MarkdownContent content={answerText(streaming)} />
                   )}
                   {streaming === "" && (
-                    <span className="muted">
-                      {elapsed < 15 ? "Se generează…" : `Se generează… ${elapsed}s`}
+                    <span className="muted" role="status">
+                      {waitingMessage}
                     </span>
                   )}
                 </div>
@@ -1477,7 +1479,7 @@ function NotebookWorkspace({ nbId }: { nbId: string }) {
                 onClick={() => void send()}
                 disabled={sending || uploadingAttachments || resettingChat || sessionId === null || !attachmentsReady || (!draft.trim() && !pendingAttachments.length)}
                 aria-label="Trimite"
-                title={sending ? `Se generează… ${elapsed}s` : "Trimite"}
+                title={sending ? waitingMessage : "Trimite"}
               >
                 {sending ? (
                   <span style={{ fontSize: 11, fontWeight: 600 }}>{elapsed}s</span>

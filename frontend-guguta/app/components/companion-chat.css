@@ -30,6 +30,7 @@
 .companion-chat__dictation-spinner { animation: companion-dictation-spin 1s linear infinite; }
 @keyframes companion-dictation-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .companion-chat__dictation-spinner { animation: none; } }
+.companion-chat__waiting { display: flex; align-items: center; flex-wrap: wrap; gap: 9px; }
 .companion-chat__typing { display: inline-flex; align-items: center; gap: 5px; min-height: 25px; padding: 4px 0; }
 .companion-chat__typing > span { width: 6px; height: 6px; border-radius: 50%; background: #a9cbed; animation: companion-chat-thinking 1.2s ease-in-out infinite; }
 .companion-chat__typing > span:nth-child(2) { animation-delay: .15s; }
