@@ -845,7 +845,16 @@ class ChatService:
             context = await self._search.authorize_chunks(actor_id, notebook_id, context)
         if callable(getattr(self._search, "context_revision", None)) and await self._search.context_revision(actor_id, notebook_id) is None:
             raise ChatSessionNotFound()
-        answer = await invoke(self._provider.generate, question, context, history)
+        if getattr(self._provider, "supports_source_catalog", False):
+            # Final generation is a separate model call; tool-agent messages do
+            # not reach it. Refresh the catalog under the current actor/session
+            # so an empty retrieval is never mistaken for missing materials.
+            if callable(getattr(self._search, "list_sources", None)):
+                sources = await self._search.list_sources(actor_id, notebook_id)
+            answer = await invoke(self._provider.generate, question, context, history,
+                                  available_sources=sources)
+        else:
+            answer = await invoke(self._provider.generate, question, context, history)
         if result is not None:
             usage = [*result.usage, (answer.prompt_tokens, answer.completion_tokens, answer.estimated_cost)]
             totals = [sum(row[i] for row in usage if row[i] is not None)

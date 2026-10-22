@@ -159,3 +159,43 @@ async def test_google_internal_failure_retries_once_but_invalid_request_does_not
             with pytest.raises(OpenRouterError, match="Gemini"):
                 await client.post("chat/completions", {"messages": []})
         assert len(calls) == expected_calls
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("still_available", [True, False])
+async def test_final_answer_receives_fresh_catalog_even_when_agent_needs_no_excerpts(still_available):
+    from api.services.guguta.chat import ChatService
+
+    source = {"source_id": str(uuid.uuid4()), "name": "Manual sintetic de matematică",
+              "mime_type": "application/pdf", "is_attachment": False}
+    fresh = [source] if still_available else []
+    search = SimpleNamespace(
+        list_sources=AsyncMock(side_effect=[[source], fresh]),
+        context_revision=AsyncMock(return_value=1),
+        authorize_chunks=AsyncMock(return_value=[]),
+    )
+    requests = []
+
+    def respond(request):
+        body = json.loads(request.content)
+        requests.append(body)
+        if body.get("tools"):
+            return httpx.Response(200, json={"choices": [{"finish_reason": "stop", "message": {"content": "GATA"}}]})
+        payload = json.loads(body["messages"][-1]["content"])
+        assert payload["untrusted_source_fragments"] == []
+        assert payload["untrusted_available_sources"] == fresh
+        assert "ai acces la materialele enumerate" in body["messages"][0]["content"]
+        return httpx.Response(200, json=completion({"paragraphs": [{
+            "text": "Am acces la manualul selectat." if still_available else "Nu sunt materiale selectate.",
+            "source_ids": [],
+        }]}))
+
+    provider = GeminiChatProvider(config(chat_answer_review=False), transport=httpx.MockTransport(respond))
+    service = ChatService(None, search, provider)
+    service._agent = NotebookChatAgent(search, None)
+    answer, chunks = await service._answer(uuid.uuid4(), uuid.uuid4(), "Ai acces la materiale?", [], [
+        {"role": "assistant", "content": "Nu ai atașat niciun document."},
+    ])
+    assert len(requests) == 2
+    assert search.list_sources.await_count == 2
+    assert chunks == [] and answer.cited == []
