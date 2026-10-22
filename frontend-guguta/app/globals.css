@@ -5614,6 +5614,10 @@ main.container:has(> .nb-shell) {
 .composer.has-attachments .composer-notice { position: static; margin: 0 0 7px; white-space: normal; }
 .composer.has-attachments textarea.has-composer-notice { padding-top: 17px; }
 
+.login-shell { grid-template-columns: minmax(0, 480px); grid-template-rows: auto auto; justify-content: center; align-content: start; gap: 24px; padding-top: 48px; }
+.login-heading h1 { margin: 0; font-size: clamp(1.6rem, 2.6vw, 2.25rem); line-height: 1.15; letter-spacing: -0.03em; text-align: center; }
+.login-shell .auth-card { align-self: start; width: 100%; }
+
 /* Classic registration, with a local school directory and manual entry. */
 .register-shell { grid-template-columns: minmax(0, 1fr) minmax(360px, 560px); padding-top: 40px; padding-bottom: 40px; }
 .register-shell .auth-card { align-self: start; }

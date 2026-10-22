@@ -53,11 +53,10 @@ export default function LoginPage() {
   }
 
   return (
-    <section className="auth-shell" aria-labelledby="login-title">
-      <div className="auth-visual">
-        <h1 id="login-title">Intră în Guguță</h1>
-        <p>Continuă să lucrezi cu materialele tale, carnetele digitale și răspunsurile cu surse.</p>
-      </div>
+    <section className="auth-shell login-shell" aria-labelledby="login-title">
+      <header className="login-heading">
+        <h1 id="login-title">Accesează materialele din platformă</h1>
+      </header>
 
       <div className="auth-card">
         {error && <p className="error-text">{error}</p>}
